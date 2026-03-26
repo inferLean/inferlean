@@ -35,7 +35,7 @@ jobs:
           if git tag --points-at HEAD | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
             tag="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)"
           else
-            tag="$(./scripts/next-version.sh)"
+            tag="$(bash ./scripts/next-version.sh)"
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -a "${tag}" -m "${tag}"
@@ -140,7 +140,7 @@ jobs:
           DCGM_TARBALL_URL: ${{ vars.DCGM_TARBALL_URL }}
         run: |
           set -euo pipefail
-          ./scripts/package-linux-tools.sh \
+          bash ./scripts/package-linux-tools.sh \
             --arch "${TARGET_ARCH}" \
             --release-dir "dist/release" \
             --tools-dir "dist/tools"
