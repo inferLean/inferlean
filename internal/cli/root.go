@@ -32,7 +32,8 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 	}
 
 	cmd.SetContext(ctx)
-	cmd.PersistentFlags().BoolVar(&opts.debug, "debug", false, "show discovery debug output")
+	cmd.PersistentFlags().BoolVar(&opts.debug, "debug", false, "show debug output")
+	cmd.AddCommand(newCollectCommand())
 	cmd.AddCommand(newDiscoverCommand())
 	cmd.AddCommand(newVersionCommand())
 

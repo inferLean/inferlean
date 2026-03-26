@@ -73,6 +73,7 @@ jobs:
           set -euo pipefail
           "${RUNNER_TEMP}/inferlean-bin/inferlean" version
           "${RUNNER_TEMP}/inferlean-bin/inferlean" discover --help
+          "${RUNNER_TEMP}/inferlean-bin/inferlean" collect --help
 
       - name: Verify Linux tool bundle
         if: matrix.os == 'linux'
@@ -83,6 +84,8 @@ jobs:
           test -d "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/node_exporter"
           test -d "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/dcgm"
           test -f "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/TOOLS.txt"
+          test -n "$(find "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/prometheus" -type f -name prometheus | head -n1)"
+          test -n "$(find "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/node_exporter" -type f -name node_exporter | head -n1)"
 
   smoke-windows:
     needs: resolve-release
@@ -107,3 +110,4 @@ jobs:
           $ErrorActionPreference = 'Stop'
           & "$env:RUNNER_TEMP\inferlean-bin\inferlean.exe" version
           & "$env:RUNNER_TEMP\inferlean-bin\inferlean.exe" discover --help
+          & "$env:RUNNER_TEMP\inferlean-bin\inferlean.exe" collect --help

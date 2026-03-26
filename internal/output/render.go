@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/inferLean/inferlean/internal/collector"
 	"github.com/inferLean/inferlean/internal/discovery"
 )
 
@@ -77,6 +78,50 @@ func RenderAmbiguity(w io.Writer, result discovery.Result) {
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Rerun with --pid to select one deployment explicitly.")
+}
+
+func RenderCollection(w io.Writer, target discovery.Result, result collector.Result) {
+	selected := target.Selected
+	if selected == nil {
+		return
+	}
+
+	fmt.Fprintln(w, "InferLean collected a local run artifact.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Selected target")
+	fmt.Fprintf(w, "  Model: %s\n", valueOrUnknown(displayModelName(selected.RuntimeConfig)))
+	fmt.Fprintf(w, "  PID: %d\n", selected.PrimaryPID)
+	fmt.Fprintf(w, "  Why this target: %s\n", target.Reason)
+	fmt.Fprintf(w, "  Artifact: %s\n", result.ArtifactPath)
+	if result.MinimumEvidenceMet {
+		fmt.Fprintln(w, "  Minimum evidence set: fully met")
+	} else {
+		fmt.Fprintln(w, "  Minimum evidence set: not fully met")
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Collection quality")
+	sourceNames := make([]string, 0, len(result.Artifact.CollectionQuality.SourceStates))
+	for name := range result.Artifact.CollectionQuality.SourceStates {
+		sourceNames = append(sourceNames, name)
+	}
+	sort.Strings(sourceNames)
+	for _, name := range sourceNames {
+		source := result.Artifact.CollectionQuality.SourceStates[name]
+		line := fmt.Sprintf("  %s: %s", name, source.Status)
+		if source.Reason != "" {
+			line += " (" + source.Reason + ")"
+		}
+		fmt.Fprintln(w, line)
+	}
+
+	if len(result.Warnings) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Warnings")
+		for _, warning := range result.Warnings {
+			fmt.Fprintf(w, "  - %s\n", warning)
+		}
+	}
 }
 
 func writeConfigLine(w io.Writer, label, value string) {
