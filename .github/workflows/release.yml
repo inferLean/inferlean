@@ -1,0 +1,204 @@
+name: release
+
+'on':
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: cli-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine release tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+          if git tag --points-at HEAD | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            tag="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)"
+          else
+            tag="$(./scripts/next-version.sh)"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "${tag}" -m "${tag}"
+            git push origin "${tag}"
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./...
+
+  build:
+    needs:
+      - version
+      - verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            archive_ext: tar.gz
+            package_tools: true
+          - os: linux
+            arch: arm64
+            archive_ext: tar.gz
+            package_tools: true
+          - os: windows
+            arch: amd64
+            archive_ext: zip
+            package_tools: false
+          - os: windows
+            arch: arm64
+            archive_ext: zip
+            package_tools: false
+          - os: darwin
+            arch: amd64
+            archive_ext: tar.gz
+            package_tools: false
+          - os: darwin
+            arch: arm64
+            archive_ext: tar.gz
+            package_tools: false
+
+    env:
+      RELEASE_TAG: ${{ needs.version.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
+      TARGET_OS: ${{ matrix.os }}
+      TARGET_ARCH: ${{ matrix.arch }}
+      ARCHIVE_EXT: ${{ matrix.archive_ext }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/bin
+
+          binary="inferlean"
+          if [ "${TARGET_OS}" = "windows" ]; then
+            binary="${binary}.exe"
+          fi
+
+          CGO_ENABLED=0 GOOS="${TARGET_OS}" GOARCH="${TARGET_ARCH}" \
+            go build -trimpath \
+              -ldflags "-X github.com/inferLean/inferlean/internal/cli.version=${RELEASE_VERSION}" \
+              -o "dist/bin/${binary}" ./cmd/inferlean
+
+      - name: Stage Linux collector tools
+        if: matrix.package_tools
+        shell: bash
+        env:
+          PROMETHEUS_TARBALL_URL: ${{ vars.PROMETHEUS_TARBALL_URL }}
+          NODE_EXPORTER_TARBALL_URL: ${{ vars.NODE_EXPORTER_TARBALL_URL }}
+          DCGM_TARBALL_URL: ${{ vars.DCGM_TARBALL_URL }}
+        run: |
+          set -euo pipefail
+          ./scripts/package-linux-tools.sh \
+            --arch "${TARGET_ARCH}" \
+            --release-dir "dist/release" \
+            --tools-dir "dist/tools"
+
+      - name: Assemble archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive_name="inferlean_${RELEASE_VERSION}_${TARGET_OS}_${TARGET_ARCH}.${ARCHIVE_EXT}"
+          out_dir="dist/archive/${TARGET_OS}_${TARGET_ARCH}"
+          mkdir -p "${out_dir}"
+
+          if [ "${TARGET_OS}" = "windows" ]; then
+            cp "dist/bin/inferlean.exe" "${out_dir}/inferlean.exe"
+          else
+            cp "dist/bin/inferlean" "${out_dir}/inferlean"
+          fi
+
+          if [ -d "dist/release/${TARGET_OS}_${TARGET_ARCH}" ]; then
+            cp -R "dist/release/${TARGET_OS}_${TARGET_ARCH}/." "${out_dir}/"
+          fi
+
+          if [ "${ARCHIVE_EXT}" = "zip" ]; then
+            (cd "${out_dir}" && zip -r "../../${archive_name}" .)
+          else
+            (cd "${out_dir}" && tar -czf "../../${archive_name}" .)
+          fi
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: inferlean-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/${{ format('inferlean_{0}_{1}_{2}.{3}', needs.version.outputs.version, matrix.os, matrix.arch, matrix.archive_ext) }}
+          if-no-files-found: error
+
+  publish:
+    needs:
+      - version
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/artifacts
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          assets=(dist/artifacts/*/*)
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
+          else
+            gh release create "${RELEASE_TAG}" "${assets[@]}" --title "${RELEASE_TAG}" --generate-notes
+          fi

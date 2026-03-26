@@ -1,0 +1,43 @@
+project_name: inferlean
+
+builds:
+  - id: inferlean
+    main: ./cmd/inferlean
+    binary: inferlean
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/inferLean/inferlean/internal/cli.version={{ .Version }}
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: inferlean
+    builds:
+      - inferlean
+    name_template: >-
+      inferlean_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README*
+      - dist/release/{{ .Os }}_{{ .Arch }}/**
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ .Version }}-snapshot"
+
+release:
+  draft: false
+  prerelease: false
+
+changelog:
+  disable: true

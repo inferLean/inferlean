@@ -1,0 +1,54 @@
+[
+  {
+    "name": "current_vllm_serve",
+    "args": [
+      "vllm",
+      "serve",
+      "meta-llama/Llama-3.1-8B-Instruct",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--tensor-parallel-size",
+      "2",
+      "--max-num-seqs",
+      "256"
+    ],
+    "want": {
+      "matched": true,
+      "entry_point": "vllm serve",
+      "model": "meta-llama/Llama-3.1-8B-Instruct",
+      "host": "0.0.0.0",
+      "port": 8000,
+      "tensor_parallel_size": 2,
+      "max_num_seqs": 256,
+      "quantization": ""
+    }
+  },
+  {
+    "name": "legacy_api_server",
+    "args": [
+      "python",
+      "-m",
+      "vllm.entrypoints.openai.api_server",
+      "--model",
+      "mistralai/Mistral-7B-Instruct-v0.3",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "9000",
+      "--quantization",
+      "awq"
+    ],
+    "want": {
+      "matched": true,
+      "entry_point": "vllm.entrypoints.openai.api_server",
+      "model": "mistralai/Mistral-7B-Instruct-v0.3",
+      "host": "127.0.0.1",
+      "port": 9000,
+      "tensor_parallel_size": 0,
+      "max_num_seqs": 0,
+      "quantization": "awq"
+    }
+  }
+]

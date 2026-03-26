@@ -1,0 +1,78 @@
+name: post-release-smoke
+
+'on':
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            os: linux
+            arch: amd64
+          - runner: macos-latest
+            os: darwin
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Install from published release
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          bash ./scripts/install.sh \
+            --version "${RELEASE_TAG}" \
+            --install-dir "${RUNNER_TEMP}/inferlean-bin"
+
+      - name: Verify installed binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${RUNNER_TEMP}/inferlean-bin/inferlean" version
+          "${RUNNER_TEMP}/inferlean-bin/inferlean" discover --help
+
+      - name: Verify Linux tool bundle
+        if: matrix.os == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/prometheus"
+          test -d "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/node_exporter"
+          test -d "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/dcgm"
+          test -f "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/TOOLS.txt"
+
+  smoke-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Install from published release
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\scripts\install.ps1 -Version $env:RELEASE_TAG -InstallDir "$env:RUNNER_TEMP\inferlean-bin"
+
+      - name: Verify installed binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:RUNNER_TEMP\inferlean-bin\inferlean.exe" version
+          & "$env:RUNNER_TEMP\inferlean-bin\inferlean.exe" discover --help
