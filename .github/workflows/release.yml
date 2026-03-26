@@ -134,10 +134,6 @@ jobs:
       - name: Stage Linux collector tools
         if: matrix.package_tools
         shell: bash
-        env:
-          PROMETHEUS_TARBALL_URL: ${{ vars.PROMETHEUS_TARBALL_URL }}
-          NODE_EXPORTER_TARBALL_URL: ${{ vars.NODE_EXPORTER_TARBALL_URL }}
-          DCGM_TARBALL_URL: ${{ vars.DCGM_TARBALL_URL }}
         run: |
           set -euo pipefail
           bash ./scripts/package-linux-tools.sh \

@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+PROMETHEUS_VERSION="3.10.0"
+NODE_EXPORTER_VERSION="1.10.2"
+DCGM_EXPORTER_VERSION="4.5.2-4.8.1"
+
 arch=""
 release_dir="dist/release"
 tools_dir="dist/tools"
@@ -43,17 +47,15 @@ if [ -z "${arch}" ]; then
   exit 1
 fi
 
-if [ -z "${PROMETHEUS_TARBALL_URL:-}" ] || [ -z "${NODE_EXPORTER_TARBALL_URL:-}" ] || [ -z "${DCGM_TARBALL_URL:-}" ]; then
-  cat >&2 <<'EOF'
-Missing tool bundle inputs.
-Set PROMETHEUS_TARBALL_URL, NODE_EXPORTER_TARBALL_URL, and DCGM_TARBALL_URL in the workflow environment.
-EOF
-  exit 1
-fi
-
 bundle_dir="${release_dir}/linux_${arch}"
 bundle_tools_dir="${bundle_dir}/tools/linux_${arch}"
 mkdir -p "${bundle_tools_dir}" "${tools_dir}/linux_${arch}"
+
+prometheus_tarball_url="https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-${arch}.tar.gz"
+node_exporter_tarball_url="https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-${arch}.tar.gz"
+# NVIDIA's latest dcgm-exporter GitHub release does not currently publish binary tarballs.
+# Bundle the official tagged source archive until NVIDIA exposes release assets for this repo.
+dcgm_tarball_url="https://github.com/NVIDIA/dcgm-exporter/archive/refs/tags/${DCGM_EXPORTER_VERSION}.tar.gz"
 
 download_and_unpack() {
   url="$1"
@@ -85,14 +87,17 @@ download_and_unpack() {
   rm -rf "${extraction_dir}"
 }
 
-download_and_unpack "${PROMETHEUS_TARBALL_URL}" "${bundle_tools_dir}/prometheus"
-download_and_unpack "${NODE_EXPORTER_TARBALL_URL}" "${bundle_tools_dir}/node_exporter"
-download_and_unpack "${DCGM_TARBALL_URL}" "${bundle_tools_dir}/dcgm"
+download_and_unpack "${prometheus_tarball_url}" "${bundle_tools_dir}/prometheus"
+download_and_unpack "${node_exporter_tarball_url}" "${bundle_tools_dir}/node_exporter"
+download_and_unpack "${dcgm_tarball_url}" "${bundle_tools_dir}/dcgm"
 
 cat > "${bundle_tools_dir}/TOOLS.txt" <<EOF
-prometheus=${PROMETHEUS_TARBALL_URL}
-node_exporter=${NODE_EXPORTER_TARBALL_URL}
-dcgm=${DCGM_TARBALL_URL}
+prometheus_version=${PROMETHEUS_VERSION}
+prometheus_url=${prometheus_tarball_url}
+node_exporter_version=${NODE_EXPORTER_VERSION}
+node_exporter_url=${node_exporter_tarball_url}
+dcgm_exporter_version=${DCGM_EXPORTER_VERSION}
+dcgm_exporter_url=${dcgm_tarball_url}
 EOF
 
 mkdir -p "${tools_dir}/linux_${arch}/prometheus"
