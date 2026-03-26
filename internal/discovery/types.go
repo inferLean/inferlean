@@ -55,6 +55,7 @@ type CandidateGroup struct {
 
 type RuntimeConfig struct {
 	Model                string
+	ServedModelName      string
 	Host                 string
 	Port                 int
 	TensorParallelSize   int
@@ -68,6 +69,9 @@ type RuntimeConfig struct {
 	ChunkedPrefill       *bool
 	PrefixCaching        *bool
 	Quantization         string
+	DType                string
+	GenerationConfig     string
+	APIKeyConfigured     bool
 	MultimodalFlags      []string
 	EnvHints             map[string]string
 }
@@ -75,6 +79,9 @@ type RuntimeConfig struct {
 func (g CandidateGroup) DisplayModel() string {
 	if g.RuntimeConfig.Model != "" {
 		return g.RuntimeConfig.Model
+	}
+	if g.RuntimeConfig.ServedModelName != "" {
+		return g.RuntimeConfig.ServedModelName
 	}
 
 	return "vLLM deployment"

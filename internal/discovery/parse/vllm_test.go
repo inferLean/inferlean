@@ -68,3 +68,126 @@ func TestParseFixtures(t *testing.T) {
 		})
 	}
 }
+
+func TestParseRunPodServeCommand(t *testing.T) {
+	t.Parallel()
+
+	parsed := Parse(process.Snapshot{
+		Args: []string{
+			"/root/.venv/bin/python3",
+			"/root/.venv/bin/vllm",
+			"serve",
+			"Qwen/Qwen3.5-0.8B",
+			"--host",
+			"0.0.0.0",
+			"--port",
+			"8000",
+			"--api-key",
+			"local-bench-key",
+			"--dtype",
+			"auto",
+			"--generation-config",
+			"vllm",
+		},
+	})
+
+	if !parsed.Matched {
+		t.Fatal("expected process to match vLLM serve")
+	}
+	if parsed.EntryPoint != "vllm serve" {
+		t.Fatalf("entrypoint = %q, want %q", parsed.EntryPoint, "vllm serve")
+	}
+	if parsed.RuntimeConfig.Model != "Qwen/Qwen3.5-0.8B" {
+		t.Fatalf("model = %q, want %q", parsed.RuntimeConfig.Model, "Qwen/Qwen3.5-0.8B")
+	}
+	if parsed.RuntimeConfig.Host != "0.0.0.0" {
+		t.Fatalf("host = %q, want %q", parsed.RuntimeConfig.Host, "0.0.0.0")
+	}
+	if parsed.RuntimeConfig.Port != 8000 {
+		t.Fatalf("port = %d, want %d", parsed.RuntimeConfig.Port, 8000)
+	}
+	if !parsed.RuntimeConfig.APIKeyConfigured {
+		t.Fatal("expected api key to be marked as configured")
+	}
+	if parsed.RuntimeConfig.DType != "auto" {
+		t.Fatalf("dtype = %q, want %q", parsed.RuntimeConfig.DType, "auto")
+	}
+	if parsed.RuntimeConfig.GenerationConfig != "vllm" {
+		t.Fatalf("generation config = %q, want %q", parsed.RuntimeConfig.GenerationConfig, "vllm")
+	}
+}
+
+func TestParseModernFlagsAndAliases(t *testing.T) {
+	t.Parallel()
+
+	parsed := Parse(process.Snapshot{
+		Args: []string{
+			"vllm",
+			"serve",
+			"meta-llama/Llama-3.1-8B-Instruct",
+			"-tp",
+			"2",
+			"-dp",
+			"4",
+			"-pp",
+			"3",
+			"-q",
+			"awq",
+			"--served-model-name",
+			"llama-public",
+			"llama-alias",
+			"--max-model-len",
+			"16k",
+			"--max-num-batched-tokens",
+			"1K",
+			"--no-enable-chunked-prefill",
+			"--no-enable-prefix-caching",
+		},
+	})
+
+	if parsed.RuntimeConfig.TensorParallelSize != 2 {
+		t.Fatalf("tensor parallel = %d, want %d", parsed.RuntimeConfig.TensorParallelSize, 2)
+	}
+	if parsed.RuntimeConfig.DataParallelSize != 4 {
+		t.Fatalf("data parallel = %d, want %d", parsed.RuntimeConfig.DataParallelSize, 4)
+	}
+	if parsed.RuntimeConfig.PipelineParallelSize != 3 {
+		t.Fatalf("pipeline parallel = %d, want %d", parsed.RuntimeConfig.PipelineParallelSize, 3)
+	}
+	if parsed.RuntimeConfig.Quantization != "awq" {
+		t.Fatalf("quantization = %q, want %q", parsed.RuntimeConfig.Quantization, "awq")
+	}
+	if parsed.RuntimeConfig.ServedModelName != "llama-public" {
+		t.Fatalf("served model name = %q, want %q", parsed.RuntimeConfig.ServedModelName, "llama-public")
+	}
+	if parsed.RuntimeConfig.MaxModelLen != 16000 {
+		t.Fatalf("max model len = %d, want %d", parsed.RuntimeConfig.MaxModelLen, 16000)
+	}
+	if parsed.RuntimeConfig.MaxNumBatchedTokens != 1024 {
+		t.Fatalf("max num batched tokens = %d, want %d", parsed.RuntimeConfig.MaxNumBatchedTokens, 1024)
+	}
+	if parsed.RuntimeConfig.ChunkedPrefill == nil || *parsed.RuntimeConfig.ChunkedPrefill {
+		t.Fatalf("chunked prefill = %v, want disabled", parsed.RuntimeConfig.ChunkedPrefill)
+	}
+	if parsed.RuntimeConfig.PrefixCaching == nil || *parsed.RuntimeConfig.PrefixCaching {
+		t.Fatalf("prefix caching = %v, want disabled", parsed.RuntimeConfig.PrefixCaching)
+	}
+}
+
+func TestParseMaxModelLenAuto(t *testing.T) {
+	t.Parallel()
+
+	parsed := Parse(process.Snapshot{
+		Args: []string{
+			"vllm",
+			"serve",
+			"model-a",
+			"--max-model-len",
+			"-1",
+		},
+	})
+
+	if parsed.RuntimeConfig.MaxModelLen != -1 {
+		t.Fatalf("max model len = %d, want %d", parsed.RuntimeConfig.MaxModelLen, -1)
+	}
+}

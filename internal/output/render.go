@@ -17,7 +17,7 @@ func RenderDiscovery(w io.Writer, result discovery.Result) {
 	target := result.Selected
 	fmt.Fprintf(w, "InferLean found a vLLM deployment.\n\n")
 	fmt.Fprintf(w, "Selected target\n")
-	fmt.Fprintf(w, "  Model: %s\n", valueOrUnknown(target.RuntimeConfig.Model))
+	fmt.Fprintf(w, "  Model: %s\n", valueOrUnknown(displayModelName(target.RuntimeConfig)))
 	fmt.Fprintf(w, "  PID: %d", target.PrimaryPID)
 	if target.ProcessCount > 1 {
 		fmt.Fprintf(w, " (%d related processes)", target.ProcessCount)
@@ -30,12 +30,13 @@ func RenderDiscovery(w io.Writer, result discovery.Result) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Parsed runtime configuration")
 	writeConfigLine(w, "Model", target.RuntimeConfig.Model)
+	writeConfigLine(w, "Served model name", target.RuntimeConfig.ServedModelName)
 	writeConfigLine(w, "Host", target.RuntimeConfig.Host)
 	writeConfigLine(w, "Port", intString(target.RuntimeConfig.Port))
 	writeConfigLine(w, "Tensor parallel size", intString(target.RuntimeConfig.TensorParallelSize))
 	writeConfigLine(w, "Data parallel size", intString(target.RuntimeConfig.DataParallelSize))
 	writeConfigLine(w, "Pipeline parallel size", intString(target.RuntimeConfig.PipelineParallelSize))
-	writeConfigLine(w, "Max model len", intString(target.RuntimeConfig.MaxModelLen))
+	writeConfigLine(w, "Max model len", maxModelLenString(target.RuntimeConfig.MaxModelLen))
 	writeConfigLine(w, "Max batched tokens", intString(target.RuntimeConfig.MaxNumBatchedTokens))
 	writeConfigLine(w, "Max sequences", intString(target.RuntimeConfig.MaxNumSeqs))
 	writeConfigLine(w, "GPU memory utilization", floatString(target.RuntimeConfig.GPUMemoryUtilization))
@@ -43,6 +44,9 @@ func RenderDiscovery(w io.Writer, result discovery.Result) {
 	writeConfigLine(w, "Chunked prefill", boolPointerString(target.RuntimeConfig.ChunkedPrefill))
 	writeConfigLine(w, "Prefix caching", boolPointerString(target.RuntimeConfig.PrefixCaching))
 	writeConfigLine(w, "Quantization", target.RuntimeConfig.Quantization)
+	writeConfigLine(w, "DType", target.RuntimeConfig.DType)
+	writeConfigLine(w, "Generation config", target.RuntimeConfig.GenerationConfig)
+	writeConfigLine(w, "API key", configuredString(target.RuntimeConfig.APIKeyConfigured))
 	writeConfigLine(w, "Multimodal flags", strings.Join(target.RuntimeConfig.MultimodalFlags, ", "))
 	writeConfigLine(w, "Environment hints", formatHints(target.RuntimeConfig.EnvHints))
 
@@ -60,8 +64,8 @@ func RenderAmbiguity(w io.Writer, result discovery.Result) {
 	fmt.Fprintln(w)
 	for _, candidate := range result.Candidates {
 		fmt.Fprintf(w, "  - PID %d", candidate.PrimaryPID)
-		if candidate.RuntimeConfig.Model != "" {
-			fmt.Fprintf(w, " • %s", candidate.RuntimeConfig.Model)
+		if model := displayModelName(candidate.RuntimeConfig); model != "" {
+			fmt.Fprintf(w, " • %s", model)
 		}
 		if candidate.RuntimeConfig.Port > 0 {
 			fmt.Fprintf(w, " • port %d", candidate.RuntimeConfig.Port)
@@ -82,6 +86,16 @@ func writeConfigLine(w io.Writer, label, value string) {
 func intString(v int) string {
 	if v == 0 {
 		return ""
+	}
+	return fmt.Sprintf("%d", v)
+}
+
+func maxModelLenString(v int) string {
+	if v == 0 {
+		return ""
+	}
+	if v == -1 {
+		return "auto"
 	}
 	return fmt.Sprintf("%d", v)
 }
@@ -122,11 +136,25 @@ func formatHints(hints map[string]string) string {
 	return strings.Join(parts, ", ")
 }
 
+func configuredString(v bool) string {
+	if !v {
+		return ""
+	}
+	return "configured"
+}
+
 func valueOrUnknown(value string) string {
 	if value == "" {
 		return "not detected"
 	}
 	return value
+}
+
+func displayModelName(cfg discovery.RuntimeConfig) string {
+	if cfg.Model != "" {
+		return cfg.Model
+	}
+	return cfg.ServedModelName
 }
 
 func listenAddress(cfg discovery.RuntimeConfig) string {
