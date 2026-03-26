@@ -1,15 +1,45 @@
 name: post-release-smoke
 
 'on':
-  release:
+  workflow_run:
+    workflows:
+      - release
     types:
-      - published
+      - completed
 
 permissions:
   contents: read
 
 jobs:
+  resolve-release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+          release_tag="$(git tag --points-at "${{ github.event.workflow_run.head_sha }}" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
+          if [ -z "${release_tag}" ]; then
+            echo "Could not resolve a semantic version tag for ${{ github.event.workflow_run.head_sha }}" >&2
+            exit 1
+          fi
+
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+
   smoke-unix:
+    needs: resolve-release
     strategy:
       fail-fast: false
       matrix:
@@ -25,12 +55,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ needs.resolve-release.outputs.release_tag }}
 
       - name: Install from published release
         shell: bash
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
         run: |
           set -euo pipefail
           bash ./scripts/install.sh \
@@ -55,17 +85,18 @@ jobs:
           test -f "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/TOOLS.txt"
 
   smoke-windows:
+    needs: resolve-release
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ needs.resolve-release.outputs.release_tag }}
 
       - name: Install from published release
         shell: pwsh
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
         run: |
           $ErrorActionPreference = 'Stop'
           & .\scripts\install.ps1 -Version $env:RELEASE_TAG -InstallDir "$env:RUNNER_TEMP\inferlean-bin"
