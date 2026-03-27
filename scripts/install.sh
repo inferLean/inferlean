@@ -333,7 +333,7 @@ ensure_dcgm_exporter_build_prereqs() {
     log "failed to install dcgm-exporter build prerequisites: ${missing[*]}"
     return 1
   fi
-  has_command git && has_command make && has_command go
+  has_command git && has_command make
 }
 
 build_dcgm_exporter_if_needed() {
@@ -431,12 +431,12 @@ build_dcgm_exporter_if_needed() {
     return 0
   fi
 
-  if ! (cd "${clone_dir}" && PATH="${go_path_dir}:${PATH}" make binary); then
+  if ! (cd "${clone_dir}" && PATH="${go_path_dir}:${PATH}" make GO="${go_bin}" binary); then
     log "failed to build dcgm-exporter ${version_tag}; continuing without a local dcgm-exporter binary"
     return 0
   fi
 
-  if run_with_root env PATH="${go_path_dir}:${PATH}" make -C "${clone_dir}" install; then
+  if run_with_root env PATH="${go_path_dir}:${PATH}" make -C "${clone_dir}" GO="${go_bin}" install; then
     log "installed dcgm-exporter system-wide"
   else
     status=$?
