@@ -10,12 +10,16 @@ import (
 	"time"
 )
 
+const runIDTimeLayout = "20060102-150405.000Z"
+
 func newRunID() (string, error) {
-	var buf [runIDSize]byte
+	var buf [runIDSuffixSize]byte
 	if _, err := rand.Read(buf[:]); err != nil {
 		return "", fmt.Errorf("generate run id: %w", err)
 	}
-	return hex.EncodeToString(buf[:]), nil
+
+	timestamp := time.Now().UTC().Format(runIDTimeLayout)
+	return fmt.Sprintf("%s-%s", timestamp, hex.EncodeToString(buf[:])), nil
 }
 
 func prepareRunLayout(runID, outputPath string) (string, string, runtimeArtifacts, error) {

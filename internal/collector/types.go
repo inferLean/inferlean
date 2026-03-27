@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultCollectDirMode = 0o700
-	runIDSize             = 16
+	runIDSuffixSize       = 4
 	httpTimeout           = 5 * time.Second
 	healthTimeout         = 20 * time.Second
 )

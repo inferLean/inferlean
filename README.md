@@ -52,6 +52,12 @@ Enable global debug output:
 inferlean --debug discover
 ```
 
+Write debug output to a specific file:
+
+```bash
+inferlean --debug-file /tmp/inferlean-debug.log discover
+```
+
 Collect a local run artifact on Linux:
 
 ```bash
