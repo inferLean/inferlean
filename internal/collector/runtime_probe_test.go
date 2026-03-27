@@ -70,6 +70,30 @@ func TestRuntimeCoverageMarksPopulatedAndMissingFields(t *testing.T) {
 	}
 }
 
+func TestRuntimeCoverageMarksZeroIntegerFieldsMissing(t *testing.T) {
+	coverage := runtimeCoverage(contracts.RuntimeConfig{}, "raw/runtime-probe.json")
+
+	for _, field := range []string{"max_model_len", "max_num_batched_tokens", "max_num_seqs"} {
+		if !containsCoverageName(coverage.MissingFields, field) {
+			t.Fatalf("expected %s to be marked missing: %+v", field, coverage)
+		}
+		if containsCoverageName(coverage.PresentFields, field) {
+			t.Fatalf("expected %s not to be marked present: %+v", field, coverage)
+		}
+	}
+}
+
+func TestRuntimeCoverageKeepsAutoMaxModelLenPresent(t *testing.T) {
+	coverage := runtimeCoverage(contracts.RuntimeConfig{MaxModelLen: -1}, "raw/runtime-probe.json")
+
+	if !containsCoverageName(coverage.PresentFields, "max_model_len") {
+		t.Fatalf("expected auto max_model_len sentinel to be present: %+v", coverage)
+	}
+	if containsCoverageName(coverage.MissingFields, "max_model_len") {
+		t.Fatalf("expected auto max_model_len sentinel not to be missing: %+v", coverage)
+	}
+}
+
 func boolPointer(value bool) *bool {
 	return &value
 }

@@ -151,9 +151,9 @@ func mergeRuntimeProbe(primary, fallback runtimeProbeResult) runtimeProbeResult 
 
 func runtimeCoverage(cfg contracts.RuntimeConfig, rawRef string) contracts.SourceCoverage {
 	coverage := newCoverageBuilder(rawRef)
-	markRuntimeString(coverage, "max_model_len", strconv.Itoa(cfg.MaxModelLen))
-	markRuntimeString(coverage, "max_num_batched_tokens", strconv.Itoa(cfg.MaxNumBatchedTokens))
-	markRuntimeString(coverage, "max_num_seqs", strconv.Itoa(cfg.MaxNumSeqs))
+	markRuntimeInt(coverage, "max_model_len", cfg.MaxModelLen)
+	markRuntimeInt(coverage, "max_num_batched_tokens", cfg.MaxNumBatchedTokens)
+	markRuntimeInt(coverage, "max_num_seqs", cfg.MaxNumSeqs)
 	markRuntimeFloat(coverage, "gpu_memory_utilization", cfg.GPUMemoryUtilization)
 	if cfg.TensorParallelSize != 0 || cfg.DataParallelSize != 0 || cfg.PipelineParallelSize != 0 {
 		coverage.Present("parallelism_settings")
@@ -178,6 +178,14 @@ func runtimeCoverage(cfg contracts.RuntimeConfig, rawRef string) contracts.Sourc
 
 func markRuntimeString(coverage *coverageBuilder, field, value string) {
 	if strings.TrimSpace(value) == "" {
+		coverage.Missing(field)
+		return
+	}
+	coverage.Present(field)
+}
+
+func markRuntimeInt(coverage *coverageBuilder, field string, value int) {
+	if value == 0 {
 		coverage.Missing(field)
 		return
 	}
