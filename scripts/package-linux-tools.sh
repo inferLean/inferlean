@@ -5,6 +5,8 @@ set -euo pipefail
 PROMETHEUS_VERSION="3.10.0"
 NODE_EXPORTER_VERSION="1.10.2"
 DCGM_EXPORTER_VERSION="4.5.2-4.8.1"
+DCGM_EXPORTER_REPO="https://github.com/NVIDIA/dcgm-exporter.git"
+DCGM_EXPORTER_GO_MIN_VERSION="1.24"
 
 arch=""
 release_dir="dist/release"
@@ -58,9 +60,6 @@ mkdir -p "${bundle_tools_dir}" "${tools_dir}/linux_${arch}"
 
 prometheus_tarball_url="https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-${arch}.tar.gz"
 node_exporter_tarball_url="https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-${arch}.tar.gz"
-# NVIDIA's latest dcgm-exporter GitHub release does not currently publish binary tarballs.
-# Bundle the official tagged source archive until NVIDIA exposes release assets for this repo.
-dcgm_tarball_url="https://github.com/NVIDIA/dcgm-exporter/archive/refs/tags/${DCGM_EXPORTER_VERSION}.tar.gz"
 
 download_and_unpack() {
   url="$1"
@@ -94,7 +93,7 @@ download_and_unpack() {
 
 download_and_unpack "${prometheus_tarball_url}" "${bundle_tools_dir}/prometheus"
 download_and_unpack "${node_exporter_tarball_url}" "${bundle_tools_dir}/node_exporter"
-download_and_unpack "${dcgm_tarball_url}" "${bundle_tools_dir}/dcgm"
+mkdir -p "${bundle_tools_dir}/dcgm"
 
 if [ -n "${dcgm_exporter_bin}" ]; then
   if [ ! -x "${dcgm_exporter_bin}" ]; then
@@ -111,10 +110,12 @@ dcgm_exporter_binary="$(
   find "${bundle_tools_dir}/dcgm" -type f \( -name 'dcgm-exporter' -o -name 'dcgm_exporter' \) -perm -111 | head -n1 || true
 )"
 dcgm_exporter_runnable="false"
-dcgm_exporter_bundle="source_only"
+dcgm_exporter_bundle="not_bundled"
+dcgm_exporter_install_strategy="build_on_install"
 if [ -n "${dcgm_exporter_binary}" ]; then
   dcgm_exporter_runnable="true"
-  dcgm_exporter_bundle="source_plus_binary"
+  dcgm_exporter_bundle="binary_only"
+  dcgm_exporter_install_strategy="bundled_binary"
 fi
 
 cat > "${bundle_tools_dir}/TOOLS.txt" <<EOF
@@ -123,8 +124,10 @@ prometheus_url=${prometheus_tarball_url}
 node_exporter_version=${NODE_EXPORTER_VERSION}
 node_exporter_url=${node_exporter_tarball_url}
 dcgm_exporter_version=${DCGM_EXPORTER_VERSION}
-dcgm_exporter_url=${dcgm_tarball_url}
+dcgm_exporter_repo=${DCGM_EXPORTER_REPO}
+dcgm_exporter_go_min_version=${DCGM_EXPORTER_GO_MIN_VERSION}
 dcgm_exporter_bundle=${dcgm_exporter_bundle}
+dcgm_exporter_install_strategy=${dcgm_exporter_install_strategy}
 dcgm_exporter_runnable=${dcgm_exporter_runnable}
 dcgm_exporter_binary=${dcgm_exporter_binary}
 EOF

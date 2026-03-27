@@ -18,7 +18,7 @@ Unix-like systems:
 curl -fsSL https://raw.githubusercontent.com/inferLean/inferlean/main/scripts/install.sh | bash
 ```
 
-On Linux NVIDIA hosts, the Unix installer also makes a best-effort attempt to install the DCGM runtime when `libdcgm` is missing. That path is only supported on apt-based `x86_64` systems and may require `sudo`.
+On Linux NVIDIA hosts, the Unix installer makes a best-effort attempt to install the DCGM runtime when `libdcgm` is missing, then build `dcgm-exporter` from the pinned NVIDIA source tag and copy the resulting binary into the local tool bundle for `collect`. Automatic DCGM package installation is only supported on apt-based `x86_64` systems and may require `sudo`; the exporter build also needs `git`, `make`, and Go 1.24+.
 
 Windows PowerShell:
 
@@ -122,7 +122,7 @@ Those come in later delivery phases. Phase 1 is the first step toward the full â
 ## Release Policy
 
 - Linux release archives include the CLI plus Prometheus and node exporter payloads for collection.
-- Linux bundles may include DCGM source payloads or a runnable exporter binary depending on upstream release assets. InferLean treats DCGM as optional and only starts it when a real executable is present.
+- Linux release archives no longer bundle the DCGM exporter source tree by default. On supported Linux NVIDIA hosts, the installer can build `dcgm-exporter` from the pinned NVIDIA tag and stage the resulting binary under the local tool bundle for `collect`.
 - Required rich GPU telemetry no longer depends on bundled DCGM being runnable; NVML is the default local completeness path and `nvidia-smi` remains an additional evidence source.
 - Windows and macOS release archives remain CLI-only.
 - GitHub Actions publishes a semantic-version release for each commit that lands on `main`.

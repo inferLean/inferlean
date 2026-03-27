@@ -88,17 +88,28 @@ jobs:
           test -n "$(find "${tools_root}/prometheus" -type f -name prometheus | head -n1)"
           test -n "$(find "${tools_root}/node_exporter" -type f -name node_exporter | head -n1)"
 
+          grep -q '^dcgm_exporter_version=' "${tools_root}/TOOLS.txt"
+          grep -q '^dcgm_exporter_repo=' "${tools_root}/TOOLS.txt"
+          grep -q '^dcgm_exporter_go_min_version=' "${tools_root}/TOOLS.txt"
+          grep -q '^dcgm_exporter_install_strategy=' "${tools_root}/TOOLS.txt"
           dcgm_runnable="$(grep '^dcgm_exporter_runnable=' "${tools_root}/TOOLS.txt" | cut -d= -f2 || true)"
+          dcgm_strategy="$(grep '^dcgm_exporter_install_strategy=' "${tools_root}/TOOLS.txt" | cut -d= -f2 || true)"
           if [ "${dcgm_runnable}" = "true" ]; then
             test -n "$(find "${tools_root}/dcgm" -type f \( -name dcgm-exporter -o -name dcgm_exporter \) -perm -111 | head -n1)"
           fi
-          grep -q '^dcgm_exporter_runnable=' "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/TOOLS.txt"
+          case "${dcgm_strategy}" in
+            build_on_install|bundled_binary) ;;
+            *)
+              echo "unexpected dcgm_exporter_install_strategy: ${dcgm_strategy}" >&2
+              exit 1
+              ;;
+          esac
 
           dcgm_bin="$(find "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}" -type f \( -name dcgm-exporter -o -name dcgm_exporter \) -perm -111 | head -n1 || true)"
           if [ -n "${dcgm_bin}" ]; then
             echo "Detected runnable dcgm-exporter: ${dcgm_bin}"
           else
-            echo "No runnable dcgm-exporter binary was bundled; collection will rely on NVML for required GPU telemetry."
+            echo "No runnable dcgm-exporter binary was bundled; install.sh will build it on supported Linux NVIDIA hosts."
           fi
 
   smoke-windows:

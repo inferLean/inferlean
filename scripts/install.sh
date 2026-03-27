@@ -5,6 +5,10 @@ set -euo pipefail
 repo="${INFERLEAN_REPO:-inferLean/inferlean}"
 version="${INFERLEAN_VERSION:-latest}"
 install_dir="${INFERLEAN_INSTALL_DIR:-$HOME/.local/bin}"
+DCGM_EXPORTER_REPO_DEFAULT="https://github.com/NVIDIA/dcgm-exporter.git"
+DCGM_EXPORTER_GO_MIN_VERSION_DEFAULT="1.24"
+apt_metadata_updated="false"
+cuda_repo_configured="false"
 
 usage() {
   cat <<'EOF'
@@ -20,6 +24,32 @@ log() {
   printf '%s\n' "$*"
 }
 
+tool_metadata_value() {
+  local metadata_file="$1"
+  local key="$2"
+  if [ ! -f "${metadata_file}" ]; then
+    return 1
+  fi
+  grep -E "^${key}=" "${metadata_file}" | head -n1 | cut -d= -f2-
+}
+
+version_at_least() {
+  local required="$1"
+  local actual="$2"
+  [ "$(printf '%s\n%s\n' "${required}" "${actual}" | sort -V | head -n1)" = "${required}" ]
+}
+
+go_version() {
+  go version 2>/dev/null | sed -E -n 's/^go version go([0-9]+([.][0-9]+){1,2}).*/\1/p' | head -n1
+}
+
+package_installed() {
+  if ! has_command dpkg-query; then
+    return 1
+  fi
+  dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q 'install ok installed'
+}
+
 has_dcgm() {
   if has_command ldconfig && ldconfig -p 2>/dev/null | grep -q 'libdcgm'; then
     return 0
@@ -28,6 +58,14 @@ has_dcgm() {
     return 0
   fi
   return 1
+}
+
+find_dcgm_exporter() {
+  local root="$1"
+  if [ ! -d "${root}" ]; then
+    return 0
+  fi
+  find "${root}" -type f \( -name 'dcgm-exporter' -o -name 'dcgm_exporter' \) -perm -111 | head -n1 || true
 }
 
 run_with_root() {
@@ -42,7 +80,92 @@ run_with_root() {
   return 127
 }
 
+ensure_apt_metadata() {
+  if [ "${apt_metadata_updated}" = "true" ]; then
+    return 0
+  fi
+  if ! run_with_root env DEBIAN_FRONTEND=noninteractive apt-get update; then
+    return 1
+  fi
+  apt_metadata_updated="true"
+  return 0
+}
+
+ensure_nvidia_cuda_repo() {
+  local distribution
+  local keyring_deb
+  local keyring_url
+  local status
+
+  if [ "${cuda_repo_configured}" = "true" ]; then
+    return 0
+  fi
+  if [ ! -r /etc/os-release ]; then
+    log "dcgm installation needs /etc/os-release; continuing without automatic dcgm setup"
+    return 1
+  fi
+
+  distribution="$(
+    . /etc/os-release
+    printf '%s%s' "${ID:-}" "${VERSION_ID:-}" | tr -d '.'
+  )"
+  if [ -z "${distribution}" ]; then
+    log "dcgm installation could not resolve the Linux distribution; continuing without automatic dcgm setup"
+    return 1
+  fi
+
+  keyring_deb="${tmpdir}/cuda-keyring_1.1-1_all.deb"
+  keyring_url="https://developer.download.nvidia.com/compute/cuda/repos/${distribution}/x86_64/cuda-keyring_1.1-1_all.deb"
+
+  if ! curl -fsSL "${keyring_url}" -o "${keyring_deb}"; then
+    log "failed to download NVIDIA cuda keyring from ${keyring_url}; continuing without automatic dcgm setup"
+    return 1
+  fi
+
+  if ! run_with_root dpkg -i "${keyring_deb}"; then
+    status=$?
+    if [ "${status}" -eq 127 ]; then
+      log "automatic dcgm setup requires root or sudo; continuing without automatic dcgm setup"
+    else
+      log "failed to install the NVIDIA cuda keyring; continuing without automatic dcgm setup"
+    fi
+    return 1
+  fi
+
+  if ! ensure_apt_metadata; then
+    log "failed to refresh apt metadata for automatic dcgm setup; continuing without automatic dcgm setup"
+    return 1
+  fi
+
+  cuda_repo_configured="true"
+  return 0
+}
+
+copy_dcgm_tooling() {
+  local source_binary="$1"
+  local source_collectors="${2:-}"
+  local dcgm_dir="$3"
+
+  if [ -z "${source_binary}" ] || [ ! -x "${source_binary}" ]; then
+    return 1
+  fi
+
+  mkdir -p "${dcgm_dir}/bin"
+  cp "${source_binary}" "${dcgm_dir}/bin/dcgm-exporter"
+  chmod 755 "${dcgm_dir}/bin/dcgm-exporter"
+
+  if [ -n "${source_collectors}" ] && [ -f "${source_collectors}" ]; then
+    cp "${source_collectors}" "${dcgm_dir}/default-counters.csv"
+    chmod 644 "${dcgm_dir}/default-counters.csv"
+  fi
+
+  return 0
+}
+
 install_dcgm_if_needed() {
+  local cuda_version
+  local package
+
   if [ "${os}" != "linux" ]; then
     return 0
   fi
@@ -58,8 +181,8 @@ install_dcgm_if_needed() {
     return 0
   fi
 
-  case "$(uname -m)" in
-    x86_64|amd64) ;;
+  case "${arch}" in
+    amd64) ;;
     *)
       log "dcgm runtime was not found and automatic installation is only supported on x86_64 Linux hosts; continuing without dcgm"
       return 0
@@ -71,49 +194,13 @@ install_dcgm_if_needed() {
     log "dcgm runtime was not found and the NVIDIA driver did not report a CUDA major version; continuing without dcgm"
     return 0
   fi
-  if [ ! -r /etc/os-release ]; then
-    log "dcgm runtime was not found and /etc/os-release is unavailable; continuing without dcgm"
-    return 0
-  fi
 
-  distribution="$(
-    . /etc/os-release
-    printf '%s%s' "${ID:-}" "${VERSION_ID:-}" | tr -d '.'
-  )"
-  if [ -z "${distribution}" ]; then
-    log "dcgm runtime was not found and the Linux distribution could not be resolved; continuing without dcgm"
+  if ! ensure_nvidia_cuda_repo; then
     return 0
   fi
 
   package="datacenter-gpu-manager-4-cuda${cuda_version}"
-  keyring_deb="${tmpdir}/cuda-keyring_1.1-1_all.deb"
-  keyring_url="https://developer.download.nvidia.com/compute/cuda/repos/${distribution}/x86_64/cuda-keyring_1.1-1_all.deb"
-
   log "dcgm runtime not detected; attempting to install ${package}"
-  if ! curl -fsSL "${keyring_url}" -o "${keyring_deb}"; then
-    log "failed to download NVIDIA cuda keyring from ${keyring_url}; continuing without dcgm"
-    return 0
-  fi
-
-  if run_with_root dpkg -i "${keyring_deb}"; then
-    :
-  else
-    status=$?
-    if [ "${status}" -eq 127 ]; then
-      log "dcgm runtime was not found and automatic installation requires root or sudo; continuing without dcgm"
-    else
-      log "failed to install NVIDIA cuda keyring; continuing without dcgm"
-    fi
-    return 0
-  fi
-
-  if run_with_root env DEBIAN_FRONTEND=noninteractive apt-get update; then
-    :
-  else
-    log "failed to refresh apt metadata for DCGM installation; continuing without dcgm"
-    return 0
-  fi
-
   if run_with_root env DEBIAN_FRONTEND=noninteractive apt-get install -y --install-recommends "${package}"; then
     :
   else
@@ -127,6 +214,169 @@ install_dcgm_if_needed() {
   fi
 
   log "installed ${package}, but dcgm could not be verified afterwards"
+  return 0
+}
+
+install_dcgm_development_files_if_needed() {
+  if [ "${os}" != "linux" ]; then
+    return 0
+  fi
+  if ! has_command apt-get || ! has_command dpkg; then
+    return 0
+  fi
+  if package_installed "datacenter-gpu-manager-4-dev"; then
+    return 0
+  fi
+  if [ "${arch}" != "amd64" ]; then
+    return 0
+  fi
+  if ! ensure_nvidia_cuda_repo; then
+    return 0
+  fi
+  log "installing dcgm development files for a local dcgm-exporter build"
+  if run_with_root env DEBIAN_FRONTEND=noninteractive apt-get install -y --install-recommends datacenter-gpu-manager-4-dev; then
+    return 0
+  fi
+  log "failed to install datacenter-gpu-manager-4-dev; dcgm-exporter may fail to build"
+  return 0
+}
+
+ensure_dcgm_exporter_build_prereqs() {
+  local missing=()
+
+  if ! has_command git; then
+    missing+=("git")
+  fi
+  if ! has_command make; then
+    missing+=("make")
+  fi
+  if ! has_command go; then
+    missing+=("golang-go")
+  fi
+  if [ "${#missing[@]}" -eq 0 ]; then
+    return 0
+  fi
+  if ! has_command apt-get || ! has_command dpkg; then
+    log "dcgm-exporter build prerequisites are missing; install git, make, and Go manually to build dcgm-exporter automatically"
+    return 1
+  fi
+  if ! ensure_apt_metadata; then
+    log "failed to refresh apt metadata for dcgm-exporter build prerequisites"
+    return 1
+  fi
+  if ! run_with_root env DEBIAN_FRONTEND=noninteractive apt-get install -y --install-recommends "${missing[@]}"; then
+    log "failed to install dcgm-exporter build prerequisites: ${missing[*]}"
+    return 1
+  fi
+  has_command git && has_command make && has_command go
+}
+
+build_dcgm_exporter_if_needed() {
+  local tools_root
+  local metadata_file
+  local dcgm_dir
+  local local_binary
+  local repo_url
+  local version_tag
+  local min_go_version
+  local current_go_version
+  local clone_dir
+  local source_binary
+  local source_collectors
+  local status
+
+  if [ "${os}" != "linux" ]; then
+    return 0
+  fi
+
+  tools_root="${install_dir}/tools/linux_${arch}"
+  if [ ! -d "${tools_root}" ]; then
+    return 0
+  fi
+
+  metadata_file="${tools_root}/TOOLS.txt"
+  dcgm_dir="${tools_root}/dcgm"
+  mkdir -p "${dcgm_dir}"
+
+  local_binary="$(find_dcgm_exporter "${tools_root}")"
+  if [ -n "${local_binary}" ]; then
+    if [ ! -f "${dcgm_dir}/default-counters.csv" ] && [ -f /etc/dcgm-exporter/default-counters.csv ]; then
+      cp /etc/dcgm-exporter/default-counters.csv "${dcgm_dir}/default-counters.csv"
+      chmod 644 "${dcgm_dir}/default-counters.csv"
+    fi
+    return 0
+  fi
+
+  if has_command dcgm-exporter; then
+    if copy_dcgm_tooling "$(command -v dcgm-exporter)" "/etc/dcgm-exporter/default-counters.csv" "${dcgm_dir}"; then
+      log "copied the system dcgm-exporter into ${dcgm_dir}"
+      return 0
+    fi
+  fi
+
+  if ! has_command nvidia-smi; then
+    return 0
+  fi
+  if ! has_dcgm; then
+    log "dcgm-exporter was not built because the dcgm runtime is unavailable"
+    return 0
+  fi
+
+  repo_url="$(tool_metadata_value "${metadata_file}" "dcgm_exporter_repo" || true)"
+  version_tag="$(tool_metadata_value "${metadata_file}" "dcgm_exporter_version" || true)"
+  min_go_version="$(tool_metadata_value "${metadata_file}" "dcgm_exporter_go_min_version" || true)"
+  if [ -z "${repo_url}" ]; then
+    repo_url="${DCGM_EXPORTER_REPO_DEFAULT}"
+  fi
+  if [ -z "${version_tag}" ]; then
+    version_tag="main"
+  fi
+  if [ -z "${min_go_version}" ]; then
+    min_go_version="${DCGM_EXPORTER_GO_MIN_VERSION_DEFAULT}"
+  fi
+
+  install_dcgm_development_files_if_needed
+  if ! ensure_dcgm_exporter_build_prereqs; then
+    return 0
+  fi
+
+  current_go_version="$(go_version || true)"
+  if [ -z "${current_go_version}" ] || ! version_at_least "${min_go_version}" "${current_go_version}"; then
+    log "dcgm-exporter build requires Go ${min_go_version}+; found ${current_go_version:-missing}. continuing without a local dcgm-exporter binary"
+    return 0
+  fi
+
+  clone_dir="${tmpdir}/dcgm-exporter"
+  log "building dcgm-exporter ${version_tag} from ${repo_url}"
+  if ! git clone --depth 1 --branch "${version_tag}" "${repo_url}" "${clone_dir}"; then
+    log "failed to clone dcgm-exporter ${version_tag}; continuing without a local dcgm-exporter binary"
+    return 0
+  fi
+
+  if ! (cd "${clone_dir}" && make binary); then
+    log "failed to build dcgm-exporter ${version_tag}; continuing without a local dcgm-exporter binary"
+    return 0
+  fi
+
+  if run_with_root make -C "${clone_dir}" install; then
+    log "installed dcgm-exporter system-wide"
+  else
+    status=$?
+    if [ "${status}" -eq 127 ]; then
+      log "could not run make install for dcgm-exporter without root or sudo; staging the local binary only"
+    else
+      log "make install failed for dcgm-exporter; staging the local binary only"
+    fi
+  fi
+
+  source_binary="${clone_dir}/cmd/dcgm-exporter/dcgm-exporter"
+  source_collectors="${clone_dir}/etc/default-counters.csv"
+  if copy_dcgm_tooling "${source_binary}" "${source_collectors}" "${dcgm_dir}"; then
+    log "staged dcgm-exporter under ${dcgm_dir}"
+    return 0
+  fi
+
+  log "dcgm-exporter was built but could not be staged under ${dcgm_dir}"
   return 0
 }
 
@@ -222,5 +472,6 @@ if [ -d "${tmpdir}/tools" ]; then
 fi
 
 install_dcgm_if_needed
+build_dcgm_exporter_if_needed
 
 echo "installed inferlean ${version} to ${install_dir}/inferlean"
