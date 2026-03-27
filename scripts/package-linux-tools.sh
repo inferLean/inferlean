@@ -7,6 +7,7 @@ NODE_EXPORTER_VERSION="1.10.2"
 DCGM_EXPORTER_VERSION="4.5.2-4.8.1"
 DCGM_EXPORTER_REPO="https://github.com/NVIDIA/dcgm-exporter.git"
 DCGM_EXPORTER_GO_MIN_VERSION="1.24"
+DCGM_EXPORTER_GO_BOOTSTRAP_VERSION="1.24.13"
 
 arch=""
 release_dir="dist/release"
@@ -126,6 +127,7 @@ node_exporter_url=${node_exporter_tarball_url}
 dcgm_exporter_version=${DCGM_EXPORTER_VERSION}
 dcgm_exporter_repo=${DCGM_EXPORTER_REPO}
 dcgm_exporter_go_min_version=${DCGM_EXPORTER_GO_MIN_VERSION}
+dcgm_exporter_go_bootstrap_version=${DCGM_EXPORTER_GO_BOOTSTRAP_VERSION}
 dcgm_exporter_bundle=${dcgm_exporter_bundle}
 dcgm_exporter_install_strategy=${dcgm_exporter_install_strategy}
 dcgm_exporter_runnable=${dcgm_exporter_runnable}

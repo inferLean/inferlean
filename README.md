@@ -18,7 +18,7 @@ Unix-like systems:
 curl -fsSL https://raw.githubusercontent.com/inferLean/inferlean/main/scripts/install.sh | bash
 ```
 
-On Linux NVIDIA hosts, the Unix installer makes a best-effort attempt to install the DCGM runtime when `libdcgm` is missing, then build `dcgm-exporter` from the pinned NVIDIA source tag and copy the resulting binary into the local tool bundle for `collect`. Automatic DCGM package installation is only supported on apt-based `x86_64` systems and may require `sudo`; the exporter build also needs `git`, `make`, and Go 1.24+.
+On Linux NVIDIA hosts, the Unix installer makes a best-effort attempt to install the DCGM runtime when `libdcgm` is missing, then build `dcgm-exporter` from the pinned NVIDIA source tag and copy the resulting binary into the local tool bundle for `collect`. Automatic DCGM package installation is only supported on apt-based `x86_64` systems and may require `sudo`; the exporter build also needs `git` and `make`, and the installer can bootstrap a local Go 1.24.13 toolchain when the system Go is older.
 
 Windows PowerShell:
 

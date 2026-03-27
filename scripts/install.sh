@@ -7,8 +7,10 @@ version="${INFERLEAN_VERSION:-latest}"
 install_dir="${INFERLEAN_INSTALL_DIR:-$HOME/.local/bin}"
 DCGM_EXPORTER_REPO_DEFAULT="https://github.com/NVIDIA/dcgm-exporter.git"
 DCGM_EXPORTER_GO_MIN_VERSION_DEFAULT="1.24"
+DCGM_EXPORTER_GO_BOOTSTRAP_VERSION_DEFAULT="1.24.13"
 apt_metadata_updated="false"
 cuda_repo_configured="false"
+bootstrapped_go_bin=""
 
 usage() {
   cat <<'EOF'
@@ -41,6 +43,10 @@ version_at_least() {
 
 go_version() {
   go version 2>/dev/null | sed -E -n 's/^go version go([0-9]+([.][0-9]+){1,2}).*/\1/p' | head -n1
+}
+
+go_version_for_binary() {
+  "$1" version 2>/dev/null | sed -E -n 's/^go version go([0-9]+([.][0-9]+){1,2}).*/\1/p' | head -n1
 }
 
 package_installed() {
@@ -78,6 +84,20 @@ run_with_root() {
     return $?
   fi
   return 127
+}
+
+go_download_arch() {
+  case "${arch}" in
+    amd64)
+      printf '%s\n' "amd64"
+      ;;
+    arm64)
+      printf '%s\n' "arm64"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 ensure_apt_metadata() {
@@ -138,6 +158,54 @@ ensure_nvidia_cuda_repo() {
   fi
 
   cuda_repo_configured="true"
+  return 0
+}
+
+ensure_bootstrap_go() {
+  local bootstrap_version="$1"
+  local go_arch
+  local go_archive
+  local go_url
+  local go_root
+  local current_bootstrap_version
+
+  if [ -n "${bootstrapped_go_bin}" ] && [ -x "${bootstrapped_go_bin}" ]; then
+    current_bootstrap_version="$(go_version_for_binary "${bootstrapped_go_bin}" || true)"
+    if [ -n "${current_bootstrap_version}" ] && version_at_least "${bootstrap_version}" "${current_bootstrap_version}"; then
+      printf '%s\n' "${bootstrapped_go_bin}"
+      return 0
+    fi
+  fi
+
+  if ! go_arch="$(go_download_arch)"; then
+    log "dcgm-exporter Go bootstrap is unsupported on architecture ${arch}"
+    return 1
+  fi
+
+  go_archive="${tmpdir}/go${bootstrap_version}.linux-${go_arch}.tar.gz"
+  go_url="https://go.dev/dl/go${bootstrap_version}.linux-${go_arch}.tar.gz"
+  go_root="${tmpdir}/go-toolchain"
+
+  log "downloading Go ${bootstrap_version} for the dcgm-exporter build"
+  if ! curl -fsSL "${go_url}" -o "${go_archive}"; then
+    log "failed to download Go ${bootstrap_version} from ${go_url}"
+    return 1
+  fi
+
+  rm -rf "${go_root}"
+  mkdir -p "${go_root}"
+  if ! tar -xzf "${go_archive}" -C "${go_root}"; then
+    log "failed to unpack Go ${bootstrap_version}"
+    return 1
+  fi
+
+  bootstrapped_go_bin="${go_root}/go/bin/go"
+  if [ ! -x "${bootstrapped_go_bin}" ]; then
+    log "downloaded Go ${bootstrap_version}, but the go binary was not found afterwards"
+    return 1
+  fi
+
+  printf '%s\n' "${bootstrapped_go_bin}"
   return 0
 }
 
@@ -250,14 +318,11 @@ ensure_dcgm_exporter_build_prereqs() {
   if ! has_command make; then
     missing+=("make")
   fi
-  if ! has_command go; then
-    missing+=("golang-go")
-  fi
   if [ "${#missing[@]}" -eq 0 ]; then
     return 0
   fi
   if ! has_command apt-get || ! has_command dpkg; then
-    log "dcgm-exporter build prerequisites are missing; install git, make, and Go manually to build dcgm-exporter automatically"
+    log "dcgm-exporter build prerequisites are missing; install git and make manually to build dcgm-exporter automatically"
     return 1
   fi
   if ! ensure_apt_metadata; then
@@ -279,7 +344,10 @@ build_dcgm_exporter_if_needed() {
   local repo_url
   local version_tag
   local min_go_version
+  local bootstrap_go_version
   local current_go_version
+  local go_bin
+  local go_path_dir
   local clone_dir
   local source_binary
   local source_collectors
@@ -325,6 +393,7 @@ build_dcgm_exporter_if_needed() {
   repo_url="$(tool_metadata_value "${metadata_file}" "dcgm_exporter_repo" || true)"
   version_tag="$(tool_metadata_value "${metadata_file}" "dcgm_exporter_version" || true)"
   min_go_version="$(tool_metadata_value "${metadata_file}" "dcgm_exporter_go_min_version" || true)"
+  bootstrap_go_version="$(tool_metadata_value "${metadata_file}" "dcgm_exporter_go_bootstrap_version" || true)"
   if [ -z "${repo_url}" ]; then
     repo_url="${DCGM_EXPORTER_REPO_DEFAULT}"
   fi
@@ -334,6 +403,9 @@ build_dcgm_exporter_if_needed() {
   if [ -z "${min_go_version}" ]; then
     min_go_version="${DCGM_EXPORTER_GO_MIN_VERSION_DEFAULT}"
   fi
+  if [ -z "${bootstrap_go_version}" ]; then
+    bootstrap_go_version="${DCGM_EXPORTER_GO_BOOTSTRAP_VERSION_DEFAULT}"
+  fi
 
   install_dcgm_development_files_if_needed
   if ! ensure_dcgm_exporter_build_prereqs; then
@@ -341,10 +413,16 @@ build_dcgm_exporter_if_needed() {
   fi
 
   current_go_version="$(go_version || true)"
-  if [ -z "${current_go_version}" ] || ! version_at_least "${min_go_version}" "${current_go_version}"; then
-    log "dcgm-exporter build requires Go ${min_go_version}+; found ${current_go_version:-missing}. continuing without a local dcgm-exporter binary"
-    return 0
+  if [ -n "${current_go_version}" ] && version_at_least "${min_go_version}" "${current_go_version}"; then
+    go_bin="$(command -v go)"
+  else
+    go_bin="$(ensure_bootstrap_go "${bootstrap_go_version}" || true)"
+    if [ -z "${go_bin}" ]; then
+      log "dcgm-exporter build requires Go ${min_go_version}+; found ${current_go_version:-missing} and could not bootstrap Go ${bootstrap_go_version}. continuing without a local dcgm-exporter binary"
+      return 0
+    fi
   fi
+  go_path_dir="$(dirname "${go_bin}")"
 
   clone_dir="${tmpdir}/dcgm-exporter"
   log "building dcgm-exporter ${version_tag} from ${repo_url}"
@@ -353,12 +431,12 @@ build_dcgm_exporter_if_needed() {
     return 0
   fi
 
-  if ! (cd "${clone_dir}" && make binary); then
+  if ! (cd "${clone_dir}" && PATH="${go_path_dir}:${PATH}" make binary); then
     log "failed to build dcgm-exporter ${version_tag}; continuing without a local dcgm-exporter binary"
     return 0
   fi
 
-  if run_with_root make -C "${clone_dir}" install; then
+  if run_with_root env PATH="${go_path_dir}:${PATH}" make -C "${clone_dir}" install; then
     log "installed dcgm-exporter system-wide"
   else
     status=$?

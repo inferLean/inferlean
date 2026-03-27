@@ -91,6 +91,7 @@ jobs:
           grep -q '^dcgm_exporter_version=' "${tools_root}/TOOLS.txt"
           grep -q '^dcgm_exporter_repo=' "${tools_root}/TOOLS.txt"
           grep -q '^dcgm_exporter_go_min_version=' "${tools_root}/TOOLS.txt"
+          grep -q '^dcgm_exporter_go_bootstrap_version=' "${tools_root}/TOOLS.txt"
           grep -q '^dcgm_exporter_install_strategy=' "${tools_root}/TOOLS.txt"
           dcgm_runnable="$(grep '^dcgm_exporter_runnable=' "${tools_root}/TOOLS.txt" | cut -d= -f2 || true)"
           dcgm_strategy="$(grep '^dcgm_exporter_install_strategy=' "${tools_root}/TOOLS.txt" | cut -d= -f2 || true)"
