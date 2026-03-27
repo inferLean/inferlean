@@ -88,7 +88,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
-	case stopwatch.TickMsg:
+	case stopwatch.StartStopMsg, stopwatch.ResetMsg, stopwatch.TickMsg:
 		var cmd tea.Cmd
 		m.stopwatch, cmd = m.stopwatch.Update(msg)
 		return m, cmd

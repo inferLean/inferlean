@@ -18,6 +18,8 @@ Unix-like systems:
 curl -fsSL https://raw.githubusercontent.com/inferLean/inferlean/main/scripts/install.sh | bash
 ```
 
+On Linux NVIDIA hosts, the Unix installer also makes a best-effort attempt to install the DCGM runtime when `libdcgm` is missing. That path is only supported on apt-based `x86_64` systems and may require `sudo`.
+
 Windows PowerShell:
 
 ```powershell

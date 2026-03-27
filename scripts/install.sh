@@ -12,6 +12,124 @@ Usage: install.sh [--version TAG|latest] [--install-dir PATH] [--repo OWNER/REPO
 EOF
 }
 
+has_command() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+has_dcgm() {
+  if has_command ldconfig && ldconfig -p 2>/dev/null | grep -q 'libdcgm'; then
+    return 0
+  fi
+  if has_command nv-hostengine || has_command dcgmi; then
+    return 0
+  fi
+  return 1
+}
+
+run_with_root() {
+  if [ "$(id -u)" -eq 0 ]; then
+    "$@"
+    return $?
+  fi
+  if has_command sudo; then
+    sudo "$@"
+    return $?
+  fi
+  return 127
+}
+
+install_dcgm_if_needed() {
+  if [ "${os}" != "linux" ]; then
+    return 0
+  fi
+  if has_dcgm; then
+    log "dcgm runtime already present; skipping dcgm installation"
+    return 0
+  fi
+  if ! has_command nvidia-smi; then
+    return 0
+  fi
+  if ! has_command apt-get || ! has_command dpkg; then
+    log "dcgm runtime was not found and automatic installation is only supported on apt-based Linux hosts; continuing without dcgm"
+    return 0
+  fi
+
+  case "$(uname -m)" in
+    x86_64|amd64) ;;
+    *)
+      log "dcgm runtime was not found and automatic installation is only supported on x86_64 Linux hosts; continuing without dcgm"
+      return 0
+      ;;
+  esac
+
+  cuda_version="$(nvidia-smi -q 2>/dev/null | sed -E -n 's/CUDA Version[ :]+([0-9]+)[.].*/\1/p' | head -n1 || true)"
+  if [ -z "${cuda_version}" ]; then
+    log "dcgm runtime was not found and the NVIDIA driver did not report a CUDA major version; continuing without dcgm"
+    return 0
+  fi
+  if [ ! -r /etc/os-release ]; then
+    log "dcgm runtime was not found and /etc/os-release is unavailable; continuing without dcgm"
+    return 0
+  fi
+
+  distribution="$(
+    . /etc/os-release
+    printf '%s%s' "${ID:-}" "${VERSION_ID:-}" | tr -d '.'
+  )"
+  if [ -z "${distribution}" ]; then
+    log "dcgm runtime was not found and the Linux distribution could not be resolved; continuing without dcgm"
+    return 0
+  fi
+
+  package="datacenter-gpu-manager-4-cuda${cuda_version}"
+  keyring_deb="${tmpdir}/cuda-keyring_1.1-1_all.deb"
+  keyring_url="https://developer.download.nvidia.com/compute/cuda/repos/${distribution}/x86_64/cuda-keyring_1.1-1_all.deb"
+
+  log "dcgm runtime not detected; attempting to install ${package}"
+  if ! curl -fsSL "${keyring_url}" -o "${keyring_deb}"; then
+    log "failed to download NVIDIA cuda keyring from ${keyring_url}; continuing without dcgm"
+    return 0
+  fi
+
+  if run_with_root dpkg -i "${keyring_deb}"; then
+    :
+  else
+    status=$?
+    if [ "${status}" -eq 127 ]; then
+      log "dcgm runtime was not found and automatic installation requires root or sudo; continuing without dcgm"
+    else
+      log "failed to install NVIDIA cuda keyring; continuing without dcgm"
+    fi
+    return 0
+  fi
+
+  if run_with_root env DEBIAN_FRONTEND=noninteractive apt-get update; then
+    :
+  else
+    log "failed to refresh apt metadata for DCGM installation; continuing without dcgm"
+    return 0
+  fi
+
+  if run_with_root env DEBIAN_FRONTEND=noninteractive apt-get install -y --install-recommends "${package}"; then
+    :
+  else
+    log "failed to install ${package}; continuing without dcgm"
+    return 0
+  fi
+
+  if has_dcgm; then
+    log "installed dcgm runtime package ${package}"
+    return 0
+  fi
+
+  log "installed ${package}, but dcgm could not be verified afterwards"
+  return 0
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --version)
@@ -103,5 +221,6 @@ if [ -d "${tmpdir}/tools" ]; then
   cp -R "${tmpdir}/tools/." "${install_dir}/tools/"
 fi
 
-echo "installed inferlean ${version} to ${install_dir}/inferlean"
+install_dcgm_if_needed
 
+echo "installed inferlean ${version} to ${install_dir}/inferlean"
