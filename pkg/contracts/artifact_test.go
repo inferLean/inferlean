@@ -1,110 +1,60 @@
 package contracts
 
 import (
+	"strings"
 	"testing"
-	"time"
 )
 
 func TestRunArtifactValidate(t *testing.T) {
-	artifact := RunArtifact{
-		SchemaVersion: SchemaVersion,
-		Job: Job{
-			RunID:            "run-123",
-			InstallationID:   "inst-456",
-			CollectorVersion: "0.2.0",
-			SchemaVersion:    SchemaVersion,
-			CollectedAt:      time.Unix(1700000000, 0).UTC(),
-		},
-		ProcessInspection: ProcessInspection{
-			TargetProcess: TargetProcess{
-				RawCommandLine: "python -m vllm serve model",
-			},
-		},
-		CollectionQuality: CollectionQuality{
-			SourceStates: map[string]SourceState{
-				"vllm": {Status: "ok"},
-			},
-			Completeness: 1,
-		},
-	}
-
+	artifact := validArtifact()
 	if err := artifact.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
 }
 
-func TestRunArtifactValidateReportsMissingIdentityFields(t *testing.T) {
-	artifact := RunArtifact{
-		SchemaVersion: SchemaVersion,
-		Job: Job{
-			SchemaVersion: SchemaVersion,
-		},
-		ProcessInspection: ProcessInspection{
-			TargetProcess: TargetProcess{
-				RawCommandLine: "python -m vllm serve model",
-			},
-		},
+func TestRunArtifactValidateRejectsMissingCanonicalMetricWithoutCoverage(t *testing.T) {
+	artifact := validArtifact()
+	artifact.Metrics.Host.CPULoad = MetricWindow{}
+	artifact.Metrics.Host.Coverage.PresentFields = removeField(artifact.Metrics.Host.Coverage.PresentFields, "cpu_load")
+
+	err := artifact.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want missing canonical metric failure")
 	}
+	if !strings.Contains(err.Error(), "metrics.host.cpu_load must be populated or marked missing/unsupported") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestRunArtifactValidateReportsMissingIdentityFields(t *testing.T) {
+	artifact := validArtifact()
+	artifact.Job = Job{SchemaVersion: SchemaVersion}
 
 	err := artifact.Validate()
 	if err == nil {
 		t.Fatal("Validate() error = nil, want missing identity fields")
 	}
-
-	want := []string{
+	for _, fragment := range []string{
 		"job.run_id is required",
 		"job.installation_id is required",
 		"job.collector_version is required",
 		"job.collected_at is required",
-	}
-	for _, fragment := range want {
-		if !containsError(err.Error(), fragment) {
+	} {
+		if !strings.Contains(err.Error(), fragment) {
 			t.Fatalf("Validate() error = %v, want fragment %q", err, fragment)
 		}
 	}
 }
 
 func TestRunArtifactValidateRejectsUnsupportedStatuses(t *testing.T) {
-	artifact := RunArtifact{
-		SchemaVersion: SchemaVersion,
-		Job: Job{
-			RunID:            "run-123",
-			InstallationID:   "inst-456",
-			CollectorVersion: "0.2.0",
-			SchemaVersion:    SchemaVersion,
-			CollectedAt:      time.Unix(1700000000, 0).UTC(),
-		},
-		ProcessInspection: ProcessInspection{
-			TargetProcess: TargetProcess{
-				RawCommandLine: "python -m vllm serve model",
-			},
-		},
-		CollectionQuality: CollectionQuality{
-			SourceStates: map[string]SourceState{
-				"vllm": {Status: "broken"},
-			},
-			Completeness: 1,
-		},
-	}
+	artifact := validArtifact()
+	artifact.CollectionQuality.SourceStates["vllm_metrics"] = SourceState{Status: "broken"}
 
-	if err := artifact.Validate(); err == nil {
+	err := artifact.Validate()
+	if err == nil {
 		t.Fatal("Validate() error = nil, want unsupported source status")
 	}
-}
-
-func containsError(haystack, needle string) bool {
-	return len(haystack) >= len(needle) && (haystack == needle || containsSubstring(haystack, needle))
-}
-
-func containsSubstring(s, substr string) bool {
-	return len(substr) == 0 || len(s) >= len(substr) && (indexOf(s, substr) >= 0)
-}
-
-func indexOf(s, substr string) int {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
+	if !strings.Contains(err.Error(), "collection_quality.source_states[vllm_metrics].status must be ok, degraded, or missing") {
+		t.Fatalf("Validate() error = %v", err)
 	}
-	return -1
 }

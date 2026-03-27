@@ -79,15 +79,6 @@ func collectEnvHints(proc *process.Process, ctx context.Context) map[string]stri
 		return nil
 	}
 
-	allowed := map[string]struct{}{
-		"CUDA_VISIBLE_DEVICES":         {},
-		"NCCL_SOCKET_IFNAME":           {},
-		"VLLM_HOST_IP":                 {},
-		"VLLM_PORT":                    {},
-		"VLLM_WORKER_MULTIPROC_METHOD": {},
-		"VLLM_USE_V1":                  {},
-	}
-
 	hints := map[string]string{}
 	for _, entry := range environ {
 		parts := strings.SplitN(entry, "=", 2)
@@ -95,7 +86,7 @@ func collectEnvHints(proc *process.Process, ctx context.Context) map[string]stri
 			continue
 		}
 
-		if _, ok := allowed[parts[0]]; ok {
+		if shouldExposeEnvHint(parts[0]) {
 			hints[parts[0]] = parts[1]
 		}
 	}
@@ -105,4 +96,17 @@ func collectEnvHints(proc *process.Process, ctx context.Context) map[string]stri
 	}
 
 	return hints
+}
+
+func shouldExposeEnvHint(key string) bool {
+	if strings.HasPrefix(key, "VLLM_") || strings.HasPrefix(key, "NCCL_") {
+		return true
+	}
+
+	switch key {
+	case "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "CUDA_PATH", "TORCH_CUDA_ARCH_LIST", "PYTORCH_CUDA_ALLOC_CONF":
+		return true
+	default:
+		return false
+	}
 }

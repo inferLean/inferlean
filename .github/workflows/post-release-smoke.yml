@@ -80,12 +80,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -d "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/prometheus"
-          test -d "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/node_exporter"
-          test -d "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/dcgm"
-          test -f "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/TOOLS.txt"
-          test -n "$(find "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/prometheus" -type f -name prometheus | head -n1)"
-          test -n "$(find "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/node_exporter" -type f -name node_exporter | head -n1)"
+          tools_root="${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}"
+          test -d "${tools_root}/prometheus"
+          test -d "${tools_root}/node_exporter"
+          test -d "${tools_root}/dcgm"
+          test -f "${tools_root}/TOOLS.txt"
+          test -n "$(find "${tools_root}/prometheus" -type f -name prometheus | head -n1)"
+          test -n "$(find "${tools_root}/node_exporter" -type f -name node_exporter | head -n1)"
+
+          dcgm_runnable="$(grep '^dcgm_exporter_runnable=' "${tools_root}/TOOLS.txt" | cut -d= -f2 || true)"
+          if [ "${dcgm_runnable}" = "true" ]; then
+            test -n "$(find "${tools_root}/dcgm" -type f \( -name dcgm-exporter -o -name dcgm_exporter \) -perm -111 | head -n1)"
+          fi
+          grep -q '^dcgm_exporter_runnable=' "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}/TOOLS.txt"
+
+          dcgm_bin="$(find "${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}" -type f \( -name dcgm-exporter -o -name dcgm_exporter \) -perm -111 | head -n1 || true)"
+          if [ -n "${dcgm_bin}" ]; then
+            echo "Detected runnable dcgm-exporter: ${dcgm_bin}"
+          else
+            echo "No runnable dcgm-exporter binary was bundled; collection will rely on NVML for required GPU telemetry."
+          fi
 
   smoke-windows:
     needs: resolve-release

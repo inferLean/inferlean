@@ -33,9 +33,13 @@ func resolveToolPaths() (toolPaths, error) {
 	if err != nil {
 		return toolPaths{}, err
 	}
+	dcgmExporter := resolveOptionalDCGMExporter(root, archDir)
+	dcgmCollectors := resolveOptionalToolFile(filepath.Join(root, archDir, "dcgm"), "default-counters.csv")
 	return toolPaths{
-		Prometheus:   prometheus,
-		NodeExporter: nodeExporter,
+		Prometheus:     prometheus,
+		NodeExporter:   nodeExporter,
+		DCGMExporter:   dcgmExporter,
+		DCGMCollectors: dcgmCollectors,
 	}, nil
 }
 
@@ -83,10 +87,23 @@ func resolveBundledTool(root, archDir, name string) (string, error) {
 	return findToolExecutable(filepath.Join(root, archDir, name), name)
 }
 
+func resolveOptionalDCGMExporter(root, archDir string) string {
+	if path := strings.TrimSpace(os.Getenv("INFERLEAN_DCGM_EXPORTER_BIN")); path != "" {
+		return path
+	}
+	for _, name := range []string{"dcgm-exporter", "dcgm_exporter"} {
+		path, err := findToolExecutable(filepath.Join(root, archDir), name)
+		if err == nil {
+			return path
+		}
+	}
+	return ""
+}
+
 func findToolExecutable(root, name string) (string, error) {
 	var found string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil || info.IsDir() || info.Name() != name {
+		if walkErr != nil || info.IsDir() || info.Name() != name || !isExecutable(info) {
 			return walkErr
 		}
 		found = path
@@ -99,6 +116,22 @@ func findToolExecutable(root, name string) (string, error) {
 		return "", fmt.Errorf("%s not found under %s", name, root)
 	}
 	return found, nil
+}
+
+func isExecutable(info os.FileInfo) bool {
+	return info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0
+}
+
+func resolveOptionalToolFile(root, name string) string {
+	var found string
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() || info.Name() != name {
+			return walkErr
+		}
+		found = path
+		return filepath.SkipAll
+	})
+	return found
 }
 
 func reservePort() (int, error) {
@@ -127,7 +160,7 @@ func normalizeListenHost(host string) string {
 	}
 }
 
-func discoverDCGMTarget() string {
+func discoverExternalDCGMTarget() string {
 	if endpoint := strings.TrimSpace(os.Getenv("INFERLEAN_DCGM_ENDPOINT")); endpoint != "" {
 		return endpoint
 	}
@@ -225,6 +258,17 @@ func prometheusArgs(configPath, runDir string, port int) []string {
 		"--web.listen-address=127.0.0.1:" + strconv.Itoa(port),
 		"--log.level=error",
 	}
+}
+
+func dcgmExporterArgs(target string, interval time.Duration, collectorsPath string) []string {
+	args := []string{
+		"--address=" + target,
+		"--collect-interval=" + strconv.Itoa(int(interval.Milliseconds())),
+	}
+	if collectorsPath != "" {
+		args = append(args, "--collectors="+collectorsPath)
+	}
+	return args
 }
 
 func newHTTPClient(timeout time.Duration) *http.Client {

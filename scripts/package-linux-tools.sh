@@ -9,10 +9,11 @@ DCGM_EXPORTER_VERSION="4.5.2-4.8.1"
 arch=""
 release_dir="dist/release"
 tools_dir="dist/tools"
+dcgm_exporter_bin=""
 
 usage() {
   cat <<'EOF'
-Usage: package-linux-tools.sh --arch amd64|arm64 [--release-dir PATH] [--tools-dir PATH]
+Usage: package-linux-tools.sh --arch amd64|arm64 [--release-dir PATH] [--tools-dir PATH] [--dcgm-exporter-bin PATH]
 EOF
 }
 
@@ -28,6 +29,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --tools-dir)
       tools_dir="${2:-}"
+      shift 2
+      ;;
+    --dcgm-exporter-bin)
+      dcgm_exporter_bin="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -91,6 +96,27 @@ download_and_unpack "${prometheus_tarball_url}" "${bundle_tools_dir}/prometheus"
 download_and_unpack "${node_exporter_tarball_url}" "${bundle_tools_dir}/node_exporter"
 download_and_unpack "${dcgm_tarball_url}" "${bundle_tools_dir}/dcgm"
 
+if [ -n "${dcgm_exporter_bin}" ]; then
+  if [ ! -x "${dcgm_exporter_bin}" ]; then
+    echo "--dcgm-exporter-bin must point to an executable file" >&2
+    exit 1
+  fi
+
+  mkdir -p "${bundle_tools_dir}/dcgm/bin"
+  cp "${dcgm_exporter_bin}" "${bundle_tools_dir}/dcgm/bin/dcgm-exporter"
+  chmod 755 "${bundle_tools_dir}/dcgm/bin/dcgm-exporter"
+fi
+
+dcgm_exporter_binary="$(
+  find "${bundle_tools_dir}/dcgm" -type f \( -name 'dcgm-exporter' -o -name 'dcgm_exporter' \) -perm -111 | head -n1 || true
+)"
+dcgm_exporter_runnable="false"
+dcgm_exporter_bundle="source_only"
+if [ -n "${dcgm_exporter_binary}" ]; then
+  dcgm_exporter_runnable="true"
+  dcgm_exporter_bundle="source_plus_binary"
+fi
+
 cat > "${bundle_tools_dir}/TOOLS.txt" <<EOF
 prometheus_version=${PROMETHEUS_VERSION}
 prometheus_url=${prometheus_tarball_url}
@@ -98,6 +124,9 @@ node_exporter_version=${NODE_EXPORTER_VERSION}
 node_exporter_url=${node_exporter_tarball_url}
 dcgm_exporter_version=${DCGM_EXPORTER_VERSION}
 dcgm_exporter_url=${dcgm_tarball_url}
+dcgm_exporter_bundle=${dcgm_exporter_bundle}
+dcgm_exporter_runnable=${dcgm_exporter_runnable}
+dcgm_exporter_binary=${dcgm_exporter_binary}
 EOF
 
 mkdir -p "${tools_dir}/linux_${arch}/prometheus"

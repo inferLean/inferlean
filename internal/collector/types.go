@@ -67,16 +67,20 @@ type collectionRun struct {
 	rawPaths     runtimeArtifacts
 	warnings     []string
 
-	tools      toolPaths
-	nodePort   int
-	promPort   int
-	vllmTarget string
-	nodeTarget string
-	dcgmTarget string
-	promBase   string
+	tools          toolPaths
+	nodePort       int
+	promPort       int
+	vllmTarget     string
+	nodeTarget     string
+	dcgmTarget     string
+	dcgmManaged    bool
+	promBase       string
+	collectStarted time.Time
+	collectEnded   time.Time
 
 	nodeProc *managedProcess
 	promProc *managedProcess
+	dcgmProc *managedProcess
 
 	vllmCapture    sourceCapture
 	hostCapture    sourceCapture
@@ -84,22 +88,30 @@ type collectionRun struct {
 	nvidiaCapture  sourceCapture
 	processCapture sourceCapture
 
-	nvidiaSnapshot *nvidiaSnapshot
-	processMetrics map[string]any
-	env            contracts.Environment
-	envMetrics     map[string]any
+	vllmMetrics       contracts.VLLMMetrics
+	hostMetrics       contracts.HostMetrics
+	gpuMetrics        contracts.GPUTelemetry
+	nvidiaMetrics     contracts.NvidiaSMIMetrics
+	runtimeConfig     contracts.RuntimeConfig
+	processInspection contracts.ProcessInspection
+	nvidiaSnapshot    *nvidiaSnapshot
+	nvmlSnapshot      *nvmlSnapshot
+	nvmlCoverage      contracts.SourceCoverage
+	processSamples    []processSample
+	env               contracts.Environment
 }
 
 type toolPaths struct {
-	Prometheus   string
-	NodeExporter string
+	Prometheus     string
+	NodeExporter   string
+	DCGMExporter   string
+	DCGMCollectors string
 }
 
 type sourceCapture struct {
-	Status        string
-	Reason        string
-	Artifacts     []string
-	MetricPayload map[string]any
+	Status    string
+	Reason    string
+	Artifacts []string
 }
 
 type managedProcess struct {
@@ -113,12 +125,20 @@ type runtimeArtifacts struct {
 	vllmRaw          string
 	hostRaw          string
 	dcgmRaw          string
+	vllmNormalized   string
+	hostNormalized   string
+	gpuNormalized    string
 	nvidiaRaw        string
 	processRaw       string
+	processSamples   string
+	nvmlRaw          string
+	runtimeProbeRaw  string
 	prometheusStdout string
 	prometheusStderr string
 	nodeStdout       string
 	nodeStderr       string
+	dcgmStdout       string
+	dcgmStderr       string
 }
 
 type promVectorResponse struct {
@@ -139,6 +159,18 @@ type promTargetsResponse struct {
 			Health string            `json:"health"`
 		} `json:"activeTargets"`
 	} `json:"data"`
+}
+
+type promRangeResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		Result []promRangeSeries `json:"result"`
+	} `json:"data"`
+}
+
+type promRangeSeries struct {
+	Metric map[string]string `json:"metric"`
+	Values [][]any           `json:"values"`
 }
 
 type nvidiaGPU struct {
@@ -164,4 +196,35 @@ type nvidiaSnapshot struct {
 	GPUs          []nvidiaGPU     `json:"gpus,omitempty"`
 	Processes     []nvidiaProcess `json:"processes,omitempty"`
 	DriverVersion string          `json:"driver_version,omitempty"`
+}
+
+type processSample struct {
+	Timestamp  time.Time `json:"timestamp"`
+	CPUPercent float64   `json:"cpu_percent"`
+	RSSBytes   float64   `json:"rss_bytes"`
+}
+
+type nvmlGPU struct {
+	Name             string  `json:"name"`
+	Utilization      float64 `json:"utilization,omitempty"`
+	MemoryUsedBytes  float64 `json:"memory_used_bytes,omitempty"`
+	MemoryFreeBytes  float64 `json:"memory_free_bytes,omitempty"`
+	MemoryTotalBytes float64 `json:"memory_total_bytes,omitempty"`
+	SMClockMHz       float64 `json:"sm_clock_mhz,omitempty"`
+	MemClockMHz      float64 `json:"mem_clock_mhz,omitempty"`
+	PowerDrawWatts   float64 `json:"power_draw_watts,omitempty"`
+	TemperatureC     float64 `json:"temperature_c,omitempty"`
+	PCIeRxKBs        float64 `json:"pcie_rx_kbs,omitempty"`
+	PCIeTxKBs        float64 `json:"pcie_tx_kbs,omitempty"`
+}
+
+type nvmlSample struct {
+	Timestamp time.Time `json:"timestamp"`
+	Driver    string    `json:"driver,omitempty"`
+	GPUs      []nvmlGPU `json:"gpus,omitempty"`
+}
+
+type nvmlSnapshot struct {
+	DriverVersion string       `json:"driver_version,omitempty"`
+	Samples       []nvmlSample `json:"samples,omitempty"`
 }

@@ -96,6 +96,9 @@ inferlean collect --output /tmp/artifact.json
 - Collects local evidence from a supported Linux host.
 - Runs a 30-second default collection window with a configurable scrape cadence.
 - Writes a validated run artifact to `~/.inferlean/runs/<run_id>/artifact.json` unless `--output` is provided.
+- Emits explicit typed evidence blocks for vLLM, host, rich GPU telemetry, `nvidia-smi`, runtime config, and process inspection.
+- Uses Prometheus plus node exporter for scrape coordination, samples the target PID group locally, and safely probes Python package/runtime metadata without attaching to the target process.
+- Merges NVML and DCGM when available for rich GPU telemetry; `nvidia-smi` remains a separate fallback/supplement source.
 - Records source quality when a source is missing, degraded, or only partially available.
 - Reuses discovery logic inside `collect` so target selection stays consistent.
 
@@ -111,6 +114,7 @@ Those come in later delivery phases. Phase 1 is the first step toward the full â
 ## Release Policy
 
 - Linux release archives include the CLI plus Prometheus and node exporter payloads for collection.
-- DCGM payloads are bundled for Linux as an optional GPU telemetry source when available.
+- Linux bundles may include DCGM source payloads or a runnable exporter binary depending on upstream release assets. InferLean treats DCGM as optional and only starts it when a real executable is present.
+- Required rich GPU telemetry no longer depends on bundled DCGM being runnable; NVML is the default local completeness path and `nvidia-smi` remains an additional evidence source.
 - Windows and macOS release archives remain CLI-only.
 - GitHub Actions publishes a semantic-version release for each commit that lands on `main`.

@@ -54,12 +54,20 @@ func buildRuntimeArtifacts(runDir string) runtimeArtifacts {
 		vllmRaw:          filepath.Join(raw, "vllm.metrics"),
 		hostRaw:          filepath.Join(raw, "node_exporter.metrics"),
 		dcgmRaw:          filepath.Join(raw, "dcgm.metrics"),
+		vllmNormalized:   filepath.Join(raw, "vllm.normalized.json"),
+		hostNormalized:   filepath.Join(raw, "host.normalized.json"),
+		gpuNormalized:    filepath.Join(raw, "gpu.normalized.json"),
 		nvidiaRaw:        filepath.Join(raw, "nvidia-smi.txt"),
 		processRaw:       filepath.Join(raw, "process-inspection.json"),
+		processSamples:   filepath.Join(raw, "process-samples.json"),
+		nvmlRaw:          filepath.Join(raw, "nvml-samples.json"),
+		runtimeProbeRaw:  filepath.Join(raw, "runtime-probe.json"),
 		prometheusStdout: filepath.Join(raw, "prometheus.stdout.log"),
 		prometheusStderr: filepath.Join(raw, "prometheus.stderr.log"),
 		nodeStdout:       filepath.Join(raw, "node_exporter.stdout.log"),
 		nodeStderr:       filepath.Join(raw, "node_exporter.stderr.log"),
+		dcgmStdout:       filepath.Join(raw, "dcgm.stdout.log"),
+		dcgmStderr:       filepath.Join(raw, "dcgm.stderr.log"),
 	}
 }
 

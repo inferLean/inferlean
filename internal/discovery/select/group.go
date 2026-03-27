@@ -32,26 +32,31 @@ type Group struct {
 }
 
 type RuntimeConfig struct {
-	Model                string
-	ServedModelName      string
-	Host                 string
-	Port                 int
-	TensorParallelSize   int
-	DataParallelSize     int
-	PipelineParallelSize int
-	MaxModelLen          int
-	MaxNumBatchedTokens  int
-	MaxNumSeqs           int
-	GPUMemoryUtilization float64
-	KVCacheDType         string
-	ChunkedPrefill       *bool
-	PrefixCaching        *bool
-	Quantization         string
-	DType                string
-	GenerationConfig     string
-	APIKeyConfigured     bool
-	MultimodalFlags      []string
-	EnvHints             map[string]string
+	Model                 string
+	ServedModelName       string
+	Host                  string
+	Port                  int
+	TensorParallelSize    int
+	DataParallelSize      int
+	PipelineParallelSize  int
+	MaxModelLen           int
+	MaxNumBatchedTokens   int
+	MaxNumSeqs            int
+	GPUMemoryUtilization  float64
+	KVCacheDType          string
+	ChunkedPrefill        *bool
+	PrefixCaching         *bool
+	Quantization          string
+	DType                 string
+	GenerationConfig      string
+	APIKeyConfigured      bool
+	MultimodalFlags       []string
+	AttentionBackend      string
+	FlashinferPresent     *bool
+	FlashAttentionPresent *bool
+	ImageProcessor        string
+	MultimodalCacheHints  []string
+	EnvHints              map[string]string
 }
 
 func BuildGroups(processes []CandidateProcess) []Group {

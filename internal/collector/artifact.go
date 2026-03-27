@@ -9,35 +9,93 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
+	gopsprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/inferLean/inferlean/internal/discovery"
 	"github.com/inferLean/inferlean/pkg/contracts"
 )
 
-func captureProcessInspection(rawPath string, target discovery.CandidateGroup) (sourceCapture, map[string]any) {
-	payload := map[string]any{
-		"primary_pid":      target.PrimaryPID,
-		"related_pids":     target.PIDs,
-		"entry_point":      target.EntryPoint,
-		"raw_command_line": target.RawCommandLine,
-		"parse_warnings":   target.ParseWarnings,
+func captureProcessInspection(ctx context.Context, rawPath string, target discovery.CandidateGroup) (sourceCapture, contracts.ProcessInspection) {
+	inspection := contracts.ProcessInspection{
+		TargetProcess: contracts.TargetProcess{
+			PID:            target.PrimaryPID,
+			Executable:     target.Executable,
+			RawCommandLine: target.RawCommandLine,
+			EntryPoint:     target.EntryPoint,
+			StartedAt:      timePointer(target.StartedAt),
+		},
+		ParseWarnings:    append([]string{}, target.ParseWarnings...),
+		RelatedProcesses: observeProcesses(ctx, target.PIDs),
 	}
-	if target.Executable != "" {
-		payload["executable"] = target.Executable
+	inspection.Coverage = processCoverage(inspection, relativeRawArtifact(rawPath))
+	if err := writeJSONFile(rawPath, inspection); err != nil {
+		return sourceCapture{Status: "degraded", Reason: fmt.Sprintf("could not persist process inspection: %v", err)}, inspection
 	}
-	if !target.StartedAt.IsZero() {
-		payload["started_at"] = target.StartedAt.UTC().Format(time.RFC3339)
-	}
-	if err := writeJSONFile(rawPath, payload); err != nil {
-		return degradedCapture(fmt.Sprintf("could not persist process inspection: %v", err)), payload
-	}
-	return sourceCapture{Status: "ok", Artifacts: []string{relativeRawArtifact(rawPath)}, MetricPayload: map[string]any{"raw_evidence_ref": relativeRawArtifact(rawPath)}}, payload
+	capture := captureFromCoverage(inspection.Coverage, []string{relativeRawArtifact(rawPath)}, "process inspection was incomplete", []string{
+		"raw_command_line",
+		"target_pid",
+		"executable_identity",
+		"related_process_identities",
+	})
+	return capture, inspection
 }
 
-func collectEnvironment(ctx context.Context, snapshot *nvidiaSnapshot) (contracts.Environment, map[string]any) {
-	env := contracts.Environment{OS: runtimeOSArch()}
-	metrics := map[string]any{}
+func observeProcesses(ctx context.Context, pids []int32) []contracts.ObservedProcess {
+	processes := make([]contracts.ObservedProcess, 0, len(pids))
+	for _, pid := range pids {
+		proc, err := gopsprocess.NewProcess(pid)
+		if err != nil {
+			continue
+		}
+		processes = append(processes, observeProcess(ctx, proc))
+	}
+	return processes
+}
 
+func observeProcess(ctx context.Context, proc *gopsprocess.Process) contracts.ObservedProcess {
+	raw, _ := proc.CmdlineWithContext(ctx)
+	exe, _ := proc.ExeWithContext(ctx)
+	ppid, _ := proc.PpidWithContext(ctx)
+	startedAt := time.Time{}
+	if createdMS, err := proc.CreateTimeWithContext(ctx); err == nil {
+		startedAt = time.UnixMilli(createdMS)
+	}
+	return contracts.ObservedProcess{
+		PID:            proc.Pid,
+		PPID:           ppid,
+		Executable:     exe,
+		RawCommandLine: raw,
+		StartedAt:      timePointer(startedAt),
+	}
+}
+
+func processCoverage(inspection contracts.ProcessInspection, rawRef string) contracts.SourceCoverage {
+	coverage := newCoverageBuilder(rawRef)
+	if inspection.TargetProcess.RawCommandLine != "" {
+		coverage.Present("raw_command_line")
+	} else {
+		coverage.Missing("raw_command_line")
+	}
+	if inspection.TargetProcess.PID != 0 {
+		coverage.Present("target_pid")
+	} else {
+		coverage.Missing("target_pid")
+	}
+	if inspection.TargetProcess.Executable != "" {
+		coverage.Present("executable_identity")
+	} else {
+		coverage.Missing("executable_identity")
+	}
+	if len(inspection.RelatedProcesses) > 0 {
+		coverage.Present("related_process_identities")
+	} else {
+		coverage.Missing("related_process_identities")
+	}
+	return coverage.Build()
+}
+
+func collectEnvironment(ctx context.Context, nvidia *nvidiaSnapshot, nvml *nvmlSnapshot) contracts.Environment {
+	env := contracts.Environment{OS: runtime.GOOS + "/" + runtime.GOARCH}
 	if info, err := host.InfoWithContext(ctx); err == nil {
 		env.Kernel = info.KernelVersion
 	}
@@ -49,44 +107,33 @@ func collectEnvironment(ctx context.Context, snapshot *nvidiaSnapshot) (contract
 	}
 	if vm, err := mem.VirtualMemoryWithContext(ctx); err == nil {
 		env.MemoryBytes = int64(vm.Total)
-		metrics["memory_used_bytes"] = vm.Used
-		metrics["memory_available_bytes"] = vm.Available
 	}
-	if snapshot != nil && len(snapshot.GPUs) > 0 {
-		env.GPUCount = len(snapshot.GPUs)
-		env.GPUModel = snapshot.GPUs[0].Name
-		env.DriverVersion = snapshot.GPUs[0].DriverVersion
+	switch {
+	case nvml != nil && len(nvml.Samples) > 0 && len(nvml.Samples[len(nvml.Samples)-1].GPUs) > 0:
+		env.GPUCount = len(nvml.Samples[len(nvml.Samples)-1].GPUs)
+		env.GPUModel = nvml.Samples[len(nvml.Samples)-1].GPUs[0].Name
+		env.DriverVersion = nvml.DriverVersion
+	case nvidia != nil && len(nvidia.GPUs) > 0:
+		env.GPUCount = len(nvidia.GPUs)
+		env.GPUModel = nvidia.GPUs[0].Name
+		env.DriverVersion = nvidia.DriverVersion
 	}
-	return env, metrics
-}
-
-func runtimeOSArch() string {
-	return runtime.GOOS + "/" + runtime.GOARCH
+	return env
 }
 
 func (r *collectionRun) buildArtifact() (contracts.RunArtifact, bool) {
 	states := r.sourceStates()
 	minimumEvidenceMet := hasMinimumEvidence(states)
-	artifact := contracts.RunArtifact{
-		SchemaVersion: contracts.SchemaVersion,
-		Job:           r.buildJob(),
-		Environment:   r.env,
-		RuntimeConfig: toRuntimeConfig(r.opts.Target.RuntimeConfig),
-		Metrics:       r.buildMetrics(),
-		ProcessInspection: contracts.ProcessInspection{
-			TargetProcess: contracts.TargetProcess{
-				PID:            r.opts.Target.PrimaryPID,
-				Executable:     r.opts.Target.Executable,
-				RawCommandLine: r.opts.Target.RawCommandLine,
-				EntryPoint:     r.opts.Target.EntryPoint,
-				StartedAt:      timePointer(r.opts.Target.StartedAt),
-			},
-			ParseWarnings: append([]string{}, r.opts.Target.ParseWarnings...),
-		},
+	return contracts.RunArtifact{
+		SchemaVersion:        contracts.SchemaVersion,
+		Job:                  r.buildJob(),
+		Environment:          r.env,
+		RuntimeConfig:        r.runtimeConfig,
+		Metrics:              r.buildMetrics(),
+		ProcessInspection:    r.processInspection,
 		WorkloadObservations: r.buildWorkloadObservations(minimumEvidenceMet),
 		CollectionQuality:    buildCollectionQuality(states, minimumEvidenceMet),
-	}
-	return artifact, minimumEvidenceMet
+	}, minimumEvidenceMet
 }
 
 func (r *collectionRun) buildJob() contracts.Job {
@@ -97,10 +144,10 @@ func (r *collectionRun) buildJob() contracts.Job {
 
 func (r *collectionRun) buildMetrics() contracts.Metrics {
 	return contracts.Metrics{
-		VLLM:      r.vllmCapture.MetricPayload,
-		Host:      mergeMaps(r.hostCapture.MetricPayload, r.envMetrics),
-		GPU:       r.gpuCapture.MetricPayload,
-		NvidiaSmi: r.nvidiaCapture.MetricPayload,
+		VLLM:      r.vllmMetrics,
+		Host:      r.hostMetrics,
+		GPU:       r.gpuMetrics,
+		NvidiaSmi: r.nvidiaMetrics,
 	}
 }
 
@@ -112,9 +159,17 @@ func (r *collectionRun) buildWorkloadObservations(minimumEvidenceMet bool) contr
 			"collect_for_seconds":           r.opts.CollectFor.Seconds(),
 			"scrape_every_seconds":          r.opts.ScrapeEvery.Seconds(),
 			"minimum_required_evidence_met": minimumEvidenceMet,
-			"process_inspection":            r.processMetrics,
+			"process_samples":               len(r.processSamples),
+			"nvml_samples":                  nvmlSampleCount(r.nvmlSnapshot),
 		},
 	}
+}
+
+func nvmlSampleCount(snapshot *nvmlSnapshot) int {
+	if snapshot == nil {
+		return 0
+	}
+	return len(snapshot.Samples)
 }
 
 func (r *collectionRun) sourceStates() map[string]contracts.SourceState {
@@ -141,27 +196,32 @@ func toSourceState(capture sourceCapture) contracts.SourceState {
 	return contracts.SourceState{Status: capture.Status, Reason: capture.Reason, Artifacts: capture.Artifacts}
 }
 
-func toRuntimeConfig(cfg discovery.RuntimeConfig) contracts.RuntimeConfig {
+func baseRuntimeConfig(cfg discovery.RuntimeConfig) contracts.RuntimeConfig {
 	return contracts.RuntimeConfig{
-		Model:                cfg.Model,
-		ServedModelName:      cfg.ServedModelName,
-		Host:                 cfg.Host,
-		Port:                 cfg.Port,
-		TensorParallelSize:   cfg.TensorParallelSize,
-		DataParallelSize:     cfg.DataParallelSize,
-		PipelineParallelSize: cfg.PipelineParallelSize,
-		MaxModelLen:          cfg.MaxModelLen,
-		MaxNumBatchedTokens:  cfg.MaxNumBatchedTokens,
-		MaxNumSeqs:           cfg.MaxNumSeqs,
-		GPUMemoryUtilization: cfg.GPUMemoryUtilization,
-		KVCacheDType:         cfg.KVCacheDType,
-		ChunkedPrefill:       cfg.ChunkedPrefill,
-		PrefixCaching:        cfg.PrefixCaching,
-		Quantization:         cfg.Quantization,
-		DType:                cfg.DType,
-		GenerationConfig:     cfg.GenerationConfig,
-		APIKeyConfigured:     cfg.APIKeyConfigured,
-		MultimodalFlags:      append([]string{}, cfg.MultimodalFlags...),
-		EnvHints:             cfg.EnvHints,
+		Model:                 cfg.Model,
+		ServedModelName:       cfg.ServedModelName,
+		Host:                  cfg.Host,
+		Port:                  cfg.Port,
+		TensorParallelSize:    cfg.TensorParallelSize,
+		DataParallelSize:      cfg.DataParallelSize,
+		PipelineParallelSize:  cfg.PipelineParallelSize,
+		MaxModelLen:           cfg.MaxModelLen,
+		MaxNumBatchedTokens:   cfg.MaxNumBatchedTokens,
+		MaxNumSeqs:            cfg.MaxNumSeqs,
+		GPUMemoryUtilization:  cfg.GPUMemoryUtilization,
+		KVCacheDType:          cfg.KVCacheDType,
+		ChunkedPrefill:        cfg.ChunkedPrefill,
+		PrefixCaching:         cfg.PrefixCaching,
+		Quantization:          cfg.Quantization,
+		DType:                 cfg.DType,
+		GenerationConfig:      cfg.GenerationConfig,
+		APIKeyConfigured:      cfg.APIKeyConfigured,
+		MultimodalFlags:       append([]string{}, cfg.MultimodalFlags...),
+		AttentionBackend:      cfg.AttentionBackend,
+		FlashinferPresent:     cfg.FlashinferPresent,
+		FlashAttentionPresent: cfg.FlashAttentionPresent,
+		ImageProcessor:        cfg.ImageProcessor,
+		MultimodalCacheHints:  append([]string{}, cfg.MultimodalCacheHints...),
+		EnvHints:              cfg.EnvHints,
 	}
 }
