@@ -5,9 +5,11 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/inferLean/inferlean/internal/collector"
 	"github.com/inferLean/inferlean/internal/discovery"
+	"github.com/inferLean/inferlean/pkg/contracts"
 )
 
 func RenderDiscovery(w io.Writer, result discovery.Result) {
@@ -121,6 +123,19 @@ func RenderCollection(w io.Writer, target discovery.Result, result collector.Res
 		for _, warning := range result.Warnings {
 			fmt.Fprintf(w, "  - %s\n", warning)
 		}
+	}
+}
+
+func RenderPublication(w io.Writer, ack contracts.ArtifactUploadAck) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Backend acknowledgement")
+	fmt.Fprintf(w, "  Upload ID: %s\n", ack.UploadID)
+	fmt.Fprintf(w, "  Run ID: %s\n", ack.RunID)
+	fmt.Fprintf(w, "  Installation ID: %s\n", ack.InstallationID)
+	fmt.Fprintf(w, "  Status: %s\n", ack.Status)
+	fmt.Fprintf(w, "  Received at: %s\n", ack.ReceivedAt.Format(time.RFC3339))
+	if ack.StatusURL != "" {
+		fmt.Fprintf(w, "  Trace: %s\n", ack.StatusURL)
 	}
 }
 

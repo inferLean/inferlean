@@ -38,6 +38,7 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&opts.debugFile, "debug-file", "", "write debug output to a file")
 	cmd.AddCommand(newCollectCommand())
 	cmd.AddCommand(newDiscoverCommand())
+	cmd.AddCommand(newLoginCommand())
 	cmd.AddCommand(newVersionCommand())
 
 	return cmd

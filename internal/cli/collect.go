@@ -8,8 +8,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/inferLean/inferlean/internal/collector"
+	"github.com/inferLean/inferlean/internal/config"
+	"github.com/inferLean/inferlean/internal/events"
 	"github.com/inferLean/inferlean/internal/output"
+	"github.com/inferLean/inferlean/internal/publish"
 	"github.com/inferLean/inferlean/internal/ui/collectprogress"
+	"github.com/inferLean/inferlean/internal/ui/publishprogress"
 )
 
 const (
@@ -23,6 +27,8 @@ func newCollectCommand() *cobra.Command {
 	var collectFor time.Duration
 	var scrapeEvery time.Duration
 	var outputPath string
+	var publishArtifact bool
+	var backendURL string
 
 	cmd := &cobra.Command{
 		Use:   "collect",
@@ -65,7 +71,83 @@ func newCollectCommand() *cobra.Command {
 				return err
 			}
 
+			var publishResult publish.Result
+			if publishArtifact {
+				store, err := config.NewStore()
+				if err != nil {
+					return err
+				}
+				cfg, err := store.Load()
+				if err != nil {
+					return err
+				}
+
+				baseURL, err := resolveBackendURL(backendURL, cfg.Auth)
+				if err != nil {
+					return err
+				}
+
+				var publishAuth config.AuthState
+				if cfg.Auth != nil && cfg.Auth.HasSession() {
+					if cfg.Auth.BackendURL == "" || baseURL == cfg.Auth.BackendURL {
+						publishAuth = *cfg.Auth
+					}
+				}
+
+				publisher := publish.NewService()
+				runPublish := func(stepf func(publish.StepUpdate)) (publish.Result, error) {
+					return publisher.Publish(cmd.Context(), publish.Options{
+						BaseURL:  baseURL,
+						Artifact: result.Artifact,
+						Auth:     publishAuth,
+						Stepf:    stepf,
+					})
+				}
+
+				if isInteractiveTerminal(noInteractive) {
+					publishResult, err = publishprogress.Run(cmd.Context(), runPublish)
+				} else {
+					publishResult, err = runPublish(nil)
+				}
+				if err != nil {
+					if emitter, emitterErr := events.NewEmitter(); emitterErr == nil {
+						_ = emitter.EmitAsync(baseURL, publishAuth, events.NewCrashEvent(
+							result.Artifact.Job.InstallationID,
+							result.Artifact.Job.RunID,
+							"collect",
+							"publish",
+							err.Error(),
+							map[string]string{"backend_url": baseURL},
+						))
+					}
+					return err
+				}
+
+				if publishResult.Auth.HasSession() {
+					cfg.Auth = &publishResult.Auth
+					if err := store.Save(cfg); err != nil {
+						return err
+					}
+				}
+				if emitter, emitterErr := events.NewEmitter(); emitterErr == nil {
+					_ = emitter.EmitAsync(baseURL, publishResult.Auth, events.NewWorkflowEvent(
+						result.Artifact.Job.InstallationID,
+						result.Artifact.Job.RunID,
+						"collect",
+						"publish",
+						"success",
+						map[string]string{
+							"backend_url": baseURL,
+							"upload_id":   publishResult.Ack.UploadID,
+						},
+					))
+				}
+			}
+
 			output.RenderCollection(cmd.OutOrStdout(), target, result)
+			if publishArtifact {
+				output.RenderPublication(cmd.OutOrStdout(), publishResult.Ack)
+			}
 			return nil
 		},
 	}
@@ -76,6 +158,8 @@ func newCollectCommand() *cobra.Command {
 	cmd.Flags().DurationVar(&collectFor, "collect-interval", defaultCollectFor, "alias for --collect-for")
 	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", defaultScrapeEvery, "how often Prometheus scrapes configured targets during collection")
 	cmd.Flags().StringVar(&outputPath, "output", "", "write the artifact to a specific path")
+	cmd.Flags().BoolVar(&publishArtifact, "publish", false, "publish the collected artifact to the configured backend")
+	cmd.Flags().StringVar(&backendURL, "backend-url", "", "InferLean backend base URL")
 	_ = cmd.Flags().MarkHidden("collect-interval")
 
 	return cmd

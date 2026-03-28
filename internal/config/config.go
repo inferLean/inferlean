@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -20,7 +21,37 @@ const (
 )
 
 type Config struct {
-	InstallationID string `json:"installation_id,omitempty"`
+	InstallationID string     `json:"installation_id,omitempty"`
+	Auth           *AuthState `json:"auth,omitempty"`
+}
+
+type AuthState struct {
+	BackendURL   string    `json:"backend_url,omitempty"`
+	Issuer       string    `json:"issuer,omitempty"`
+	ClientID     string    `json:"client_id,omitempty"`
+	TokenType    string    `json:"token_type,omitempty"`
+	AccessToken  string    `json:"access_token,omitempty"`
+	IDToken      string    `json:"id_token,omitempty"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	ExpiresAt    time.Time `json:"expires_at,omitempty"`
+	UseIDToken   bool      `json:"use_id_token,omitempty"`
+}
+
+func (a AuthState) HasSession() bool {
+	return strings.TrimSpace(a.BackendURL) != "" &&
+		strings.TrimSpace(a.Issuer) != "" &&
+		strings.TrimSpace(a.ClientID) != "" &&
+		strings.TrimSpace(a.BearerToken()) != ""
+}
+
+func (a AuthState) BearerToken() string {
+	if a.UseIDToken && strings.TrimSpace(a.IDToken) != "" {
+		return a.IDToken
+	}
+	if strings.TrimSpace(a.AccessToken) != "" {
+		return a.AccessToken
+	}
+	return a.IDToken
 }
 
 type Store struct {
