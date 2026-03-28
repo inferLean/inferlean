@@ -178,7 +178,7 @@ ensure_bootstrap_go() {
   fi
 
   if ! go_arch="$(go_download_arch)"; then
-    log "dcgm-exporter Go bootstrap is unsupported on architecture ${arch}"
+    printf '%s\n' "dcgm-exporter Go bootstrap is unsupported on architecture ${arch}" >&2
     return 1
   fi
 
@@ -186,22 +186,22 @@ ensure_bootstrap_go() {
   go_url="https://go.dev/dl/go${bootstrap_version}.linux-${go_arch}.tar.gz"
   go_root="${tmpdir}/go-toolchain"
 
-  log "downloading Go ${bootstrap_version} for the dcgm-exporter build"
+  printf '%s\n' "downloading Go ${bootstrap_version} for the dcgm-exporter build" >&2
   if ! curl -fsSL "${go_url}" -o "${go_archive}"; then
-    log "failed to download Go ${bootstrap_version} from ${go_url}"
+    printf '%s\n' "failed to download Go ${bootstrap_version} from ${go_url}" >&2
     return 1
   fi
 
   rm -rf "${go_root}"
   mkdir -p "${go_root}"
   if ! tar -xzf "${go_archive}" -C "${go_root}"; then
-    log "failed to unpack Go ${bootstrap_version}"
+    printf '%s\n' "failed to unpack Go ${bootstrap_version}" >&2
     return 1
   fi
 
   bootstrapped_go_bin="${go_root}/go/bin/go"
   if [ ! -x "${bootstrapped_go_bin}" ]; then
-    log "downloaded Go ${bootstrap_version}, but the go binary was not found afterwards"
+    printf '%s\n' "downloaded Go ${bootstrap_version}, but the go binary was not found afterwards" >&2
     return 1
   fi
 
@@ -426,7 +426,7 @@ build_dcgm_exporter_if_needed() {
 
   clone_dir="${tmpdir}/dcgm-exporter"
   log "building dcgm-exporter ${version_tag} from ${repo_url}"
-  if ! git clone --depth 1 --branch "${version_tag}" "${repo_url}" "${clone_dir}"; then
+  if ! git -c advice.detachedHead=false clone --depth 1 --branch "${version_tag}" "${repo_url}" "${clone_dir}"; then
     log "failed to clone dcgm-exporter ${version_tag}; continuing without a local dcgm-exporter binary"
     return 0
   fi
