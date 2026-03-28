@@ -186,7 +186,7 @@ ensure_bootstrap_go() {
   go_url="https://go.dev/dl/go${bootstrap_version}.linux-${go_arch}.tar.gz"
   go_root="${tmpdir}/go-toolchain"
 
-  log "downloading Go ${bootstrap_version} for the dcgm-exporter build"
+  #log "downloading Go ${bootstrap_version} for the dcgm-exporter build"
   if ! curl -fsSL "${go_url}" -o "${go_archive}"; then
     log "failed to download Go ${bootstrap_version} from ${go_url}"
     return 1
@@ -205,7 +205,7 @@ ensure_bootstrap_go() {
     return 1
   fi
 
-  printf '%s\n' "${bootstrapped_go_bin}"
+  printf '%s' "${bootstrapped_go_bin}"
   return 0
 }
 
