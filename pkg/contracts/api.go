@@ -1,6 +1,7 @@
 package contracts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -98,6 +99,18 @@ type RunSummary struct {
 
 type RunListResponse struct {
 	Runs []RunSummary `json:"runs"`
+}
+
+type RunDetailResponse struct {
+	UploadID         string          `json:"upload_id"`
+	RunID            string          `json:"run_id"`
+	InstallationID   string          `json:"installation_id"`
+	SchemaVersion    string          `json:"schema_version"`
+	CollectorVersion string          `json:"collector_version"`
+	Subject          string          `json:"subject"`
+	Email            string          `json:"email,omitempty"`
+	ReceivedAt       time.Time       `json:"received_at"`
+	Artifact         json.RawMessage `json:"artifact"`
 }
 
 type TelemetryBatch struct {
