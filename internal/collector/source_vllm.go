@@ -25,7 +25,6 @@ var vllmRequiredFields = []string{
 	"recomputed_prompt_tokens",
 	"prefix_cache",
 	"multimodal_cache",
-	"multimodal_preprocessing",
 }
 
 func (r *collectionRun) captureVLLMMetrics(ctx context.Context) error {
@@ -58,7 +57,6 @@ func (r *collectionRun) captureVLLMMetrics(ctx context.Context) error {
 	r.assignWindow(ctx, &metrics.RecomputedPromptTokens, coverage, normalized, "recomputed_prompt_tokens", sumMetricSpec("vllm:prompt_tokens_recomputed_total", "vllm_prompt_tokens_recomputed_total", "vllm:prompt_tokens_recomputed", "vllm_prompt_tokens_recomputed"))
 	metrics.PrefixCache = r.captureCache(ctx, coverage, normalized, "prefix_cache", sumMetricSpec("vllm:prefix_cache_hits_total", "vllm_prefix_cache_hits_total", "vllm:prefix_cache_hits", "vllm_prefix_cache_hits"), sumMetricSpec("vllm:prefix_cache_queries_total", "vllm_prefix_cache_queries_total", "vllm:prefix_cache_queries", "vllm_prefix_cache_queries"))
 	metrics.MultimodalCache = r.captureCache(ctx, coverage, normalized, "multimodal_cache", sumMetricSpec("vllm:mm_cache_hits_total", "vllm_mm_cache_hits_total", "vllm:mm_cache_hits", "vllm_mm_cache_hits"), sumMetricSpec("vllm:mm_cache_queries_total", "vllm_mm_cache_queries_total", "vllm:mm_cache_queries", "vllm_mm_cache_queries"))
-	r.assignLatency(ctx, &metrics.MultimodalPreprocessing, coverage, normalized, "multimodal_preprocessing", "vllm:request_inference_time_seconds", lookback)
 
 	metrics.Coverage = coverage.Build()
 	r.vllmMetrics = metrics

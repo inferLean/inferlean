@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -122,7 +123,14 @@ func parsePromFloat(value any) (float64, error) {
 	if !ok {
 		return 0, fmt.Errorf("unexpected prometheus value type %T", value)
 	}
-	return strconv.ParseFloat(raw, 64)
+	number, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, err
+	}
+	if math.IsNaN(number) || math.IsInf(number, 0) {
+		return 0, fmt.Errorf("non-finite prometheus value %q", raw)
+	}
+	return number, nil
 }
 
 func cloneLabels(labels map[string]string) map[string]string {

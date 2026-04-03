@@ -69,24 +69,23 @@ type ReliabilityMetrics struct {
 }
 
 type VLLMMetrics struct {
-	RequestsRunning         MetricWindow         `json:"requests_running,omitempty"`
-	RequestsWaiting         MetricWindow         `json:"requests_waiting,omitempty"`
-	LatencyE2E              MetricWindow         `json:"latency_e2e,omitempty"`
-	LatencyTTFT             MetricWindow         `json:"latency_ttft,omitempty"`
-	LatencyQueue            MetricWindow         `json:"latency_queue,omitempty"`
-	LatencyPrefill          MetricWindow         `json:"latency_prefill,omitempty"`
-	LatencyDecode           MetricWindow         `json:"latency_decode,omitempty"`
-	PromptTokens            MetricWindow         `json:"prompt_tokens,omitempty"`
-	GenerationTokens        MetricWindow         `json:"generation_tokens,omitempty"`
-	PromptLength            DistributionSnapshot `json:"prompt_length,omitempty"`
-	GenerationLength        DistributionSnapshot `json:"generation_length,omitempty"`
-	KVCacheUsage            MetricWindow         `json:"kv_cache_usage,omitempty"`
-	Preemptions             MetricWindow         `json:"preemptions,omitempty"`
-	RecomputedPromptTokens  MetricWindow         `json:"recomputed_prompt_tokens,omitempty"`
-	PrefixCache             CacheSnapshot        `json:"prefix_cache,omitempty"`
-	MultimodalCache         CacheSnapshot        `json:"multimodal_cache,omitempty"`
-	MultimodalPreprocessing MetricWindow         `json:"multimodal_preprocessing,omitempty"`
-	Coverage                SourceCoverage       `json:"coverage,omitempty"`
+	RequestsRunning        MetricWindow         `json:"requests_running,omitempty"`
+	RequestsWaiting        MetricWindow         `json:"requests_waiting,omitempty"`
+	LatencyE2E             MetricWindow         `json:"latency_e2e,omitempty"`
+	LatencyTTFT            MetricWindow         `json:"latency_ttft,omitempty"`
+	LatencyQueue           MetricWindow         `json:"latency_queue,omitempty"`
+	LatencyPrefill         MetricWindow         `json:"latency_prefill,omitempty"`
+	LatencyDecode          MetricWindow         `json:"latency_decode,omitempty"`
+	PromptTokens           MetricWindow         `json:"prompt_tokens,omitempty"`
+	GenerationTokens       MetricWindow         `json:"generation_tokens,omitempty"`
+	PromptLength           DistributionSnapshot `json:"prompt_length,omitempty"`
+	GenerationLength       DistributionSnapshot `json:"generation_length,omitempty"`
+	KVCacheUsage           MetricWindow         `json:"kv_cache_usage,omitempty"`
+	Preemptions            MetricWindow         `json:"preemptions,omitempty"`
+	RecomputedPromptTokens MetricWindow         `json:"recomputed_prompt_tokens,omitempty"`
+	PrefixCache            CacheSnapshot        `json:"prefix_cache,omitempty"`
+	MultimodalCache        CacheSnapshot        `json:"multimodal_cache,omitempty"`
+	Coverage               SourceCoverage       `json:"coverage,omitempty"`
 }
 
 type HostMetrics struct {

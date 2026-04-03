@@ -31,7 +31,6 @@ func vllmChecks(m VLLMMetrics) map[string]bool {
 		"recomputed_prompt_tokens": m.RecomputedPromptTokens.HasData(),
 		"prefix_cache":             m.PrefixCache.HasData(),
 		"multimodal_cache":         m.MultimodalCache.HasData(),
-		"multimodal_preprocessing": m.MultimodalPreprocessing.HasData(),
 	}
 }
 

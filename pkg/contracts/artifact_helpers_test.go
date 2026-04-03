@@ -43,7 +43,6 @@ func vllmRequiredFields() []string {
 		"recomputed_prompt_tokens",
 		"prefix_cache",
 		"multimodal_cache",
-		"multimodal_preprocessing",
 	}
 }
 
