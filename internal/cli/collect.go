@@ -26,6 +26,8 @@ func newCollectCommand() *cobra.Command {
 	var noInteractive bool
 	var collectFor time.Duration
 	var scrapeEvery time.Duration
+	var workloadMode string
+	var workloadTarget string
 	var outputPath string
 	var publishArtifact bool
 	var backendURL string
@@ -40,6 +42,14 @@ func newCollectCommand() *cobra.Command {
 			if err := collector.ValidateDurations(collectFor, scrapeEvery); err != nil {
 				return err
 			}
+			normalizedWorkloadMode, err := collector.NormalizeWorkloadMode(workloadMode)
+			if err != nil {
+				return err
+			}
+			normalizedWorkloadTarget, err := collector.NormalizeWorkloadTarget(workloadTarget)
+			if err != nil {
+				return err
+			}
 
 			target, err := resolveTarget(cmd, targetResolutionOptions{
 				PID:           pid,
@@ -52,12 +62,14 @@ func newCollectCommand() *cobra.Command {
 			service := collector.NewService()
 			run := func(stepf func(collector.StepUpdate)) (collector.Result, error) {
 				return service.Collect(cmd.Context(), collector.Options{
-					Target:      *target.Selected,
-					CollectFor:  collectFor,
-					ScrapeEvery: scrapeEvery,
-					OutputPath:  outputPath,
-					Stepf:       stepf,
-					Version:     version,
+					Target:         *target.Selected,
+					CollectFor:     collectFor,
+					ScrapeEvery:    scrapeEvery,
+					WorkloadMode:   normalizedWorkloadMode,
+					WorkloadTarget: normalizedWorkloadTarget,
+					OutputPath:     outputPath,
+					Stepf:          stepf,
+					Version:        version,
 				})
 			}
 
@@ -157,6 +169,8 @@ func newCollectCommand() *cobra.Command {
 	cmd.Flags().DurationVar(&collectFor, "collect-for", defaultCollectFor, "how long to collect metrics before building the artifact")
 	cmd.Flags().DurationVar(&collectFor, "collect-interval", defaultCollectFor, "alias for --collect-for")
 	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", defaultScrapeEvery, "how often Prometheus scrapes configured targets during collection")
+	cmd.Flags().StringVar(&workloadMode, "workload-mode", "", "workload mode for this run: realtime_chat, batch_processing, or mixed")
+	cmd.Flags().StringVar(&workloadTarget, "workload-target", "", "optimization target for this run: latency, balanced, or throughput")
 	cmd.Flags().StringVar(&outputPath, "output", "", "write the artifact to a specific path")
 	cmd.Flags().BoolVar(&publishArtifact, "publish", false, "publish the collected artifact to the configured backend")
 	cmd.Flags().StringVar(&backendURL, "backend-url", "", "InferLean backend base URL")

@@ -95,6 +95,12 @@ func RenderCollection(w io.Writer, target discovery.Result, result collector.Res
 	fmt.Fprintf(w, "  PID: %d\n", selected.PrimaryPID)
 	fmt.Fprintf(w, "  Why this target: %s\n", target.Reason)
 	fmt.Fprintf(w, "  Artifact: %s\n", result.ArtifactPath)
+	if result.Artifact.WorkloadObservations.Mode != "" {
+		fmt.Fprintf(w, "  Workload mode: %s\n", result.Artifact.WorkloadObservations.Mode)
+	}
+	if result.Artifact.WorkloadObservations.Target != "" {
+		fmt.Fprintf(w, "  Workload target: %s\n", result.Artifact.WorkloadObservations.Target)
+	}
 	if result.MinimumEvidenceMet {
 		fmt.Fprintln(w, "  Minimum evidence set: fully met")
 	} else {

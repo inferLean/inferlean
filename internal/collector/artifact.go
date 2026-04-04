@@ -153,6 +153,8 @@ func (r *collectionRun) buildMetrics() contracts.Metrics {
 
 func (r *collectionRun) buildWorkloadObservations(minimumEvidenceMet bool) contracts.WorkloadObservations {
 	return contracts.WorkloadObservations{
+		Mode:    r.opts.WorkloadMode,
+		Target:  r.opts.WorkloadTarget,
 		Summary: fmt.Sprintf("Collected local evidence for %s over %s", r.opts.Target.DisplayModel(), r.opts.CollectFor),
 		Hints:   map[string]string{"target_model": r.opts.Target.DisplayModel()},
 		Measurements: map[string]any{

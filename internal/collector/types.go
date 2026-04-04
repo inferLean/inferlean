@@ -37,12 +37,14 @@ type StepUpdate struct {
 }
 
 type Options struct {
-	Target      discovery.CandidateGroup
-	CollectFor  time.Duration
-	ScrapeEvery time.Duration
-	OutputPath  string
-	Stepf       func(StepUpdate)
-	Version     string
+	Target         discovery.CandidateGroup
+	CollectFor     time.Duration
+	ScrapeEvery    time.Duration
+	WorkloadMode   string
+	WorkloadTarget string
+	OutputPath     string
+	Stepf          func(StepUpdate)
+	Version        string
 }
 
 type Result struct {
