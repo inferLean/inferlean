@@ -22,6 +22,28 @@ has_command() {
   command -v "$1" >/dev/null 2>&1
 }
 
+resolve_c_compiler() {
+  local cc_cmd
+
+  if [ -n "${CC:-}" ]; then
+    # Respect an explicit compiler override when it resolves locally.
+    cc_cmd="${CC%% *}"
+    if [ -n "${cc_cmd}" ] && has_command "${cc_cmd}"; then
+      printf '%s\n' "${CC}"
+      return 0
+    fi
+  fi
+  if has_command gcc; then
+    command -v gcc
+    return 0
+  fi
+  if has_command cc; then
+    command -v cc
+    return 0
+  fi
+  return 1
+}
+
 log() {
   printf '%s\n' "$*"
 }
@@ -318,11 +340,14 @@ ensure_dcgm_exporter_build_prereqs() {
   if ! has_command make; then
     missing+=("make")
   fi
+  if ! resolve_c_compiler >/dev/null 2>&1; then
+    missing+=("build-essential")
+  fi
   if [ "${#missing[@]}" -eq 0 ]; then
     return 0
   fi
   if ! has_command apt-get || ! has_command dpkg; then
-    log "dcgm-exporter build prerequisites are missing; install git and make manually to build dcgm-exporter automatically"
+    log "dcgm-exporter build prerequisites are missing; install git, make, and a C toolchain manually to build dcgm-exporter automatically"
     return 1
   fi
   if ! ensure_apt_metadata; then
@@ -333,7 +358,7 @@ ensure_dcgm_exporter_build_prereqs() {
     log "failed to install dcgm-exporter build prerequisites: ${missing[*]}"
     return 1
   fi
-  has_command git && has_command make
+  has_command git && has_command make && resolve_c_compiler >/dev/null 2>&1
 }
 
 build_dcgm_exporter_if_needed() {
@@ -348,6 +373,7 @@ build_dcgm_exporter_if_needed() {
   local current_go_version
   local go_bin
   local go_path_dir
+  local c_compiler
   local clone_dir
   local source_binary
   local source_collectors
@@ -423,6 +449,11 @@ build_dcgm_exporter_if_needed() {
     fi
   fi
   go_path_dir="$(dirname "${go_bin}")"
+  c_compiler="$(resolve_c_compiler || true)"
+  if [ -z "${c_compiler}" ]; then
+    log "dcgm-exporter build requires a C compiler; continuing without a local dcgm-exporter binary"
+    return 0
+  fi
 
   clone_dir="${tmpdir}/dcgm-exporter"
   log "building dcgm-exporter ${version_tag} from ${repo_url}"
@@ -431,12 +462,12 @@ build_dcgm_exporter_if_needed() {
     return 0
   fi
 
-  if ! (cd "${clone_dir}" && PATH="${go_path_dir}:${PATH}" make GO="${go_bin}" binary); then
+  if ! (cd "${clone_dir}" && PATH="${go_path_dir}:${PATH}" CGO_ENABLED=1 CC="${c_compiler}" make GO="${go_bin}" binary); then
     log "failed to build dcgm-exporter ${version_tag}; continuing without a local dcgm-exporter binary"
     return 0
   fi
 
-  if run_with_root env PATH="${go_path_dir}:${PATH}" make -C "${clone_dir}" GO="${go_bin}" install; then
+  if run_with_root env PATH="${go_path_dir}:${PATH}" CGO_ENABLED=1 CC="${c_compiler}" make -C "${clone_dir}" GO="${go_bin}" install; then
     log "installed dcgm-exporter system-wide"
   else
     status=$?
