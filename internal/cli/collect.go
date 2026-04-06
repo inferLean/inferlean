@@ -14,6 +14,7 @@ import (
 	"github.com/inferLean/inferlean/internal/publish"
 	"github.com/inferLean/inferlean/internal/ui/collectprogress"
 	"github.com/inferLean/inferlean/internal/ui/publishprogress"
+	"github.com/inferLean/inferlean/internal/ui/reportview"
 )
 
 const (
@@ -154,6 +155,10 @@ func newCollectCommand() *cobra.Command {
 						},
 					))
 				}
+			}
+
+			if publishArtifact && publishResult.Report != nil && isInteractiveTerminal(noInteractive) {
+				return reportview.Run(*publishResult.Report)
 			}
 
 			output.RenderCollection(cmd.OutOrStdout(), target, result)

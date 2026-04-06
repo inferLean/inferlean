@@ -1,61 +1,40 @@
 package runbrowser
 
 import (
-	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/inferLean/inferlean/pkg/contracts"
 )
 
-func TestRenderArtifactTree(t *testing.T) {
-	raw, err := json.Marshal(map[string]any{
-		"job": map[string]any{
-			"run_id": "run-123",
-		},
-		"metrics": map[string]any{
-			"gpu_utilization": 0.8,
-		},
-		"issues": []any{"missing-prometheus", "short-window"},
-	})
-	if err != nil {
-		t.Fatalf("Marshal() error = %v", err)
-	}
+func TestLoadResultErrorReturnsToListAndShowsInlineMessage(t *testing.T) {
+	m := &model{mode: modeLoading}
 
-	got, err := RenderArtifactTree(raw)
-	if err != nil {
-		t.Fatalf("RenderArtifactTree() error = %v", err)
-	}
+	updated, _ := m.Update(loadResultMsg{err: errors.New("temporary backend error")})
+	next := updated.(*model)
 
-	for _, want := range []string{
-		"`- artifact",
-		"   |- issues [2]",
-		"   |  |- [0]: \"missing-prometheus\"",
-		"   |  `- [1]: \"short-window\"",
-		"   |- job",
-		"   `- metrics",
-	} {
-		if !containsLine(got, want) {
-			t.Fatalf("tree missing line %q\n%s", want, got)
-		}
+	if next.mode != modeList {
+		t.Fatalf("mode = %v, want %v", next.mode, modeList)
+	}
+	if got := next.View(); !strings.Contains(got, "Load failed: temporary backend error") {
+		t.Fatalf("View() = %q, want inline error", got)
 	}
 }
 
-func containsLine(text, want string) bool {
-	for _, line := range splitLines(text) {
-		if line == want {
-			return true
-		}
-	}
-	return false
-}
+func TestLoadResultSuccessQuitsWithReport(t *testing.T) {
+	m := &model{mode: modeLoading}
+	report := contracts.FinalReport{Job: contracts.ReportJob{RunID: "run-123"}}
 
-func splitLines(text string) []string {
-	var lines []string
-	start := 0
-	for idx := range text {
-		if text[idx] == '\n' {
-			lines = append(lines, text[start:idx])
-			start = idx + 1
-		}
+	updated, cmd := m.Update(loadResultMsg{report: report})
+	next := updated.(*model)
+
+	if next.report == nil || next.report.Job.RunID != "run-123" {
+		t.Fatalf("report = %+v, want run-123", next.report)
 	}
-	lines = append(lines, text[start:])
-	return lines
+	if msg := cmd(); msg != tea.Quit() {
+		t.Fatalf("cmd() = %v, want tea.Quit", msg)
+	}
 }

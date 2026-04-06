@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -126,5 +127,79 @@ func TestServiceGetReportReturnsCanonicalReport(t *testing.T) {
 	}
 	if report.Job.RunID != "run-123" {
 		t.Fatalf("Job.RunID = %q, want %q", report.Job.RunID, "run-123")
+	}
+}
+
+func TestServiceGetReportRetriesServerErrors(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			http.Error(w, "temporary backend error", http.StatusBadGateway)
+			return
+		}
+		if err := json.NewEncoder(w).Encode(contracts.FinalReport{
+			SchemaVersion: contracts.ReportSchemaVersion,
+			Job:           contracts.ReportJob{RunID: "run-123"},
+			Entitlement:   contracts.ReportEntitlement{Tier: "free"},
+			Diagnosis: contracts.DiagnosisSection{
+				ScenarioOverlays: contracts.ScenarioOverlays{
+					Latency:    contracts.ScenarioOverlay{Target: "latency"},
+					Balanced:   contracts.ScenarioOverlay{Target: "balanced"},
+					Throughput: contracts.ScenarioOverlay{Target: "throughput"},
+				},
+			},
+			DiagnosticCoverage: contracts.DiagnosticCoverage{
+				EligibleForRequiredDetectors: false,
+				IneligibleReason:             "missing gpu telemetry",
+			},
+		}); err != nil {
+			t.Fatalf("Encode() error = %v", err)
+		}
+	}))
+	defer server.Close()
+
+	service := NewService()
+	report, _, err := service.GetReport(context.Background(), server.URL+"/api/v1/runs/run-123/report", config.AuthState{
+		BackendURL:  server.URL,
+		Issuer:      server.URL + "/dex",
+		ClientID:    "inferlean-cli",
+		TokenType:   "Bearer",
+		AccessToken: "access-token",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("GetReport() error = %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want %d", attempts, 2)
+	}
+	if report.Job.RunID != "run-123" {
+		t.Fatalf("Job.RunID = %q, want %q", report.Job.RunID, "run-123")
+	}
+}
+
+func TestServiceGetReportDoesNotRetryClientErrors(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		http.Error(w, "report not found", http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	service := NewService()
+	_, _, err := service.GetReport(context.Background(), server.URL+"/api/v1/runs/run-123/report", config.AuthState{
+		BackendURL:  server.URL,
+		Issuer:      server.URL + "/dex",
+		ClientID:    "inferlean-cli",
+		TokenType:   "Bearer",
+		AccessToken: "access-token",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	})
+	if err == nil || !strings.Contains(err.Error(), "404") {
+		t.Fatalf("GetReport() error = %v, want 404 failure", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want %d", attempts, 1)
 	}
 }

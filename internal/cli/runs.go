@@ -2,12 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 
 	"github.com/spf13/cobra"
 
 	"github.com/inferLean/inferlean/internal/config"
 	"github.com/inferLean/inferlean/internal/runs"
+	"github.com/inferLean/inferlean/internal/ui/reportview"
 	"github.com/inferLean/inferlean/internal/ui/runbrowser"
 	"github.com/inferLean/inferlean/pkg/contracts"
 )
@@ -60,17 +62,23 @@ func newRunsCommand() *cobra.Command {
 				return nil
 			}
 
-			err = runbrowser.Browse(runList, func(runID string) (contracts.RunDetailResponse, error) {
-				detail, nextSession, err := service.Get(cmd.Context(), baseURL, runID, *cfg.Auth)
+			report, err := runbrowser.Browse(runList, func(runID string) (contracts.FinalReport, error) {
+				detailURL := fmt.Sprintf("%s/api/v1/runs/%s/report", baseURL, url.PathEscape(runID))
+				report, nextSession, err := service.GetReport(cmd.Context(), detailURL, *cfg.Auth)
 				if err != nil {
-					return contracts.RunDetailResponse{}, err
+					return contracts.FinalReport{}, err
 				}
 				cfg.Auth = &nextSession
 				_ = store.Save(cfg)
-				return detail, nil
+				return report, nil
 			})
 			if err != nil {
 				return err
+			}
+			if report != nil {
+				if err := reportview.Run(*report); err != nil {
+					return err
+				}
 			}
 
 			if err := store.Save(cfg); err != nil {

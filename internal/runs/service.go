@@ -17,6 +17,11 @@ import (
 
 const httpTimeout = 20 * time.Second
 
+const (
+	maxReportAttempts = 3
+	reportRetryDelay  = 250 * time.Millisecond
+)
+
 type Service struct {
 	client      *http.Client
 	authManager *auth.Manager
@@ -99,32 +104,50 @@ func (s Service) GetReport(ctx context.Context, reportURL string, session config
 		return contracts.FinalReport{}, config.AuthState{}, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSpace(reportURL), nil)
-	if err != nil {
-		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("build report request: %w", err)
+	for attempt := 1; attempt <= maxReportAttempts; attempt++ {
+		report, retry, err := s.getReportOnce(ctx, strings.TrimSpace(reportURL), updated)
+		if err == nil {
+			return report, updated, nil
+		}
+		if !retry || attempt == maxReportAttempts {
+			return contracts.FinalReport{}, config.AuthState{}, err
+		}
+		if err := waitForRetry(ctx, reportRetryDelay); err != nil {
+			return contracts.FinalReport{}, config.AuthState{}, err
+		}
 	}
-	req.Header.Set("Authorization", tokenHeader(updated))
+
+	return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("load report: retry loop exited unexpectedly")
+}
+
+func (s Service) getReportOnce(ctx context.Context, reportURL string, session config.AuthState) (contracts.FinalReport, bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reportURL, nil)
+	if err != nil {
+		return contracts.FinalReport{}, false, fmt.Errorf("build report request: %w", err)
+	}
+	req.Header.Set("Authorization", tokenHeader(session))
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("load report: %w", err)
+		return contracts.FinalReport{}, true, fmt.Errorf("load report: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("load report: unexpected status %s (%s)", resp.Status, strings.TrimSpace(string(body)))
+		retry := resp.StatusCode >= http.StatusInternalServerError
+		return contracts.FinalReport{}, retry, fmt.Errorf("load report: unexpected status %s (%s)", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	var report contracts.FinalReport
 	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
-		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("decode report response: %w", err)
+		return contracts.FinalReport{}, false, fmt.Errorf("decode report response: %w", err)
 	}
 	if err := report.Validate(); err != nil {
-		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("invalid report response: %w", err)
+		return contracts.FinalReport{}, false, fmt.Errorf("invalid report response: %w", err)
 	}
 
-	return report, updated, nil
+	return report, false, nil
 }
 
 func (s Service) ensureSession(ctx context.Context, baseURL string, session config.AuthState) (config.AuthState, error) {
@@ -175,4 +198,16 @@ func reportBaseURL(reportURL, fallback string) string {
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 	return parsed.String()
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

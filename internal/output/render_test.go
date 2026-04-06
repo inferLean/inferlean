@@ -40,7 +40,7 @@ func TestRenderSummaryPreviewShowsAnonymousHint(t *testing.T) {
 	})
 
 	output := buf.String()
-	for _, want := range []string{"Report preview", "Queue pressure is limiting throughput.", "Full report: login"} {
+	for _, want := range []string{"Report preview", "Queue pressure is limiting throughput.", "Full report: run inferlean login"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %q, want %q", output, want)
 		}

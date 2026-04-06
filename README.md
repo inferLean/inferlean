@@ -8,7 +8,7 @@ It helps teams running production vLLM deployments answer three questions:
 2. What should we change next?
 3. How much practical headroom likely remains before more hardware is needed?
 
-Phase 1 is the installable discovery slice. It does not yet run the full collect/analyze/report workflow. This release focuses on reliably finding a local vLLM deployment, parsing its runtime configuration, and explaining what InferLean selected.
+InferLean now supports the phase-9 product loop in the CLI: authenticate, discover, collect, publish, fetch the canonical report, and render it locally in an interactive terminal UI.
 
 ## Install
 
@@ -60,13 +60,27 @@ Write debug output to a specific file:
 inferlean --debug-file /tmp/inferlean-debug.log discover
 ```
 
-Collect a local run artifact on Linux:
+Run the end-to-end product flow on Linux:
+
+```bash
+inferlean scan
+```
+
+`scan` is the primary product entrypoint. It authenticates when needed, collects locally, uploads the artifact, fetches the canonical report, and opens the terminal report UI.
+
+Open a previously claimed report:
+
+```bash
+inferlean runs
+```
+
+Build a local artifact without opening the report flow:
 
 ```bash
 inferlean collect
 ```
 
-`collect` is Linux-only in Phase 2. It uses a 30-second default collection window and a 5-second default scrape cadence.
+`collect` remains the lower-level artifact command. It is Linux-only and uses a 30-second default collection window with a 5-second default scrape cadence.
 
 Collect for longer or change the scrape cadence:
 
@@ -92,32 +106,17 @@ Write the artifact to a custom location:
 inferlean collect --output /tmp/artifact.json
 ```
 
-## What Phase 1 Does
+## What The CLI Does
 
 - Finds current `vllm serve` processes and legacy vLLM API-server entrypoints.
 - Groups related worker processes into one logical deployment.
 - Parses runtime settings such as model, host, port, parallelism, token limits, quantization, and selected safe environment hints.
-- Explains what InferLean selected and what was ambiguous or missing.
-
-## What Phase 2 Adds
-
 - Collects local evidence from a supported Linux host.
-- Runs a 30-second default collection window with a configurable scrape cadence.
 - Writes a validated run artifact to `~/.inferlean/runs/<run_id>/artifact.json` unless `--output` is provided.
-- Emits explicit typed evidence blocks for vLLM, host, rich GPU telemetry, `nvidia-smi`, runtime config, and process inspection.
-- Uses Prometheus plus node exporter for scrape coordination, samples the target PID group locally, and safely probes Python package/runtime metadata without attaching to the target process.
-- Merges NVML and DCGM when available for rich GPU telemetry; `nvidia-smi` remains a separate fallback/supplement source.
-- Records source quality when a source is missing, degraded, or only partially available.
-- Reuses discovery logic inside `collect` so target selection stays consistent.
-
-## What Phase 1 Does Not Do Yet
-
-- Upload artifacts
-- Generate recommendations
-- Estimate headroom
-- Render the full report UI
-
-Those come in later delivery phases. Phase 1 is the first step toward the full “run a scan” workflow, and Phase 2 extends it with local collection only on Linux.
+- Uploads the artifact to the backend with the saved InferLean login session.
+- Fetches the canonical report for the run and renders it locally in the terminal.
+- Lets the user switch between brief/full report depth and latency/balanced/throughput overlays without another backend call.
+- Reopens previously claimed reports with `inferlean runs`.
 
 ## Release Policy
 

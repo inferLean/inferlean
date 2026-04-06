@@ -183,7 +183,7 @@ func RenderSummaryPreview(w io.Writer, preview *contracts.SummaryPreview) {
 	if preview.Confidence != "" {
 		fmt.Fprintf(w, "  Confidence: %s\n", preview.Confidence)
 	}
-	fmt.Fprintln(w, "  Full report: login and claim this installation, then fetch the report from the backend.")
+	fmt.Fprintln(w, "  Full report: run inferlean login, then open the claimed run with inferlean runs.")
 }
 
 func writeConfigLine(w io.Writer, label, value string) {

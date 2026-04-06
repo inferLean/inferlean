@@ -41,6 +41,7 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 	cmd.AddCommand(newLoginCommand())
 	cmd.AddCommand(newLogoutCommand())
 	cmd.AddCommand(newRunsCommand())
+	cmd.AddCommand(newScanCommand())
 	cmd.AddCommand(newVersionCommand())
 
 	return cmd
