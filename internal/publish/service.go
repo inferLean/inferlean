@@ -12,6 +12,7 @@ import (
 
 	"github.com/inferLean/inferlean/internal/auth"
 	"github.com/inferLean/inferlean/internal/config"
+	runservice "github.com/inferLean/inferlean/internal/runs"
 	"github.com/inferLean/inferlean/pkg/contracts"
 )
 
@@ -38,13 +39,16 @@ type Options struct {
 }
 
 type Result struct {
-	Ack  contracts.ArtifactUploadAck
-	Auth config.AuthState
+	Ack            contracts.ArtifactUploadAck
+	Report         *contracts.FinalReport
+	SummaryPreview *contracts.SummaryPreview
+	Auth           config.AuthState
 }
 
 type Service struct {
 	client      *http.Client
 	authManager *auth.Manager
+	runs        runservice.Service
 }
 
 func NewService() Service {
@@ -52,6 +56,7 @@ func NewService() Service {
 	return Service{
 		client:      client,
 		authManager: auth.NewManagerWithClient(client),
+		runs:        runservice.NewService(),
 	}
 }
 
@@ -116,7 +121,25 @@ func (s Service) Publish(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("invalid artifact upload acknowledgement: %w", err)
 	}
 
-	return Result{Ack: ack, Auth: session}, nil
+	result := Result{
+		Ack:            ack,
+		SummaryPreview: ack.SummaryPreview,
+		Auth:           session,
+	}
+	if !authenticated {
+		return result, nil
+	}
+	if strings.TrimSpace(ack.ReportURL) == "" {
+		return Result{}, fmt.Errorf("upload artifact: backend acknowledgement did not include report_url")
+	}
+
+	report, updatedAuth, err := s.runs.GetReport(ctx, ack.ReportURL, session)
+	if err != nil {
+		return Result{}, err
+	}
+	result.Report = &report
+	result.Auth = updatedAuth
+	return result, nil
 }
 
 func emitStep(stepf func(StepUpdate), step Step, message string) {

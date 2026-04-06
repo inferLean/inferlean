@@ -2,12 +2,14 @@ package runs
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/inferLean/inferlean/internal/config"
+	"github.com/inferLean/inferlean/pkg/contracts"
 )
 
 func TestServiceListReturnsRuns(t *testing.T) {
@@ -75,5 +77,54 @@ func TestServiceListRequiresLogin(t *testing.T) {
 	_, _, err := service.List(context.Background(), "https://app.inferlean.com", config.AuthState{})
 	if err == nil || err.Error() != "login required; run inferlean login first" {
 		t.Fatalf("List() error = %v, want login required", err)
+	}
+}
+
+func TestServiceGetReportReturnsCanonicalReport(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/runs/run-123/report" {
+			t.Fatalf("path = %q, want %q", r.URL.Path, "/api/v1/runs/run-123/report")
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("Authorization = %q, want %q", got, "Bearer access-token")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(contracts.FinalReport{
+			SchemaVersion: contracts.ReportSchemaVersion,
+			Job: contracts.ReportJob{
+				RunID: "run-123",
+			},
+			Entitlement: contracts.ReportEntitlement{Tier: "free"},
+			Diagnosis: contracts.DiagnosisSection{
+				ScenarioOverlays: contracts.ScenarioOverlays{
+					Latency:    contracts.ScenarioOverlay{Target: "latency"},
+					Balanced:   contracts.ScenarioOverlay{Target: "balanced"},
+					Throughput: contracts.ScenarioOverlay{Target: "throughput"},
+				},
+			},
+			DiagnosticCoverage: contracts.DiagnosticCoverage{
+				EligibleForRequiredDetectors: false,
+				IneligibleReason:             "missing gpu telemetry",
+			},
+		}); err != nil {
+			t.Fatalf("Encode() error = %v", err)
+		}
+	}))
+	defer server.Close()
+
+	service := NewService()
+	report, _, err := service.GetReport(context.Background(), server.URL+"/api/v1/runs/run-123/report", config.AuthState{
+		BackendURL:  server.URL,
+		Issuer:      server.URL + "/dex",
+		ClientID:    "inferlean-cli",
+		TokenType:   "Bearer",
+		AccessToken: "access-token",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("GetReport() error = %v", err)
+	}
+	if report.Job.RunID != "run-123" {
+		t.Fatalf("Job.RunID = %q, want %q", report.Job.RunID, "run-123")
 	}
 }

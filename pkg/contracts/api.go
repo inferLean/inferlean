@@ -37,12 +37,14 @@ func (c AuthConfig) Validate() error {
 }
 
 type ArtifactUploadAck struct {
-	UploadID       string    `json:"upload_id"`
-	RunID          string    `json:"run_id"`
-	InstallationID string    `json:"installation_id"`
-	Status         string    `json:"status"`
-	ReceivedAt     time.Time `json:"received_at"`
-	StatusURL      string    `json:"status_url,omitempty"`
+	UploadID       string          `json:"upload_id"`
+	RunID          string          `json:"run_id"`
+	InstallationID string          `json:"installation_id"`
+	Status         string          `json:"status"`
+	ReceivedAt     time.Time       `json:"received_at"`
+	StatusURL      string          `json:"status_url,omitempty"`
+	ReportURL      string          `json:"report_url,omitempty"`
+	SummaryPreview *SummaryPreview `json:"summary_preview,omitempty"`
 }
 
 func (a ArtifactUploadAck) Validate() error {
@@ -64,6 +66,11 @@ func (a ArtifactUploadAck) Validate() error {
 	}
 	if a.ReceivedAt.IsZero() {
 		errs = append(errs, errors.New("received_at is required"))
+	}
+	if a.SummaryPreview != nil {
+		if err := a.SummaryPreview.Validate(); err != nil {
+			errs = append(errs, fmt.Errorf("summary_preview: %w", err))
+		}
 	}
 
 	return errors.Join(errs...)

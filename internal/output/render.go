@@ -143,6 +143,47 @@ func RenderPublication(w io.Writer, ack contracts.ArtifactUploadAck) {
 	if ack.StatusURL != "" {
 		fmt.Fprintf(w, "  Trace: %s\n", ack.StatusURL)
 	}
+	if ack.ReportURL != "" {
+		fmt.Fprintf(w, "  Report: %s\n", ack.ReportURL)
+	}
+}
+
+func RenderReportSummary(w io.Writer, report contracts.FinalReport) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Report summary")
+	fmt.Fprintf(w, "  Tier: %s\n", valueOrUnknown(report.Entitlement.Tier))
+	fmt.Fprintf(w, "  Dominant limiter: %s\n", valueOrUnknown(report.Diagnosis.BaseDiagnosis.CurrentLimiter.Label))
+	if recommendation := report.Diagnosis.BaseDiagnosis.Recommendation; recommendation != nil {
+		fmt.Fprintf(w, "  Primary recommendation: %s\n", recommendation.Title)
+		if recommendation.Tradeoff.Summary != "" {
+			fmt.Fprintf(w, "  Likely tradeoff: %s\n", recommendation.Tradeoff.Summary)
+		}
+	} else {
+		fmt.Fprintf(w, "  Primary recommendation: %s\n", valueOrUnknown(report.Diagnosis.BaseDiagnosis.NoSafeRecommendationReason))
+	}
+	fmt.Fprintf(w, "  Confidence: %s\n", valueOrUnknown(report.Diagnosis.BaseDiagnosis.Confidence))
+}
+
+func RenderSummaryPreview(w io.Writer, preview *contracts.SummaryPreview) {
+	if preview == nil {
+		return
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Report preview")
+	fmt.Fprintf(w, "  Headline: %s\n", valueOrUnknown(preview.Headline))
+	if preview.CurrentLimiterLabel != "" {
+		fmt.Fprintf(w, "  Dominant limiter: %s\n", preview.CurrentLimiterLabel)
+	}
+	if preview.PrimaryRecommendation != "" {
+		fmt.Fprintf(w, "  Primary recommendation: %s\n", preview.PrimaryRecommendation)
+	}
+	if preview.KeyTradeoff != "" {
+		fmt.Fprintf(w, "  Likely tradeoff: %s\n", preview.KeyTradeoff)
+	}
+	if preview.Confidence != "" {
+		fmt.Fprintf(w, "  Confidence: %s\n", preview.Confidence)
+	}
+	fmt.Fprintln(w, "  Full report: login and claim this installation, then fetch the report from the backend.")
 }
 
 func writeConfigLine(w io.Writer, label, value string) {

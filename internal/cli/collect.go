@@ -159,6 +159,11 @@ func newCollectCommand() *cobra.Command {
 			output.RenderCollection(cmd.OutOrStdout(), target, result)
 			if publishArtifact {
 				output.RenderPublication(cmd.OutOrStdout(), publishResult.Ack)
+				if publishResult.Report != nil {
+					output.RenderReportSummary(cmd.OutOrStdout(), *publishResult.Report)
+				} else {
+					output.RenderSummaryPreview(cmd.OutOrStdout(), publishResult.SummaryPreview)
+				}
 			}
 			return nil
 		},

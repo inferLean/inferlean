@@ -93,6 +93,40 @@ func (s Service) Get(ctx context.Context, baseURL, runID string, session config.
 	return response, updated, nil
 }
 
+func (s Service) GetReport(ctx context.Context, reportURL string, session config.AuthState) (contracts.FinalReport, config.AuthState, error) {
+	updated, err := s.ensureSession(ctx, reportBaseURL(reportURL, session.BackendURL), session)
+	if err != nil {
+		return contracts.FinalReport{}, config.AuthState{}, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSpace(reportURL), nil)
+	if err != nil {
+		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("build report request: %w", err)
+	}
+	req.Header.Set("Authorization", tokenHeader(updated))
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("load report: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("load report: unexpected status %s (%s)", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var report contracts.FinalReport
+	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("decode report response: %w", err)
+	}
+	if err := report.Validate(); err != nil {
+		return contracts.FinalReport{}, config.AuthState{}, fmt.Errorf("invalid report response: %w", err)
+	}
+
+	return report, updated, nil
+}
+
 func (s Service) ensureSession(ctx context.Context, baseURL string, session config.AuthState) (config.AuthState, error) {
 	if !session.HasSession() {
 		return config.AuthState{}, fmt.Errorf("login required; run inferlean login first")
@@ -125,4 +159,20 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func reportBaseURL(reportURL, fallback string) string {
+	if strings.TrimSpace(fallback) != "" {
+		return fallback
+	}
+
+	parsed, err := url.Parse(strings.TrimSpace(reportURL))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return reportURL
+	}
+	parsed.Path = ""
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
 }
