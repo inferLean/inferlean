@@ -8,6 +8,9 @@ import (
 
 func newDiscoverCommand() *cobra.Command {
 	var pid int32
+	var container string
+	var pod string
+	var namespace string
 	var noInteractive bool
 
 	cmd := &cobra.Command{
@@ -16,6 +19,9 @@ func newDiscoverCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := resolveTarget(cmd, targetResolutionOptions{
 				PID:           pid,
+				Container:     container,
+				Pod:           pod,
+				Namespace:     namespace,
 				NoInteractive: noInteractive,
 			})
 			if err != nil {
@@ -27,8 +33,7 @@ func newDiscoverCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Int32Var(&pid, "pid", 0, "select a specific vLLM process by pid")
-	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "disable the interactive target selector")
+	bindTargetFlags(cmd, &pid, &container, &pod, &namespace, &noInteractive)
 
 	return cmd
 }

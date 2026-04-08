@@ -42,6 +42,18 @@ Select a specific process explicitly:
 inferlean discover --pid 12345
 ```
 
+Select a Docker-managed deployment explicitly:
+
+```bash
+inferlean discover --container vllm-server
+```
+
+Select a Kubernetes-managed deployment explicitly:
+
+```bash
+inferlean discover --pod vllm-0 --namespace inference
+```
+
 Disable the interactive chooser in scripts or CI:
 
 ```bash
@@ -94,6 +106,18 @@ Select a specific process explicitly:
 inferlean collect --pid 12345
 ```
 
+Select a Docker-managed deployment explicitly:
+
+```bash
+inferlean collect --container vllm-server
+```
+
+Select a Kubernetes-managed deployment explicitly:
+
+```bash
+inferlean collect --pod vllm-0 --namespace inference
+```
+
 Disable the interactive chooser in scripts or CI:
 
 ```bash
@@ -109,6 +133,7 @@ inferlean collect --output /tmp/artifact.json
 ## What The CLI Does
 
 - Finds current `vllm serve` processes and legacy vLLM API-server entrypoints.
+- Enriches discovered local vLLM targets with Docker container and Kubernetes pod metadata when available.
 - Groups related worker processes into one logical deployment.
 - Parses runtime settings such as model, host, port, parallelism, token limits, quantization, and selected safe environment hints.
 - Collects local evidence from a supported Linux host.

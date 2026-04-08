@@ -15,6 +15,9 @@ import (
 
 type scanOptions struct {
 	PID            int32
+	Container      string
+	Pod            string
+	Namespace      string
 	NoInteractive  bool
 	CollectFor     time.Duration
 	ScrapeEvery    time.Duration
@@ -26,6 +29,9 @@ type scanOptions struct {
 
 func newScanCommand() *cobra.Command {
 	var pid int32
+	var container string
+	var pod string
+	var namespace string
 	var noInteractive bool
 	var collectFor time.Duration
 	var scrapeEvery time.Duration
@@ -40,6 +46,9 @@ func newScanCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runScan(cmd, scanOptions{
 				PID:            pid,
+				Container:      container,
+				Pod:            pod,
+				Namespace:      namespace,
 				NoInteractive:  noInteractive,
 				CollectFor:     collectFor,
 				ScrapeEvery:    scrapeEvery,
@@ -51,8 +60,8 @@ func newScanCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Int32Var(&pid, "pid", 0, "select a specific vLLM process by pid")
-	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "disable interactive target selection and report rendering")
+	bindTargetFlags(cmd, &pid, &container, &pod, &namespace, &noInteractive)
+	cmd.Flags().Lookup("no-interactive").Usage = "disable interactive target selection and report rendering"
 	cmd.Flags().DurationVar(&collectFor, "collect-for", defaultCollectFor, "how long to collect metrics before building the artifact")
 	cmd.Flags().DurationVar(&collectFor, "collect-interval", defaultCollectFor, "alias for --collect-for")
 	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", defaultScrapeEvery, "how often Prometheus scrapes configured targets during collection")
@@ -80,7 +89,13 @@ func runScan(cmd *cobra.Command, opts scanOptions) error {
 	if err != nil {
 		return err
 	}
-	target, err := resolveTarget(cmd, targetResolutionOptions{PID: opts.PID, NoInteractive: opts.NoInteractive})
+	target, err := resolveTarget(cmd, targetResolutionOptions{
+		PID:           opts.PID,
+		Container:     opts.Container,
+		Pod:           opts.Pod,
+		Namespace:     opts.Namespace,
+		NoInteractive: opts.NoInteractive,
+	})
 	if err != nil {
 		return err
 	}

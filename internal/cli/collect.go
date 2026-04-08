@@ -24,6 +24,9 @@ const (
 
 func newCollectCommand() *cobra.Command {
 	var pid int32
+	var container string
+	var pod string
+	var namespace string
 	var noInteractive bool
 	var collectFor time.Duration
 	var scrapeEvery time.Duration
@@ -54,6 +57,9 @@ func newCollectCommand() *cobra.Command {
 
 			target, err := resolveTarget(cmd, targetResolutionOptions{
 				PID:           pid,
+				Container:     container,
+				Pod:           pod,
+				Namespace:     namespace,
 				NoInteractive: noInteractive,
 			})
 			if err != nil {
@@ -174,8 +180,7 @@ func newCollectCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Int32Var(&pid, "pid", 0, "select a specific vLLM process by pid")
-	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "disable the interactive target selector")
+	bindTargetFlags(cmd, &pid, &container, &pod, &namespace, &noInteractive)
 	cmd.Flags().DurationVar(&collectFor, "collect-for", defaultCollectFor, "how long to collect metrics before building the artifact")
 	cmd.Flags().DurationVar(&collectFor, "collect-interval", defaultCollectFor, "alias for --collect-for")
 	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", defaultScrapeEvery, "how often Prometheus scrapes configured targets during collection")

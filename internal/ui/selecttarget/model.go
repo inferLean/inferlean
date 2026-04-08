@@ -46,7 +46,10 @@ func (i item) Title() string {
 }
 
 func (i item) Description() string {
-	description := fmt.Sprintf("PID %d • %s", i.group.PrimaryPID, i.group.EntryPoint)
+	description := fmt.Sprintf("%s • %s", i.group.IdentityLabel(), i.group.EntryPoint)
+	if !i.group.Target.IsHost() && i.group.PrimaryPID > 0 {
+		description += fmt.Sprintf(" • host pid %d", i.group.PrimaryPID)
+	}
 	if i.group.ProcessCount > 1 {
 		description += fmt.Sprintf(" • %d related processes", i.group.ProcessCount)
 	}

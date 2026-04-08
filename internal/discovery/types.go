@@ -6,10 +6,14 @@ import (
 )
 
 var (
-	ErrNoCandidates = errors.New("no vLLM deployments found")
-	ErrAmbiguous    = errors.New("multiple vLLM deployments found")
-	ErrPIDNotFound  = errors.New("specified pid was not found")
-	ErrPIDNotVLLM   = errors.New("specified pid is not a vLLM process")
+	ErrNoCandidates      = errors.New("no vLLM deployments found")
+	ErrAmbiguous         = errors.New("multiple vLLM deployments found")
+	ErrPIDNotFound       = errors.New("specified pid was not found")
+	ErrPIDNotVLLM        = errors.New("specified pid is not a vLLM process")
+	ErrContainerNotFound = errors.New("specified container was not found")
+	ErrContainerNotVLLM  = errors.New("specified container is not running vLLM")
+	ErrPodNotFound       = errors.New("specified pod was not found")
+	ErrPodNotVLLM        = errors.New("specified pod is not running vLLM")
 )
 
 type Step string
@@ -26,9 +30,12 @@ type StepUpdate struct {
 }
 
 type Options struct {
-	PID     int32
-	Stepf   func(StepUpdate)
-	WithEnv bool
+	PID       int32
+	Container string
+	Pod       string
+	Namespace string
+	Stepf     func(StepUpdate)
+	WithEnv   bool
 }
 
 type Result struct {
@@ -43,6 +50,7 @@ type CandidateGroup struct {
 	ProcessCount   int
 	PrimaryPID     int32
 	PIDs           []int32
+	Target         TargetRef
 	EntryPoint     string
 	Executable     string
 	ParentPID      int32

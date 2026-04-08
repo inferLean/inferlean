@@ -25,8 +25,8 @@ func TestIntegrationDiscoverSingleProcess(t *testing.T) {
 	if result.Selected == nil {
 		t.Fatal("expected selected result")
 	}
-	if result.Selected.PrimaryPID != int32(cmd.Process.Pid) {
-		t.Fatalf("selected pid = %d, want %d", result.Selected.PrimaryPID, cmd.Process.Pid)
+	if findGroupByPID([]CandidateGroup{*result.Selected}, int32(cmd.Process.Pid)) == nil {
+		t.Fatalf("selected group pids = %v, want to include %d", result.Selected.PIDs, cmd.Process.Pid)
 	}
 }
 

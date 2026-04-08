@@ -21,7 +21,8 @@ func RenderDiscovery(w io.Writer, result discovery.Result) {
 	fmt.Fprintf(w, "InferLean found a vLLM deployment.\n\n")
 	fmt.Fprintf(w, "Selected target\n")
 	fmt.Fprintf(w, "  Model: %s\n", valueOrUnknown(displayModelName(target.RuntimeConfig)))
-	fmt.Fprintf(w, "  PID: %d", target.PrimaryPID)
+	fmt.Fprintf(w, "  Target: %s\n", target.LocationLabel())
+	fmt.Fprintf(w, "  Host PID: %d", target.PrimaryPID)
 	if target.ProcessCount > 1 {
 		fmt.Fprintf(w, " (%d related processes)", target.ProcessCount)
 	}
@@ -66,7 +67,7 @@ func RenderAmbiguity(w io.Writer, result discovery.Result) {
 	fmt.Fprintln(w, "InferLean found multiple vLLM deployments.")
 	fmt.Fprintln(w)
 	for _, candidate := range result.Candidates {
-		fmt.Fprintf(w, "  - PID %d", candidate.PrimaryPID)
+		fmt.Fprintf(w, "  - %s", candidate.IdentityLabel())
 		if model := displayModelName(candidate.RuntimeConfig); model != "" {
 			fmt.Fprintf(w, " • %s", model)
 		}
@@ -76,10 +77,13 @@ func RenderAmbiguity(w io.Writer, result discovery.Result) {
 		if candidate.ProcessCount > 1 {
 			fmt.Fprintf(w, " • %d related processes", candidate.ProcessCount)
 		}
+		if !candidate.Target.IsHost() && candidate.PrimaryPID > 0 {
+			fmt.Fprintf(w, " • host pid %d", candidate.PrimaryPID)
+		}
 		fmt.Fprintln(w)
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Rerun with --pid to select one deployment explicitly.")
+	fmt.Fprintln(w, "Rerun with --pid, --container, or --pod to select one deployment explicitly.")
 }
 
 func RenderCollection(w io.Writer, target discovery.Result, result collector.Result) {
@@ -92,7 +96,8 @@ func RenderCollection(w io.Writer, target discovery.Result, result collector.Res
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Selected target")
 	fmt.Fprintf(w, "  Model: %s\n", valueOrUnknown(displayModelName(selected.RuntimeConfig)))
-	fmt.Fprintf(w, "  PID: %d\n", selected.PrimaryPID)
+	fmt.Fprintf(w, "  Target: %s\n", selected.LocationLabel())
+	fmt.Fprintf(w, "  Host PID: %d\n", selected.PrimaryPID)
 	fmt.Fprintf(w, "  Why this target: %s\n", target.Reason)
 	fmt.Fprintf(w, "  Artifact: %s\n", result.ArtifactPath)
 	if result.Artifact.WorkloadObservations.Mode != "" {

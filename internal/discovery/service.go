@@ -13,13 +13,21 @@ import (
 
 type Service struct {
 	inspector process.Inspector
+	metadata  metadataResolver
 }
 
 func NewService(inspector process.Inspector) Service {
-	return Service{inspector: inspector}
+	return Service{
+		inspector: inspector,
+		metadata:  runtimeMetadataResolver{},
+	}
 }
 
 func (s Service) Discover(ctx context.Context, opts Options) (Result, error) {
+	if err := validateSelection(opts); err != nil {
+		return Result{}, err
+	}
+
 	emitStep(opts.Stepf, StepEnumerate, "Enumerating local processes")
 	debug.Debugf("starting process enumeration")
 	snapshots, err := s.inspector.List(ctx, opts.WithEnv)
@@ -93,6 +101,7 @@ func (s Service) Discover(ctx context.Context, opts Options) (Result, error) {
 			ProcessCount:   group.ProcessCount,
 			PrimaryPID:     group.PrimaryPID,
 			PIDs:           group.PIDs,
+			Target:         TargetRef{Kind: TargetKindHost},
 			EntryPoint:     group.EntryPoint,
 			Executable:     group.Executable,
 			ParentPID:      group.ParentPID,
@@ -130,25 +139,50 @@ func (s Service) Discover(ctx context.Context, opts Options) (Result, error) {
 	}
 	debug.Debugf("grouped %d processes into %d logical candidates", len(matched), len(groups))
 
+	groups, inventory, err := s.metadata.Enrich(ctx, groups, opts)
+	if err != nil {
+		return Result{Candidates: groups}, err
+	}
+
 	if len(groups) == 0 {
 		if opts.PID > 0 {
 			return Result{}, fmt.Errorf("%w: %d", ErrPIDNotVLLM, opts.PID)
 		}
+		if opts.Container != "" {
+			if _, ok := inventory.findDocker(opts.Container); ok {
+				return Result{}, fmt.Errorf("%w: %s", ErrContainerNotVLLM, opts.Container)
+			}
+			return Result{}, fmt.Errorf("%w: %s", ErrContainerNotFound, opts.Container)
+		}
+		if opts.Pod != "" {
+			podName, namespace := normalizePodSelector(opts.Pod, opts.Namespace)
+			if inventory.hasPod(podName, namespace) {
+				return Result{}, fmt.Errorf("%w: %s/%s", ErrPodNotVLLM, namespace, podName)
+			}
+			return Result{}, fmt.Errorf("%w: %s/%s", ErrPodNotFound, namespace, podName)
+		}
 		return Result{}, ErrNoCandidates
 	}
 
-	if opts.PID > 0 {
-		selected := findGroupByPID(groups, opts.PID)
-		if selected == nil {
-			return Result{Candidates: groups}, fmt.Errorf("%w: %d", ErrPIDNotVLLM, opts.PID)
+	selectedGroups, reason, selectedExplicitly, err := explicitSelection(groups, inventory, opts)
+	if err != nil {
+		return Result{Candidates: groups}, err
+	}
+	if selectedExplicitly {
+		if len(selectedGroups) == 1 {
+			selected := &selectedGroups[0]
+			debug.Debugf("selected candidate explicitly group=%s reason=%s", selected.Key, reason)
+			return Result{
+				Selected:   selected,
+				Candidates: groups,
+				Reason:     reason,
+			}, nil
 		}
-
-		debug.Debugf("selected candidate via explicit pid=%d group=%s", opts.PID, selected.Key)
+		debug.Debugf("ambiguity detected after explicit selector: %d candidates", len(selectedGroups))
 		return Result{
-			Selected:   selected,
-			Candidates: groups,
-			Reason:     fmt.Sprintf("selected explicitly because --pid=%d was provided", opts.PID),
-		}, nil
+			Candidates: selectedGroups,
+			Warnings:   []string{"multiple vLLM deployments matched the explicit selector"},
+		}, ErrAmbiguous
 	}
 
 	if len(groups) == 1 {

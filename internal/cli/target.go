@@ -19,6 +19,9 @@ import (
 
 type targetResolutionOptions struct {
 	PID           int32
+	Container     string
+	Pod           string
+	Namespace     string
 	NoInteractive bool
 }
 
@@ -29,9 +32,12 @@ func resolveTarget(cmd *cobra.Command, opts targetResolutionOptions) (discovery.
 
 	run := func(stepf func(discovery.StepUpdate)) (discovery.Result, error) {
 		return service.Discover(ctx, discovery.Options{
-			PID:     opts.PID,
-			Stepf:   stepf,
-			WithEnv: true,
+			PID:       opts.PID,
+			Container: opts.Container,
+			Pod:       opts.Pod,
+			Namespace: opts.Namespace,
+			Stepf:     stepf,
+			WithEnv:   true,
 		})
 	}
 
@@ -62,7 +68,7 @@ func resolveTarget(cmd *cobra.Command, opts targetResolutionOptions) (discovery.
 		}
 
 		output.RenderAmbiguity(cmd.OutOrStdout(), result)
-		return result, fmt.Errorf("%w; rerun with --pid or in an interactive terminal", err)
+		return result, fmt.Errorf("%w; rerun with --pid, --container, --pod, or in an interactive terminal", err)
 	}
 
 	return result, explainDiscoverError(ctx, err)
@@ -80,6 +86,14 @@ func explainDiscoverError(_ context.Context, err error) error {
 		return fmt.Errorf("%w; verify the process is still running", err)
 	case errors.Is(err, discovery.ErrPIDNotVLLM):
 		return fmt.Errorf("%w; rerun without --pid to inspect detected candidates", err)
+	case errors.Is(err, discovery.ErrContainerNotFound):
+		return fmt.Errorf("%w; verify the container is running and docker is reachable", err)
+	case errors.Is(err, discovery.ErrContainerNotVLLM):
+		return fmt.Errorf("%w; rerun without --container to inspect detected candidates", err)
+	case errors.Is(err, discovery.ErrPodNotFound):
+		return fmt.Errorf("%w; verify the pod is running and kubectl can read that namespace", err)
+	case errors.Is(err, discovery.ErrPodNotVLLM):
+		return fmt.Errorf("%w; rerun without --pod to inspect detected candidates", err)
 	default:
 		return err
 	}
