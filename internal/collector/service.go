@@ -9,6 +9,7 @@ import (
 
 	"github.com/inferLean/inferlean/internal/config"
 	"github.com/inferLean/inferlean/internal/debug"
+	"github.com/inferLean/inferlean/internal/discovery"
 	"github.com/inferLean/inferlean/pkg/contracts"
 )
 
@@ -35,6 +36,9 @@ func (s Service) Collect(ctx context.Context, opts Options) (Result, error) {
 	}
 	if err := ValidateDurations(opts.CollectFor, opts.ScrapeEvery); err != nil {
 		return Result{}, err
+	}
+	if opts.Target.Target.Kind == discovery.TargetKindKubernetes && opts.Target.PrimaryPID == 0 {
+		return Result{}, errors.New("collection for remote Kubernetes pods is not supported yet; run inferlean on the Kubernetes node or select a local vLLM target")
 	}
 
 	run, err := newCollectionRun(s, opts)

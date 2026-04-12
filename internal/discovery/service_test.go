@@ -101,6 +101,47 @@ func TestDiscoverSelectsExplicitPodInDefaultNamespace(t *testing.T) {
 	}
 }
 
+func TestDiscoverSelectsRemoteKubernetesPodCandidate(t *testing.T) {
+	t.Parallel()
+
+	service := Service{
+		inspector: stubInspector{},
+		metadata: stubMetadataResolver(func(_ context.Context, groups []CandidateGroup, _ Options) ([]CandidateGroup, runtimeInventory, error) {
+			groups = append(groups, CandidateGroup{
+				Key:        "kubernetes:nortal/vllm-llm-0/vllm-llm",
+				EntryPoint: "vllm serve",
+				Target: TargetRef{
+					Kind:                    TargetKindKubernetes,
+					KubernetesNamespace:     "nortal",
+					KubernetesPodName:       "vllm-llm-0",
+					KubernetesContainerName: "vllm-llm",
+				},
+				RuntimeConfig: RuntimeConfig{
+					Model: "Qwen/Qwen3-32B",
+					Port:  8000,
+				},
+			})
+			return groups, runtimeInventory{
+				Pods: []kubernetesPod{{
+					Namespace: "nortal",
+					Name:      "vllm-llm-0",
+				}},
+			}, nil
+		}),
+	}
+
+	result, err := service.Discover(context.Background(), Options{Pod: "vllm-llm-0", Namespace: "nortal"})
+	if err != nil {
+		t.Fatalf("discover: %v", err)
+	}
+	if result.Selected == nil || result.Selected.Target.Kind != TargetKindKubernetes {
+		t.Fatalf("selected target = %+v, want kubernetes", result.Selected)
+	}
+	if result.Selected.PrimaryPID != 0 {
+		t.Fatalf("primary pid = %d, want no local pid", result.Selected.PrimaryPID)
+	}
+}
+
 func TestDiscoverRejectsMultipleExplicitSelectors(t *testing.T) {
 	t.Parallel()
 

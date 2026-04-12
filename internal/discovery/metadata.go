@@ -2,10 +2,8 @@ package discovery
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"os/exec"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -19,13 +17,6 @@ type metadataResolver interface {
 type runtimeInventory struct {
 	Docker []dockerContainer
 	Pods   []kubernetesPod
-}
-
-type kubernetesPod struct {
-	Namespace     string
-	Name          string
-	ContainerName string
-	ContainerID   string
 }
 
 type runtimeMetadataResolver struct{}
@@ -51,7 +42,7 @@ func (runtimeMetadataResolver) Enrich(ctx context.Context, groups []CandidateGro
 	}
 
 	needDocker := opts.Container != "" || len(containerIDs) > 0
-	needKubernetes := opts.Pod != "" || len(containerIDs) > 0
+	needKubernetes := opts.Pod != "" || len(containerIDs) > 0 || kubernetesDiscoveryConfigured()
 	if !needDocker && !needKubernetes {
 		return groups, runtimeInventory{}, nil
 	}
@@ -74,7 +65,7 @@ func (runtimeMetadataResolver) Enrich(ctx context.Context, groups []CandidateGro
 	}
 
 	if needKubernetes {
-		index, pods, err := loadKubernetesInventory(ctx)
+		index, pods, err := loadKubernetesInventory(ctx, kubernetesInventoryNamespace(opts))
 		if err != nil {
 			if opts.Pod != "" {
 				return groups, runtimeInventory{}, err
@@ -111,72 +102,21 @@ func (runtimeMetadataResolver) Enrich(ctx context.Context, groups []CandidateGro
 			groups[idx].Target = TargetRef{Kind: TargetKindHost}
 		}
 	}
+	groups = append(groups, kubernetesCandidateGroups(ctx, inventory.Pods, groups)...)
 
 	return groups, inventory, nil
 }
 
-func loadKubernetesInventory(ctx context.Context) (map[string]kubernetesPod, []kubernetesPod, error) {
-	if _, err := exec.LookPath("kubectl"); err != nil {
-		return nil, nil, errors.New("kubectl was not found in PATH")
+func kubernetesDiscoveryConfigured() bool {
+	if strings.TrimSpace(os.Getenv("KUBECONFIG")) != "" {
+		return true
 	}
-
-	output, err := exec.CommandContext(ctx, "kubectl", "get", "pods", "--all-namespaces", "-o", "json").Output()
+	home, err := os.UserHomeDir()
 	if err != nil {
-		output, err = exec.CommandContext(ctx, "kubectl", "get", "pods", "--namespace", "default", "-o", "json").Output()
-		if err != nil {
-			return nil, nil, fmt.Errorf("list kubernetes pods: %w", err)
-		}
+		return false
 	}
-
-	var payload struct {
-		Items []struct {
-			Metadata struct {
-				Namespace string `json:"namespace"`
-				Name      string `json:"name"`
-			} `json:"metadata"`
-			Status struct {
-				ContainerStatuses     []kubernetesStatus `json:"containerStatuses"`
-				InitContainerStatuses []kubernetesStatus `json:"initContainerStatuses"`
-			} `json:"status"`
-		} `json:"items"`
-	}
-	if err := json.Unmarshal(output, &payload); err != nil {
-		return nil, nil, fmt.Errorf("decode kubernetes pods: %w", err)
-	}
-
-	index := map[string]kubernetesPod{}
-	pods := []kubernetesPod{}
-	seenPods := map[string]struct{}{}
-	for _, item := range payload.Items {
-		base := kubernetesPod{
-			Namespace: item.Metadata.Namespace,
-			Name:      item.Metadata.Name,
-		}
-		key := base.Namespace + "/" + base.Name
-		if _, ok := seenPods[key]; !ok {
-			pods = append(pods, base)
-			seenPods[key] = struct{}{}
-		}
-		for _, status := range append(item.Status.ContainerStatuses, item.Status.InitContainerStatuses...) {
-			containerID := normalizeContainerID(status.ContainerID)
-			if containerID == "" {
-				continue
-			}
-			index[containerID] = kubernetesPod{
-				Namespace:     base.Namespace,
-				Name:          base.Name,
-				ContainerName: status.Name,
-				ContainerID:   containerID,
-			}
-		}
-	}
-
-	return index, pods, nil
-}
-
-type kubernetesStatus struct {
-	Name        string `json:"name"`
-	ContainerID string `json:"containerID"`
+	_, err = os.Stat(filepath.Join(home, ".kube", "config"))
+	return err == nil
 }
 
 func (r runtimeInventory) findDocker(query string) (dockerContainer, bool) {

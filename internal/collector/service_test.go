@@ -1,12 +1,14 @@
 package collector
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/inferLean/inferlean/internal/discovery"
 	"github.com/inferLean/inferlean/pkg/contracts"
 )
 
@@ -21,6 +23,26 @@ func TestValidateDurations(t *testing.T) {
 	}
 	if err := ValidateDurations(10*time.Second, 11*time.Second); err == nil {
 		t.Fatal("expected scrape interval validation error")
+	}
+}
+
+func TestCollectRejectsRemoteKubernetesPod(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewService().Collect(context.Background(), Options{
+		Version:     "test",
+		CollectFor:  30 * time.Second,
+		ScrapeEvery: 5 * time.Second,
+		Target: discovery.CandidateGroup{
+			Target: discovery.TargetRef{
+				Kind:                discovery.TargetKindKubernetes,
+				KubernetesNamespace: "nortal",
+				KubernetesPodName:   "vllm-llm-0",
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "collection for remote Kubernetes pods is not supported yet") {
+		t.Fatalf("err = %v, want remote kubernetes collection rejection", err)
 	}
 }
 

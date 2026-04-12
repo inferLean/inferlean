@@ -22,11 +22,15 @@ func RenderDiscovery(w io.Writer, result discovery.Result) {
 	fmt.Fprintf(w, "Selected target\n")
 	fmt.Fprintf(w, "  Model: %s\n", valueOrUnknown(displayModelName(target.RuntimeConfig)))
 	fmt.Fprintf(w, "  Target: %s\n", target.LocationLabel())
-	fmt.Fprintf(w, "  Host PID: %d", target.PrimaryPID)
-	if target.ProcessCount > 1 {
-		fmt.Fprintf(w, " (%d related processes)", target.ProcessCount)
+	if target.PrimaryPID > 0 {
+		fmt.Fprintf(w, "  Host PID: %d", target.PrimaryPID)
+		if target.ProcessCount > 1 {
+			fmt.Fprintf(w, " (%d related processes)", target.ProcessCount)
+		}
+		fmt.Fprintln(w)
+	} else if target.Target.IsHost() {
+		fmt.Fprintln(w, "  Host PID: not detected")
 	}
-	fmt.Fprintln(w)
 	fmt.Fprintf(w, "  Entry point: %s\n", target.EntryPoint)
 	fmt.Fprintf(w, "  Listen address: %s\n", listenAddress(target.RuntimeConfig))
 	fmt.Fprintf(w, "  Why this target: %s\n", result.Reason)
@@ -97,7 +101,9 @@ func RenderCollection(w io.Writer, target discovery.Result, result collector.Res
 	fmt.Fprintln(w, "Selected target")
 	fmt.Fprintf(w, "  Model: %s\n", valueOrUnknown(displayModelName(selected.RuntimeConfig)))
 	fmt.Fprintf(w, "  Target: %s\n", selected.LocationLabel())
-	fmt.Fprintf(w, "  Host PID: %d\n", selected.PrimaryPID)
+	if selected.PrimaryPID > 0 {
+		fmt.Fprintf(w, "  Host PID: %d\n", selected.PrimaryPID)
+	}
 	fmt.Fprintf(w, "  Why this target: %s\n", target.Reason)
 	fmt.Fprintf(w, "  Artifact: %s\n", result.ArtifactPath)
 	if result.Artifact.WorkloadObservations.Mode != "" {

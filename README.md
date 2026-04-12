@@ -118,6 +118,8 @@ Select a Kubernetes-managed deployment explicitly:
 inferlean collect --pod vllm-0 --namespace inference
 ```
 
+Kubernetes collection must run where the vLLM process is local. Prefer running InferLean on the worker node that hosts the pod. If you do not have node access, run InferLean inside the vLLM pod as a partial fallback; host, GPU, and process evidence may be incomplete unless the pod has the required visibility and permissions.
+
 Disable the interactive chooser in scripts or CI:
 
 ```bash
@@ -133,7 +135,7 @@ inferlean collect --output /tmp/artifact.json
 ## What The CLI Does
 
 - Finds current `vllm serve` processes and legacy vLLM API-server entrypoints.
-- Enriches discovered local vLLM targets with Docker container and Kubernetes pod metadata when available.
+- Enriches discovered local vLLM targets with Docker metadata and discovers Kubernetes pods whose container image contains `vllm` when a Kubernetes context is configured.
 - Groups related worker processes into one logical deployment.
 - Parses runtime settings such as model, host, port, parallelism, token limits, quantization, and selected safe environment hints.
 - Collects local evidence from a supported Linux host.

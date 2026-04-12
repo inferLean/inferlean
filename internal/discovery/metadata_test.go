@@ -49,3 +49,87 @@ func TestApplyDockerPortBindingPreservesExplicitRuntimePort(t *testing.T) {
 		t.Fatalf("runtime config = %+v, want explicit host/port preserved", group.RuntimeConfig)
 	}
 }
+
+func TestKubernetesInventoryNamespaceUsesExplicitPodNamespace(t *testing.T) {
+	t.Parallel()
+
+	namespace := kubernetesInventoryNamespace(Options{
+		Pod:       "vllm-llm-0",
+		Namespace: "nortal",
+	})
+
+	if namespace != "nortal" {
+		t.Fatalf("namespace = %q, want nortal", namespace)
+	}
+}
+
+func TestKubernetesInventoryNamespaceParsesPodNamespace(t *testing.T) {
+	t.Parallel()
+
+	namespace := kubernetesInventoryNamespace(Options{Pod: "nortal/vllm-llm-0"})
+
+	if namespace != "nortal" {
+		t.Fatalf("namespace = %q, want nortal", namespace)
+	}
+}
+
+func TestKubernetesCandidateGroupsAddsVLLMImagePod(t *testing.T) {
+	t.Parallel()
+
+	groups := kubernetesCandidateGroups(t.Context(), []kubernetesPod{{
+		Namespace: "nortal",
+		Name:      "vllm-llm-0",
+		PodIP:     "192.168.73.168",
+		Containers: []kubernetesContainer{{
+			Name:  "vllm-llm",
+			Image: "vllm/vllm-openai:v0.13.0",
+			Args: []string{
+				"Qwen/Qwen3-32B",
+				"--gpu-memory-utilization",
+				"0.95",
+				"--max-model-len",
+				"32768",
+				"--dtype",
+				"bfloat16",
+				"--max-num-seqs",
+				"32",
+				"--tensor-parallel-size",
+				"2",
+				"--generation-config",
+				"vllm",
+			},
+			Ports: []int{8000},
+		}},
+	}}, nil)
+
+	if len(groups) != 1 {
+		t.Fatalf("candidate count = %d, want 1", len(groups))
+	}
+	group := groups[0]
+	if group.Target.Kind != TargetKindKubernetes || group.Target.KubernetesPodName != "vllm-llm-0" {
+		t.Fatalf("target = %+v, want kubernetes pod", group.Target)
+	}
+	if group.RuntimeConfig.Model != "Qwen/Qwen3-32B" {
+		t.Fatalf("model = %q, want Qwen/Qwen3-32B", group.RuntimeConfig.Model)
+	}
+	if group.RuntimeConfig.Port != 8000 || group.RuntimeConfig.Host != "192.168.73.168" {
+		t.Fatalf("listen = %s:%d, want 192.168.73.168:8000", group.RuntimeConfig.Host, group.RuntimeConfig.Port)
+	}
+	if group.RuntimeConfig.TensorParallelSize != 2 || group.RuntimeConfig.MaxModelLen != 32768 {
+		t.Fatalf("runtime config = %+v, want parsed pod args", group.RuntimeConfig)
+	}
+}
+
+func TestKubernetesCandidateGroupsResolvesConfigMapEnvRefs(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		"GENERATIVE_MODEL_NAME": "Qwen/Qwen3-32B",
+		"MAX_MODEL_LEN":         "32768",
+	}
+	args := resolveKubernetesArgs([]string{"$(GENERATIVE_MODEL_NAME)", "--max-model-len", "$(MAX_MODEL_LEN)"}, env)
+
+	if args[0] != "Qwen/Qwen3-32B" || args[2] != "32768" {
+		t.Fatalf("resolved args = %#v", args)
+	}
+}
