@@ -21,11 +21,6 @@ type runtimeInventory struct {
 	Pods   []kubernetesPod
 }
 
-type dockerContainer struct {
-	ID   string
-	Name string
-}
-
 type kubernetesPod struct {
 	Namespace     string
 	Name          string
@@ -111,40 +106,13 @@ func (runtimeMetadataResolver) Enrich(ctx context.Context, groups []CandidateGro
 				DockerContainerID:   container.ID,
 				DockerContainerName: container.Name,
 			}
+			applyDockerPortBinding(&groups[idx], container)
 		default:
 			groups[idx].Target = TargetRef{Kind: TargetKindHost}
 		}
 	}
 
 	return groups, inventory, nil
-}
-
-func loadDockerInventory(ctx context.Context) (map[string]dockerContainer, []dockerContainer, error) {
-	if _, err := exec.LookPath("docker"); err != nil {
-		return nil, nil, errors.New("docker was not found in PATH")
-	}
-
-	output, err := exec.CommandContext(ctx, "docker", "ps", "--no-trunc", "--format", "{{.ID}}\t{{.Names}}").Output()
-	if err != nil {
-		return nil, nil, fmt.Errorf("list docker containers: %w", err)
-	}
-
-	index := map[string]dockerContainer{}
-	containers := []dockerContainer{}
-	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		parts := strings.SplitN(line, "\t", 2)
-		container := dockerContainer{ID: strings.TrimSpace(parts[0])}
-		if len(parts) == 2 {
-			container.Name = strings.TrimSpace(parts[1])
-		}
-		index[container.ID] = container
-		containers = append(containers, container)
-	}
-
-	return index, containers, nil
 }
 
 func loadKubernetesInventory(ctx context.Context) (map[string]kubernetesPod, []kubernetesPod, error) {
