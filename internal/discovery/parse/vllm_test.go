@@ -18,6 +18,7 @@ type fixture struct {
 		Model              string `json:"model"`
 		Host               string `json:"host"`
 		Port               int    `json:"port"`
+		PortDefaulted      bool   `json:"port_defaulted"`
 		TensorParallelSize int    `json:"tensor_parallel_size"`
 		MaxNumSeqs         int    `json:"max_num_seqs"`
 		Quantization       string `json:"quantization"`
@@ -55,6 +56,9 @@ func TestParseFixtures(t *testing.T) {
 			}
 			if parsed.RuntimeConfig.Port != tc.Want.Port {
 				t.Fatalf("port = %d, want %d", parsed.RuntimeConfig.Port, tc.Want.Port)
+			}
+			if parsed.RuntimeConfig.PortDefaulted != tc.Want.PortDefaulted {
+				t.Fatalf("port defaulted = %v, want %v", parsed.RuntimeConfig.PortDefaulted, tc.Want.PortDefaulted)
 			}
 			if parsed.RuntimeConfig.TensorParallelSize != tc.Want.TensorParallelSize {
 				t.Fatalf("tensor parallel = %d, want %d", parsed.RuntimeConfig.TensorParallelSize, tc.Want.TensorParallelSize)

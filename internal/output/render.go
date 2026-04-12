@@ -276,13 +276,12 @@ func displayModelName(cfg discovery.RuntimeConfig) string {
 }
 
 func listenAddress(cfg discovery.RuntimeConfig) string {
-	host := cfg.Host
-	if host == "" {
-		host = "not detected"
-	}
 	if cfg.Port == 0 {
-		return host
+		return valueOrUnknown(cfg.Host)
+	}
+	if cfg.Host == "" {
+		return fmt.Sprintf("port %d", cfg.Port)
 	}
 
-	return fmt.Sprintf("%s:%d", host, cfg.Port)
+	return fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 }

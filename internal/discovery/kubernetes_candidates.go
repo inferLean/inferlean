@@ -127,6 +127,7 @@ func runtimeConfigFromParsed(cfg parse.RuntimeConfig) RuntimeConfig {
 		ServedModelName:       cfg.ServedModelName,
 		Host:                  cfg.Host,
 		Port:                  cfg.Port,
+		PortDefaulted:         cfg.PortDefaulted,
 		TensorParallelSize:    cfg.TensorParallelSize,
 		DataParallelSize:      cfg.DataParallelSize,
 		PipelineParallelSize:  cfg.PipelineParallelSize,

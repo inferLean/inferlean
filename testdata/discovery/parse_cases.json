@@ -1,5 +1,37 @@
 [
   {
+    "name": "current_vllm_serve_uses_default_port",
+    "args": [
+      "/usr/bin/python3",
+      "/usr/local/bin/vllm",
+      "serve",
+      "Qwen/Qwen3-32B",
+      "--gpu-memory-utilization",
+      "0.95",
+      "--max-model-len",
+      "32768",
+      "--dtype",
+      "bfloat16",
+      "--max-num-seqs",
+      "32",
+      "--tensor-parallel-size",
+      "2",
+      "--generation-config",
+      "vllm"
+    ],
+    "want": {
+      "matched": true,
+      "entry_point": "vllm serve",
+      "model": "Qwen/Qwen3-32B",
+      "host": "",
+      "port": 8000,
+      "port_defaulted": true,
+      "tensor_parallel_size": 2,
+      "max_num_seqs": 32,
+      "quantization": ""
+    }
+  },
+  {
     "name": "current_vllm_serve",
     "args": [
       "vllm",

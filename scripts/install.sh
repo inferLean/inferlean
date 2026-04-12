@@ -580,7 +580,7 @@ if [ -d "${tmpdir}/tools" ]; then
   cp -R "${tmpdir}/tools/." "${install_dir}/tools/"
 fi
 
-install_dcgm_if_needed
-build_dcgm_exporter_if_needed
+#install_dcgm_if_needed
+#build_dcgm_exporter_if_needed
 
 echo "installed inferlean ${version} to ${install_dir}/inferlean"

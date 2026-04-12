@@ -35,6 +35,21 @@ func TestApplyDockerPortBindingFillsMissingRuntimePort(t *testing.T) {
 	}
 }
 
+func TestApplyDockerPortBindingReplacesDefaultRuntimePort(t *testing.T) {
+	t.Parallel()
+
+	group := CandidateGroup{RuntimeConfig: RuntimeConfig{Port: 8000, PortDefaulted: true}}
+	applyDockerPortBinding(&group, dockerContainer{
+		Ports: []dockerPortBinding{
+			{HostIP: "127.0.0.1", HostPort: 18000, ContainerPort: 8000, Protocol: "tcp"},
+		},
+	})
+
+	if group.RuntimeConfig.Host != "127.0.0.1" || group.RuntimeConfig.Port != 18000 || group.RuntimeConfig.PortDefaulted {
+		t.Fatalf("runtime config = %+v, want docker host binding", group.RuntimeConfig)
+	}
+}
+
 func TestApplyDockerPortBindingPreservesExplicitRuntimePort(t *testing.T) {
 	t.Parallel()
 

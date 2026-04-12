@@ -60,14 +60,17 @@ func dockerContainerFromPSLine(line string) dockerContainer {
 }
 
 func applyDockerPortBinding(group *CandidateGroup, container dockerContainer) {
-	if group.RuntimeConfig.Port != 0 {
-		return
-	}
 	binding, ok := selectVLLMPortBinding(container.Ports)
 	if !ok {
 		return
 	}
+	if group.RuntimeConfig.Port != 0 {
+		if !group.RuntimeConfig.PortDefaulted || binding.ContainerPort != group.RuntimeConfig.Port {
+			return
+		}
+	}
 	group.RuntimeConfig.Port = binding.HostPort
+	group.RuntimeConfig.PortDefaulted = false
 	if group.RuntimeConfig.Host == "" {
 		group.RuntimeConfig.Host = dockerHostIP(binding.HostIP)
 	}

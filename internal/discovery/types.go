@@ -66,6 +66,7 @@ type RuntimeConfig struct {
 	ServedModelName       string
 	Host                  string
 	Port                  int
+	PortDefaulted         bool
 	TensorParallelSize    int
 	DataParallelSize      int
 	PipelineParallelSize  int
