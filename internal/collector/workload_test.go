@@ -67,6 +67,7 @@ func TestBuildWorkloadObservationsIncludesModeAndTarget(t *testing.T) {
 			ScrapeEvery:    5 * time.Second,
 			WorkloadMode:   "batch_processing",
 			WorkloadTarget: "throughput",
+			RepeatedPrefix: boolPointer(true),
 		},
 		processSamples: []processSample{{}},
 		nvmlSnapshot:   &nvmlSnapshot{Samples: []nvmlSample{{}}},
@@ -78,5 +79,15 @@ func TestBuildWorkloadObservationsIncludesModeAndTarget(t *testing.T) {
 	}
 	if workload.Target != "throughput" {
 		t.Fatalf("Target = %q, want %q", workload.Target, "throughput")
+	}
+	if workload.Summary == "" {
+		t.Fatal("Summary = empty, want collector-generated summary")
+	}
+	if workload.Hints["target_model"] != "Qwen/Qwen3.5-2B" {
+		t.Fatalf("Hints[target_model] = %q, want target model", workload.Hints["target_model"])
+	}
+	value, ok := workload.Measurements["repeated_prefix_present"].(bool)
+	if !ok || !value {
+		t.Fatalf("Measurements[repeated_prefix_present] = %v, want true", workload.Measurements["repeated_prefix_present"])
 	}
 }

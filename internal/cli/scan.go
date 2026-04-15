@@ -14,17 +14,19 @@ import (
 )
 
 type scanOptions struct {
-	PID            int32
-	Container      string
-	Pod            string
-	Namespace      string
-	NoInteractive  bool
-	CollectFor     time.Duration
-	ScrapeEvery    time.Duration
-	WorkloadMode   string
-	WorkloadTarget string
-	OutputPath     string
-	BackendURL     string
+	PID               int32
+	Container         string
+	Pod               string
+	Namespace         string
+	NoInteractive     bool
+	CollectFor        time.Duration
+	ScrapeEvery       time.Duration
+	WorkloadMode      string
+	WorkloadTarget    string
+	RepeatedPrefix    bool
+	HasRepeatedPrefix bool
+	OutputPath        string
+	BackendURL        string
 }
 
 func newScanCommand() *cobra.Command {
@@ -35,8 +37,7 @@ func newScanCommand() *cobra.Command {
 	var noInteractive bool
 	var collectFor time.Duration
 	var scrapeEvery time.Duration
-	var workloadMode string
-	var workloadTarget string
+	var workload workloadFlagValues
 	var outputPath string
 	var backendURL string
 
@@ -45,17 +46,19 @@ func newScanCommand() *cobra.Command {
 		Short: "Run an authenticated end-to-end InferLean scan and open the report",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runScan(cmd, scanOptions{
-				PID:            pid,
-				Container:      container,
-				Pod:            pod,
-				Namespace:      namespace,
-				NoInteractive:  noInteractive,
-				CollectFor:     collectFor,
-				ScrapeEvery:    scrapeEvery,
-				WorkloadMode:   workloadMode,
-				WorkloadTarget: workloadTarget,
-				OutputPath:     outputPath,
-				BackendURL:     backendURL,
+				PID:               pid,
+				Container:         container,
+				Pod:               pod,
+				Namespace:         namespace,
+				NoInteractive:     noInteractive,
+				CollectFor:        collectFor,
+				ScrapeEvery:       scrapeEvery,
+				WorkloadMode:      workload.mode,
+				WorkloadTarget:    workload.target,
+				RepeatedPrefix:    workload.repeatedPrefix,
+				HasRepeatedPrefix: cmd.Flags().Changed("repeated-prefix-present"),
+				OutputPath:        outputPath,
+				BackendURL:        backendURL,
 			})
 		},
 	}
@@ -65,8 +68,7 @@ func newScanCommand() *cobra.Command {
 	cmd.Flags().DurationVar(&collectFor, "collect-for", defaultCollectFor, "how long to collect metrics before building the artifact")
 	cmd.Flags().DurationVar(&collectFor, "collect-interval", defaultCollectFor, "alias for --collect-for")
 	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", defaultScrapeEvery, "how often Prometheus scrapes configured targets during collection")
-	cmd.Flags().StringVar(&workloadMode, "workload-mode", "", "workload mode for this run: realtime_chat, batch_processing, or mixed")
-	cmd.Flags().StringVar(&workloadTarget, "workload-target", "", "optimization target for this run: latency, balanced, or throughput")
+	bindWorkloadFlags(cmd, &workload)
 	cmd.Flags().StringVar(&outputPath, "output", "", "write the artifact to a specific path")
 	cmd.Flags().StringVar(&backendURL, "backend-url", "", "InferLean backend base URL")
 	_ = cmd.Flags().MarkHidden("collect-interval")
@@ -79,7 +81,7 @@ func runScan(cmd *cobra.Command, opts scanOptions) error {
 		return fmt.Errorf("scan requires Linux collection support; use inferlean collect for local-only artifact capture on supported hosts")
 	}
 
-	workloadMode, workloadTarget, err := normalizeScanWorkload(opts)
+	workloadInputs, err := normalizeScanWorkload(cmd, opts)
 	if err != nil {
 		return err
 	}
@@ -99,7 +101,7 @@ func runScan(cmd *cobra.Command, opts scanOptions) error {
 	if err != nil {
 		return err
 	}
-	collectResult, err := runScanCollection(cmd, opts, target, workloadMode, workloadTarget, interactive)
+	collectResult, err := runScanCollection(cmd, opts, target, workloadInputs, interactive)
 	if err != nil {
 		return err
 	}
@@ -176,19 +178,16 @@ func loginAndClaimScanSession(
 	return updated, nil
 }
 
-func normalizeScanWorkload(opts scanOptions) (string, string, error) {
+func normalizeScanWorkload(_ *cobra.Command, opts scanOptions) (normalizedWorkloadInputs, error) {
 	if err := collector.ValidateDurations(opts.CollectFor, opts.ScrapeEvery); err != nil {
-		return "", "", err
+		return normalizedWorkloadInputs{}, err
 	}
-	workloadMode, err := collector.NormalizeWorkloadMode(opts.WorkloadMode)
-	if err != nil {
-		return "", "", err
+	values := workloadFlagValues{
+		mode:           opts.WorkloadMode,
+		target:         opts.WorkloadTarget,
+		repeatedPrefix: opts.RepeatedPrefix,
 	}
-	workloadTarget, err := collector.NormalizeWorkloadTarget(opts.WorkloadTarget)
-	if err != nil {
-		return "", "", err
-	}
-	return workloadMode, workloadTarget, nil
+	return normalizeWorkloadInputs(values, opts.HasRepeatedPrefix)
 }
 
 func prepareScanSession(

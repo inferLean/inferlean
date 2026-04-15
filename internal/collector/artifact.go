@@ -152,18 +152,23 @@ func (r *collectionRun) buildMetrics() contracts.Metrics {
 }
 
 func (r *collectionRun) buildWorkloadObservations(minimumEvidenceMet bool) contracts.WorkloadObservations {
+	hints := map[string]string{"target_model": r.opts.Target.DisplayModel()}
+	measurements := map[string]any{
+		"collect_for_seconds":           r.opts.CollectFor.Seconds(),
+		"scrape_every_seconds":          r.opts.ScrapeEvery.Seconds(),
+		"minimum_required_evidence_met": minimumEvidenceMet,
+		"process_samples":               len(r.processSamples),
+		"nvml_samples":                  nvmlSampleCount(r.nvmlSnapshot),
+	}
+	if r.opts.RepeatedPrefix != nil {
+		measurements["repeated_prefix_present"] = *r.opts.RepeatedPrefix
+	}
 	return contracts.WorkloadObservations{
-		Mode:    r.opts.WorkloadMode,
-		Target:  r.opts.WorkloadTarget,
-		Summary: fmt.Sprintf("Collected local evidence for %s over %s", r.opts.Target.DisplayModel(), r.opts.CollectFor),
-		Hints:   map[string]string{"target_model": r.opts.Target.DisplayModel()},
-		Measurements: map[string]any{
-			"collect_for_seconds":           r.opts.CollectFor.Seconds(),
-			"scrape_every_seconds":          r.opts.ScrapeEvery.Seconds(),
-			"minimum_required_evidence_met": minimumEvidenceMet,
-			"process_samples":               len(r.processSamples),
-			"nvml_samples":                  nvmlSampleCount(r.nvmlSnapshot),
-		},
+		Mode:         r.opts.WorkloadMode,
+		Target:       r.opts.WorkloadTarget,
+		Summary:      fmt.Sprintf("Collected local evidence for %s over %s", r.opts.Target.DisplayModel(), r.opts.CollectFor),
+		Hints:        hints,
+		Measurements: measurements,
 	}
 }
 

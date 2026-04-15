@@ -20,8 +20,7 @@ func runScanCollection(
 	cmd *cobra.Command,
 	opts scanOptions,
 	target discovery.Result,
-	workloadMode string,
-	workloadTarget string,
+	workload normalizedWorkloadInputs,
 	interactive bool,
 ) (collector.Result, error) {
 	service := collector.NewService()
@@ -30,8 +29,9 @@ func runScanCollection(
 			Target:         *target.Selected,
 			CollectFor:     opts.CollectFor,
 			ScrapeEvery:    opts.ScrapeEvery,
-			WorkloadMode:   workloadMode,
-			WorkloadTarget: workloadTarget,
+			WorkloadMode:   workload.mode,
+			WorkloadTarget: workload.target,
+			RepeatedPrefix: workload.repeatedPrefix,
 			OutputPath:     opts.OutputPath,
 			Stepf:          stepf,
 			Version:        version,

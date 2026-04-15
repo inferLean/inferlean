@@ -42,6 +42,7 @@ type Options struct {
 	ScrapeEvery    time.Duration
 	WorkloadMode   string
 	WorkloadTarget string
+	RepeatedPrefix *bool
 	OutputPath     string
 	Stepf          func(StepUpdate)
 	Version        string

@@ -100,6 +100,15 @@ Collect for longer or change the scrape cadence:
 inferlean collect --collect-for 30s --scrape-every 5s
 ```
 
+Provide workload intent and repeated-prefix context explicitly:
+
+```bash
+inferlean collect \
+  --workload-mode batch_processing \
+  --workload-target throughput \
+  --repeated-prefix-present=true
+```
+
 Select a specific process explicitly:
 
 ```bash
