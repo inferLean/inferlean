@@ -109,6 +109,8 @@ inferlean collect \
   --repeated-prefix-present=true
 ```
 
+If you omit those flags, InferLean now defaults to `--workload-mode=mixed`, `--workload-target=balanced`, and `--repeated-prefix-present=false`.
+
 Select a specific process explicitly:
 
 ```bash

@@ -19,12 +19,12 @@ type normalizedWorkloadInputs struct {
 }
 
 func bindWorkloadFlags(cmd *cobra.Command, values *workloadFlagValues) {
-	cmd.Flags().StringVar(&values.mode, "workload-mode", "", "workload mode for this run: realtime_chat, batch_processing, or mixed")
-	cmd.Flags().StringVar(&values.target, "workload-target", "", "optimization target for this run: latency, balanced, or throughput")
+	cmd.Flags().StringVar(&values.mode, "workload-mode", "mixed", "workload mode for this run: realtime_chat, batch_processing, or mixed")
+	cmd.Flags().StringVar(&values.target, "workload-target", "balanced", "optimization target for this run: latency, balanced, or throughput")
 	cmd.Flags().BoolVar(&values.repeatedPrefix, "repeated-prefix-present", false, "whether requests share repeated prefixes or prompt templates")
 }
 
-func normalizeWorkloadInputs(values workloadFlagValues, repeatedChanged bool) (normalizedWorkloadInputs, error) {
+func normalizeWorkloadInputs(values workloadFlagValues) (normalizedWorkloadInputs, error) {
 	mode, err := collector.NormalizeWorkloadMode(values.mode)
 	if err != nil {
 		return normalizedWorkloadInputs{}, err
@@ -34,11 +34,8 @@ func normalizeWorkloadInputs(values workloadFlagValues, repeatedChanged bool) (n
 		return normalizedWorkloadInputs{}, err
 	}
 
-	var repeated *bool
-	if repeatedChanged {
-		value := values.repeatedPrefix
-		repeated = &value
-	}
+	value := values.repeatedPrefix
+	repeated := &value
 
 	return normalizedWorkloadInputs{
 		mode:           mode,

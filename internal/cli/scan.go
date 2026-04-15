@@ -14,19 +14,18 @@ import (
 )
 
 type scanOptions struct {
-	PID               int32
-	Container         string
-	Pod               string
-	Namespace         string
-	NoInteractive     bool
-	CollectFor        time.Duration
-	ScrapeEvery       time.Duration
-	WorkloadMode      string
-	WorkloadTarget    string
-	RepeatedPrefix    bool
-	HasRepeatedPrefix bool
-	OutputPath        string
-	BackendURL        string
+	PID            int32
+	Container      string
+	Pod            string
+	Namespace      string
+	NoInteractive  bool
+	CollectFor     time.Duration
+	ScrapeEvery    time.Duration
+	WorkloadMode   string
+	WorkloadTarget string
+	RepeatedPrefix bool
+	OutputPath     string
+	BackendURL     string
 }
 
 func newScanCommand() *cobra.Command {
@@ -46,19 +45,18 @@ func newScanCommand() *cobra.Command {
 		Short: "Run an authenticated end-to-end InferLean scan and open the report",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runScan(cmd, scanOptions{
-				PID:               pid,
-				Container:         container,
-				Pod:               pod,
-				Namespace:         namespace,
-				NoInteractive:     noInteractive,
-				CollectFor:        collectFor,
-				ScrapeEvery:       scrapeEvery,
-				WorkloadMode:      workload.mode,
-				WorkloadTarget:    workload.target,
-				RepeatedPrefix:    workload.repeatedPrefix,
-				HasRepeatedPrefix: cmd.Flags().Changed("repeated-prefix-present"),
-				OutputPath:        outputPath,
-				BackendURL:        backendURL,
+				PID:            pid,
+				Container:      container,
+				Pod:            pod,
+				Namespace:      namespace,
+				NoInteractive:  noInteractive,
+				CollectFor:     collectFor,
+				ScrapeEvery:    scrapeEvery,
+				WorkloadMode:   workload.mode,
+				WorkloadTarget: workload.target,
+				RepeatedPrefix: workload.repeatedPrefix,
+				OutputPath:     outputPath,
+				BackendURL:     backendURL,
 			})
 		},
 	}
@@ -187,7 +185,7 @@ func normalizeScanWorkload(_ *cobra.Command, opts scanOptions) (normalizedWorklo
 		target:         opts.WorkloadTarget,
 		repeatedPrefix: opts.RepeatedPrefix,
 	}
-	return normalizeWorkloadInputs(values, opts.HasRepeatedPrefix)
+	return normalizeWorkloadInputs(values)
 }
 
 func prepareScanSession(

@@ -45,7 +45,7 @@ func newCollectCommand() *cobra.Command {
 			if err := collector.ValidateDurations(collectFor, scrapeEvery); err != nil {
 				return err
 			}
-			workloadInputs, err := normalizeWorkloadInputs(workload, cmd.Flags().Changed("repeated-prefix-present"))
+			workloadInputs, err := normalizeWorkloadInputs(workload)
 			if err != nil {
 				return err
 			}
