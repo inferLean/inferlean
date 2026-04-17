@@ -1,0 +1,101 @@
+package run
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	collectpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/collect"
+	discoverpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/discover"
+	reportpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/report"
+	uploadpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/upload"
+	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery"
+)
+
+type Options struct {
+	Discover        vllmdiscovery.DiscoverOptions
+	CollectFor      time.Duration
+	ScrapeEvery     time.Duration
+	OutputPath      string
+	Version         string
+	WorkloadMode    string
+	WorkloadTarget  string
+	PrefixHeavy     *bool
+	Multimodal      *bool
+	MultimodalCache *bool
+	NoInteractive   bool
+	BackendURL      string
+	RequireUpload   bool
+}
+
+type Result struct {
+	ArtifactPath string
+	Uploaded     bool
+	UploadErr    error
+}
+
+type Presenter struct {
+	discover discoverpresenter.Presenter
+	collect  collectpresenter.Presenter
+	upload   uploadpresenter.Presenter
+	report   reportpresenter.Presenter
+}
+
+func NewPresenter(
+	d discoverpresenter.Presenter,
+	c collectpresenter.Presenter,
+	u uploadpresenter.Presenter,
+	r reportpresenter.Presenter,
+) Presenter {
+	return Presenter{discover: d, collect: c, upload: u, report: r}
+}
+
+func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
+	target, _, err := p.discover.Run(ctx, opts.Discover)
+	if err != nil {
+		return Result{}, err
+	}
+	collectRes, err := p.collect.Run(ctx, collectpresenter.Options{
+		Target:           target,
+		CollectFor:       opts.CollectFor,
+		ScrapeEvery:      opts.ScrapeEvery,
+		OutputPath:       opts.OutputPath,
+		CollectorVersion: opts.Version,
+		WorkloadMode:     opts.WorkloadMode,
+		WorkloadTarget:   opts.WorkloadTarget,
+		PrefixHeavy:      opts.PrefixHeavy,
+		Multimodal:       opts.Multimodal,
+		MultimodalCache:  opts.MultimodalCache,
+		NoInteractive:    opts.NoInteractive,
+	})
+	if err != nil {
+		return Result{}, err
+	}
+	result := Result{ArtifactPath: collectRes.ArtifactPath}
+	if opts.BackendURL == "" {
+		fmt.Println("[run] backend URL not set, skipping upload/report")
+		return result, nil
+	}
+	return p.handleUpload(ctx, opts, result)
+}
+
+func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result) (Result, error) {
+	uploadRes, err := p.upload.Run(ctx, uploadpresenter.Options{
+		BackendURL:    opts.BackendURL,
+		ArtifactPath:  result.ArtifactPath,
+		RequireReport: opts.RequireUpload,
+	})
+	if err != nil {
+		if opts.RequireUpload {
+			return result, err
+		}
+		result.UploadErr = err
+		fmt.Printf("[run] upload/report skipped with error: %v\n", err)
+		return result, nil
+	}
+	result.Uploaded = uploadRes.Uploaded
+	if len(uploadRes.Report) > 0 {
+		p.report.Run(uploadRes.Report)
+	}
+	return result, nil
+}

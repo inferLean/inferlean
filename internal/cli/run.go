@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	collectpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/collect"
+	runpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/run"
 )
 
-func newCollectCommand() *cobra.Command {
+func newRunCommand() *cobra.Command {
 	target := &targetFlags{}
 	var collectFor time.Duration
 	var scrapeEvery time.Duration
@@ -19,16 +19,14 @@ func newCollectCommand() *cobra.Command {
 	var prefixHeavy string
 	var multimodal string
 	var multimodalCache string
+	var backendURL string
+	var requireUpload bool
 
 	cmd := &cobra.Command{
-		Use:   "collect",
-		Short: "Collect local evidence and build artifact.json",
+		Use:   "run",
+		Short: "Run discover -> collect -> optional upload -> optional report",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			application := appFromContext(cmd.Context())
-			selected, _, err := application.discover.Run(cmd.Context(), target.toDiscoverOptions())
-			if err != nil {
-				return err
-			}
 			prefixValue, err := parseOptionalBool(prefixHeavy)
 			if err != nil {
 				return err
@@ -41,23 +39,28 @@ func newCollectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res, err := application.collect.Run(cmd.Context(), collectpresenter.Options{
-				Target:           selected,
-				CollectFor:       collectFor,
-				ScrapeEvery:      scrapeEvery,
-				OutputPath:       outputPath,
-				CollectorVersion: version,
-				WorkloadMode:     workloadMode,
-				WorkloadTarget:   workloadTarget,
-				PrefixHeavy:      prefixValue,
-				Multimodal:       multimodalValue,
-				MultimodalCache:  multimodalCacheValue,
-				NoInteractive:    target.noInteractive,
+			result, err := application.run.Run(cmd.Context(), runpresenter.Options{
+				Discover:        target.toDiscoverOptions(),
+				CollectFor:      collectFor,
+				ScrapeEvery:     scrapeEvery,
+				OutputPath:      outputPath,
+				Version:         version,
+				WorkloadMode:    workloadMode,
+				WorkloadTarget:  workloadTarget,
+				PrefixHeavy:     prefixValue,
+				Multimodal:      multimodalValue,
+				MultimodalCache: multimodalCacheValue,
+				NoInteractive:   target.noInteractive,
+				BackendURL:      backendURL,
+				RequireUpload:   requireUpload,
 			})
 			if err != nil {
 				return err
 			}
-			fmt.Printf("artifact path: %s\n", res.ArtifactPath)
+			fmt.Printf("run artifact: %s\n", result.ArtifactPath)
+			if result.UploadErr != nil {
+				fmt.Printf("run upload warning: %v\n", result.UploadErr)
+			}
 			return nil
 		},
 	}
@@ -70,5 +73,7 @@ func newCollectCommand() *cobra.Command {
 	cmd.Flags().StringVar(&prefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
 	cmd.Flags().StringVar(&multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
 	cmd.Flags().StringVar(&multimodalCache, "multimodal-cache", "auto", "multimodal cache enabled (true|false|auto)")
+	cmd.Flags().StringVar(&backendURL, "backend-url", "", "backend base URL")
+	cmd.Flags().BoolVar(&requireUpload, "require-upload", false, "fail run when upload/report fails")
 	return cmd
 }

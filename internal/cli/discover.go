@@ -3,37 +3,46 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/inferLean/inferlean/internal/output"
+	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery"
 )
 
 func newDiscoverCommand() *cobra.Command {
-	var pid int32
-	var container string
-	var pod string
-	var namespace string
-	var noInteractive bool
-
+	opts := &targetFlags{}
 	cmd := &cobra.Command{
 		Use:   "discover",
-		Short: "Discover a local vLLM deployment and parse its runtime configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			result, err := resolveTarget(cmd, targetResolutionOptions{
-				PID:           pid,
-				Container:     container,
-				Pod:           pod,
-				Namespace:     namespace,
-				NoInteractive: noInteractive,
-			})
-			if err != nil {
-				return err
-			}
-
-			output.RenderDiscovery(cmd.OutOrStdout(), result)
-			return nil
+		Short: "Discover running vLLM targets",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			application := appFromContext(cmd.Context())
+			_, _, err := application.discover.Run(cmd.Context(), opts.toDiscoverOptions())
+			return err
 		},
 	}
-
-	bindTargetFlags(cmd, &pid, &container, &pod, &namespace, &noInteractive)
-
+	bindTargetFlags(cmd, opts)
 	return cmd
+}
+
+type targetFlags struct {
+	pid           int32
+	containerName string
+	podName       string
+	namespace     string
+	noInteractive bool
+}
+
+func bindTargetFlags(cmd *cobra.Command, opts *targetFlags) {
+	cmd.Flags().Int32Var(&opts.pid, "pid", 0, "target process id")
+	cmd.Flags().StringVar(&opts.containerName, "container", "", "target docker container name")
+	cmd.Flags().StringVar(&opts.podName, "pod", "", "target kubernetes pod name")
+	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "kubernetes namespace")
+	cmd.Flags().BoolVar(&opts.noInteractive, "no-interactive", false, "disable interactive chooser and intent prompts")
+}
+
+func (f targetFlags) toDiscoverOptions() vllmdiscovery.DiscoverOptions {
+	return vllmdiscovery.DiscoverOptions{
+		PID:           f.pid,
+		ContainerName: f.containerName,
+		PodName:       f.podName,
+		Namespace:     f.namespace,
+		NoInteractive: f.noInteractive,
+	}
 }
