@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
 )
 
 type Client struct {

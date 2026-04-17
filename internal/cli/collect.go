@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	collectpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/collect"
+	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
 )
 
 func newCollectCommand() *cobra.Command {

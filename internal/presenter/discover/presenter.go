@@ -3,8 +3,8 @@ package discover
 import (
 	"context"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/ui/discovery"
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery"
+	"github.com/inferLean/inferlean-main/cli/internal/ui/discovery"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 )
 
 type Presenter struct {

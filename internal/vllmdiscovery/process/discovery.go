@@ -6,7 +6,7 @@ import (
 
 	gopsprocess "github.com/shirou/gopsutil/v4/process"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery/shared"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/shared"
 )
 
 func Discover(ctx context.Context, pidFilter int32) ([]shared.Candidate, error) {

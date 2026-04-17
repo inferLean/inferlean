@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	promcollector "github.com/inferLean/inferlean-main/new-cli/internal/collectors/prometheus"
-	"github.com/inferLean/inferlean-main/new-cli/internal/types"
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery"
+	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 )
 
 type buildInput struct {

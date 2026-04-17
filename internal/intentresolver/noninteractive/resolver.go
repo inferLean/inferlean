@@ -3,7 +3,7 @@ package noninteractive
 import (
 	"strings"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
 )
 
 type Input struct {

@@ -14,10 +14,10 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
 
-	promcollector "github.com/inferLean/inferlean-main/new-cli/internal/collectors/prometheus"
-	"github.com/inferLean/inferlean-main/new-cli/internal/types"
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdefaults"
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery"
+	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdefaults"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 )
 
 var (

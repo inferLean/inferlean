@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	runpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/run"
+	runpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/run"
 )
 
 func newRunCommand() *cobra.Command {

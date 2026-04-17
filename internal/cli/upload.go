@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	uploadpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/upload"
+	uploadpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/upload"
 )
 
 func newUploadCommand() *cobra.Command {

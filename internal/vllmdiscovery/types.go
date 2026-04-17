@@ -1,6 +1,6 @@
 package vllmdiscovery
 
-import "github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery/shared"
+import "github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/shared"
 
 type Candidate = shared.Candidate
 

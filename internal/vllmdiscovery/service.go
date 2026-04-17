@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery/docker"
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery/pod"
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery/process"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/docker"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/pod"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/process"
 )
 
 type Service struct{}

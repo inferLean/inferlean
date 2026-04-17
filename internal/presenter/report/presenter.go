@@ -1,6 +1,6 @@
 package report
 
-import "github.com/inferLean/inferlean-main/new-cli/internal/ui/report"
+import "github.com/inferLean/inferlean-main/cli/internal/ui/report"
 
 type Presenter struct {
 	view report.View

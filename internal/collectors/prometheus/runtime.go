@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/tools"
+	"github.com/inferLean/inferlean-main/cli/internal/tools"
 )
 
 type runtimeProcess struct {

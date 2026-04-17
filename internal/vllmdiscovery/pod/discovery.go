@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery/shared"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/shared"
 )
 
 type podList struct {

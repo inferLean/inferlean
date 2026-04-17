@@ -7,11 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/api"
-	configstore "github.com/inferLean/inferlean-main/new-cli/internal/storage/configuration"
-	runstore "github.com/inferLean/inferlean-main/new-cli/internal/storage/run"
-	"github.com/inferLean/inferlean-main/new-cli/internal/types"
-	uploadui "github.com/inferLean/inferlean-main/new-cli/internal/ui/upload"
+	"github.com/inferLean/inferlean-main/cli/internal/api"
+	configstore "github.com/inferLean/inferlean-main/cli/internal/storage/configuration"
+	runstore "github.com/inferLean/inferlean-main/cli/internal/storage/run"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
+	uploadui "github.com/inferLean/inferlean-main/cli/internal/ui/upload"
 )
 
 type Options struct {

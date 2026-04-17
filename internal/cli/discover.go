@@ -3,7 +3,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 )
 
 func newDiscoverCommand() *cobra.Command {

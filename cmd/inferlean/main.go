@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/cli"
+	"github.com/inferLean/inferlean-main/cli/internal/cli"
 )
 
 func main() {

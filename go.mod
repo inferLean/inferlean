@@ -1,4 +1,4 @@
-module github.com/inferLean/inferlean-main/new-cli
+module github.com/inferLean/inferlean-main/cli
 
 go 1.24.1
 

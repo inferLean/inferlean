@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery/shared"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/shared"
 )
 
 func Discover(ctx context.Context, name string) ([]shared.Candidate, error) {

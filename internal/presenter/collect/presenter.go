@@ -7,21 +7,21 @@ import (
 	"strings"
 	"time"
 
-	promcollector "github.com/inferLean/inferlean-main/new-cli/internal/collectors/prometheus"
-	"github.com/inferLean/inferlean-main/new-cli/internal/identity"
-	"github.com/inferLean/inferlean-main/new-cli/internal/intentresolver/interactive"
-	"github.com/inferLean/inferlean-main/new-cli/internal/intentresolver/noninteractive"
-	configstore "github.com/inferLean/inferlean-main/new-cli/internal/storage/configuration"
-	"github.com/inferLean/inferlean-main/new-cli/internal/storage/observation"
-	"github.com/inferLean/inferlean-main/new-cli/internal/storage/processio"
-	runstore "github.com/inferLean/inferlean-main/new-cli/internal/storage/run"
-	"github.com/inferLean/inferlean-main/new-cli/internal/types"
-	collectionui "github.com/inferLean/inferlean-main/new-cli/internal/ui/collection"
-	intentui "github.com/inferLean/inferlean-main/new-cli/internal/ui/intent"
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery"
+	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
+	"github.com/inferLean/inferlean-main/cli/internal/identity"
+	"github.com/inferLean/inferlean-main/cli/internal/intentresolver/interactive"
+	"github.com/inferLean/inferlean-main/cli/internal/intentresolver/noninteractive"
+	configstore "github.com/inferLean/inferlean-main/cli/internal/storage/configuration"
+	"github.com/inferLean/inferlean-main/cli/internal/storage/observation"
+	"github.com/inferLean/inferlean-main/cli/internal/storage/processio"
+	runstore "github.com/inferLean/inferlean-main/cli/internal/storage/run"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
+	collectionui "github.com/inferLean/inferlean-main/cli/internal/ui/collection"
+	intentui "github.com/inferLean/inferlean-main/cli/internal/ui/intent"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 )
 
-const schemaVersion = "new-cli-v1"
+const schemaVersion = "cli-v1"
 
 type Options struct {
 	Target           vllmdiscovery.Candidate

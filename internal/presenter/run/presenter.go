@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	collectpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/collect"
-	discoverpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/discover"
-	reportpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/report"
-	uploadpresenter "github.com/inferLean/inferlean-main/new-cli/internal/presenter/upload"
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery"
+	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
+	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
+	reportpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/report"
+	uploadpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/upload"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 )
 
 type Options struct {

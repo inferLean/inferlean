@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/collectors/nvml"
-	promcollector "github.com/inferLean/inferlean-main/new-cli/internal/collectors/prometheus"
-	"github.com/inferLean/inferlean-main/new-cli/internal/exporters/dcgm"
-	"github.com/inferLean/inferlean-main/new-cli/internal/exporters/nodeexporter"
-	runstore "github.com/inferLean/inferlean-main/new-cli/internal/storage/run"
+	"github.com/inferLean/inferlean-main/cli/internal/collectors/nvml"
+	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
+	"github.com/inferLean/inferlean-main/cli/internal/exporters/dcgm"
+	"github.com/inferLean/inferlean-main/cli/internal/exporters/nodeexporter"
+	runstore "github.com/inferLean/inferlean-main/cli/internal/storage/run"
 )
 
 type collectionSources struct {

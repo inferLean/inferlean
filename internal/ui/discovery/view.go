@@ -3,7 +3,7 @@ package discovery
 import (
 	"fmt"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/vllmdiscovery"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 )
 
 type View struct{}

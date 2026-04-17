@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
 )
 
 const (

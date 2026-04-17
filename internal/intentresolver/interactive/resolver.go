@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/inferLean/inferlean-main/new-cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
 )
 
 func Resolve(seed types.UserIntent) (types.UserIntent, error) {
