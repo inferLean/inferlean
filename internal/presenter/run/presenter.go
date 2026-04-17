@@ -73,8 +73,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	}
 	result := Result{ArtifactPath: collectRes.ArtifactPath}
 	if opts.BackendURL == "" {
-		fmt.Println("[run] backend URL not set, skipping upload/report")
-		return result, nil
+		opts.BackendURL = "https://app.inferlean.com"
 	}
 	return p.handleUpload(ctx, opts, result)
 }
