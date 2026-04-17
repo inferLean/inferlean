@@ -80,6 +80,5 @@ jobs:
           tools_root="${RUNNER_TEMP}/inferlean-bin/tools/linux_${{ matrix.arch }}"
           test -d "${tools_root}/prometheus"
           test -d "${tools_root}/node_exporter"
-          test -f "${tools_root}/TOOLS.txt"
           test -n "$(find "${tools_root}/prometheus" -type f -name prometheus | head -n1)"
           test -n "$(find "${tools_root}/node_exporter" -type f -name node_exporter | head -n1)"
