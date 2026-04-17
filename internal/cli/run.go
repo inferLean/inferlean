@@ -19,7 +19,7 @@ func newRunCommand() *cobra.Command {
 	var prefixHeavy string
 	var multimodal string
 	var multimodalCache string
-	var backendURL string
+	backendURL := "https://app.inferlean.com"
 	var requireUpload bool
 
 	cmd := &cobra.Command{
