@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/inferLean/inferlean-main/cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 const (
@@ -65,7 +65,7 @@ func resolveArtifactPath(runID, outputPath string) (string, error) {
 	return abs, nil
 }
 
-func (Store) SaveArtifact(path string, artifact types.Artifact) error {
+func (Store) SaveArtifact(path string, artifact contracts.RunArtifact) error {
 	return writeJSON(path, artifact)
 }
 

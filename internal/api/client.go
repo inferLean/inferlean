@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/inferLean/inferlean-main/cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 type Client struct {
@@ -21,7 +22,7 @@ func NewClient() Client {
 	return Client{http: &http.Client{Timeout: 20 * time.Second}}
 }
 
-func (c Client) UploadArtifact(ctx context.Context, backendURL string, artifact types.Artifact, auth types.AuthState) (types.UploadAck, error) {
+func (c Client) UploadArtifact(ctx context.Context, backendURL string, artifact contracts.RunArtifact, auth types.AuthState) (types.UploadAck, error) {
 	payload, err := json.Marshal(artifact)
 	if err != nil {
 		return types.UploadAck{}, fmt.Errorf("encode artifact: %w", err)

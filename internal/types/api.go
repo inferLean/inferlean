@@ -12,15 +12,6 @@ type UploadAck struct {
 	ReceivedAt     time.Time `json:"received_at"`
 }
 
-type Report struct {
-	SchemaVersion string         `json:"schema_version,omitempty"`
-	Job           map[string]any `json:"job,omitempty"`
-	Entitlement   map[string]any `json:"entitlement,omitempty"`
-	Environment   map[string]any `json:"environment,omitempty"`
-	Diagnosis     map[string]any `json:"diagnosis,omitempty"`
-	Raw           map[string]any `json:"raw,omitempty"`
-}
-
 type AuthState struct {
 	BackendURL   string    `json:"backend_url,omitempty"`
 	Issuer       string    `json:"issuer,omitempty"`

@@ -5,9 +5,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/inferLean/inferlean-main/cli/internal/artifactnormalize"
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
 	"github.com/inferLean/inferlean-main/cli/internal/types"
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
+	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 type buildInput struct {
@@ -19,28 +21,21 @@ type buildInput struct {
 	Target           vllmdiscovery.Candidate
 	Intent           types.UserIntent
 	PromResult       promcollector.Result
-	NvidiaSMIRaw     string
-	ExporterStatus   map[string]string
-	CollectFor       time.Duration
-	ScrapeEvery      time.Duration
 	StaticNvidiaSMI  string
 }
 
-func buildArtifact(ctx context.Context, in buildInput) (types.Artifact, error) {
+func buildArtifact(ctx context.Context, in buildInput) (contracts.RunArtifact, error) {
 	env := collectConfigEnvironment(ctx, in.Target, in.StaticNvidiaSMI, in.PromResult)
-	observations := buildObservations(in)
-	rawProcess := buildRawProcess(in)
 	quality := buildQuality(in)
-	artifact := types.Artifact{
-		Job: types.Job{
+	return artifactnormalize.Build(artifactnormalize.Input{
+		Job: artifactnormalize.JobInput{
 			RunID:            in.RunID,
 			InstallationID:   in.InstallationID,
-			SchemaVersion:    schemaVersion,
 			CollectorVersion: in.CollectorVersion,
 			StartedAt:        in.StartedAt,
 			FinishedAt:       in.FinishedAt,
 		},
-		Target: types.Target{
+		Target: artifactnormalize.TargetInput{
 			PID:             in.Target.PID,
 			Executable:      in.Target.Executable,
 			RawCommandLine:  in.Target.RawCommandLine,
@@ -48,49 +43,20 @@ func buildArtifact(ctx context.Context, in buildInput) (types.Artifact, error) {
 			ContainerID:     in.Target.ContainerID,
 			PodName:         in.Target.PodName,
 		},
-		Configurations:    env,
-		Observations:      observations,
-		RawProcessIO:      rawProcess,
+		Configurations: env,
+		Observations: artifactnormalize.ObservationsInput{
+			Prometheus: in.PromResult.Samples,
+		},
 		UserIntent:        in.Intent,
 		CollectionQuality: quality,
-	}
-	return artifact, nil
-}
-
-func buildObservations(in buildInput) types.Observations {
-	return types.Observations{
-		"prometheus": in.PromResult.Samples,
-	}
-}
-
-func buildRawProcess(in buildInput) map[string]any {
-	rawProcess := map[string]any{
-		"nvidia_smi":      in.NvidiaSMIRaw,
-		"exporter_status": in.ExporterStatus,
-	}
-	if strings.TrimSpace(in.StaticNvidiaSMI) != "" {
-		rawProcess["nvidia_smi_static"] = in.StaticNvidiaSMI
-	}
-	return rawProcess
+	})
 }
 
 func buildQuality(in buildInput) types.CollectionQuality {
 	sourceStatus, mode := sourceStates(in.PromResult)
-	fallbacks := []string{}
-	if sourceStatus["gpu_telemetry"] != "ok" {
-		fallbacks = append(fallbacks, "nvidia-smi")
-	}
-	if sourceStatus["host_metrics"] != "ok" {
-		fallbacks = append(fallbacks, "host-disabled")
-	}
 	return types.CollectionQuality{
-		SourceStatus:      sourceStatus,
-		TelemetryMode:     mode,
-		FallbacksUsed:     fallbacks,
-		MissingSources:    collectMissing(sourceStatus),
-		DegradedSources:   collectDegraded(sourceStatus),
-		CollectionSeconds: in.CollectFor.Seconds(),
-		ScrapeIntervalSec: in.ScrapeEvery.Seconds(),
+		SourceStatus:  sourceStatus,
+		TelemetryMode: mode,
 	}
 }
 
@@ -126,24 +92,4 @@ func stateFor(status map[string]string, key string) string {
 		return value
 	}
 	return "missing"
-}
-
-func collectMissing(source map[string]string) []string {
-	out := []string{}
-	for key, state := range source {
-		if strings.HasPrefix(state, "missing") {
-			out = append(out, key)
-		}
-	}
-	return out
-}
-
-func collectDegraded(source map[string]string) []string {
-	out := []string{}
-	for key, state := range source {
-		if strings.HasPrefix(state, "degraded") {
-			out = append(out, key)
-		}
-	}
-	return out
 }

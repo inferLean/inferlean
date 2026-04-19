@@ -19,9 +19,8 @@ import (
 	collectionui "github.com/inferLean/inferlean-main/cli/internal/ui/collection"
 	intentui "github.com/inferLean/inferlean-main/cli/internal/ui/intent"
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
+	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
-
-const schemaVersion = "cli-v1"
 
 type Options struct {
 	Target           vllmdiscovery.Candidate
@@ -38,7 +37,7 @@ type Options struct {
 }
 
 type Result struct {
-	Artifact     types.Artifact
+	Artifact     contracts.RunArtifact
 	ArtifactPath string
 	RunDir       string
 }
@@ -102,16 +101,9 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		Target:           opts.Target,
 		Intent:           intent,
 		PromResult:       evidence.promResult,
-		NvidiaSMIRaw:     evidence.nvidiaSMIRaw,
-		ExporterStatus:   evidence.exporterStatus,
-		CollectFor:       opts.CollectFor,
-		ScrapeEvery:      opts.ScrapeEvery,
 		StaticNvidiaSMI:  evidence.staticSMI,
 	})
 	if err != nil {
-		return Result{}, err
-	}
-	if err := artifact.Validate(); err != nil {
 		return Result{}, err
 	}
 	if err := p.runStore.SaveArtifact(paths.ArtifactPath, artifact); err != nil {
@@ -122,10 +114,8 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 }
 
 type evidence struct {
-	promResult     promcollector.Result
-	nvidiaSMIRaw   string
-	exporterStatus map[string]string
-	staticSMI      string
+	promResult promcollector.Result
+	staticSMI  string
 }
 
 func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runstore.Paths) (evidence, error) {
@@ -146,10 +136,8 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 		_, _ = p.obsStore.SaveRaw(paths.Observations, "nvidia-smi.csv", []byte(bridgeRaw))
 	}
 	return evidence{
-		promResult:     promRes,
-		nvidiaSMIRaw:   bridgeRaw,
-		exporterStatus: mergeStatus(promRes.SourceStatus, sources),
-		staticSMI:      staticSMI,
+		promResult: promRes,
+		staticSMI:  staticSMI,
 	}, nil
 }
 

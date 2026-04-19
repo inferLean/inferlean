@@ -78,33 +78,3 @@ func stopExporterSession(ctx context.Context, p Presenter, paths runstore.Paths,
 		_, _ = p.pioStore.Save(paths.ProcessIO, name+".stderr.log", []byte(errText))
 	}
 }
-
-func mergeStatus(promStatus map[string]string, sources collectionSources) map[string]string {
-	status := map[string]string{}
-	copyStatus(status, promStatus)
-	ensureSourceStatus(status, "node_exporter", sources.node.Available, sources.node.Reason)
-	ensureSourceStatus(status, "dcgm_exporter", sources.dcgm.Available, sources.dcgm.Reason)
-	ensureSourceStatus(status, "nvml_bridge", sources.nvml.Available, sources.nvml.Reason)
-	return status
-}
-
-func copyStatus(dst, src map[string]string) {
-	for key, value := range src {
-		dst[key] = value
-	}
-}
-
-func ensureSourceStatus(status map[string]string, name string, available bool, reason string) {
-	if _, ok := status[name]; ok {
-		return
-	}
-	if available {
-		status[name] = "degraded"
-		return
-	}
-	if strings.TrimSpace(reason) != "" {
-		status[name] = "missing: " + reason
-		return
-	}
-	status[name] = "missing"
-}

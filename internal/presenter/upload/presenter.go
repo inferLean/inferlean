@@ -12,6 +12,7 @@ import (
 	runstore "github.com/inferLean/inferlean-main/cli/internal/storage/run"
 	"github.com/inferLean/inferlean-main/cli/internal/types"
 	uploadui "github.com/inferLean/inferlean-main/cli/internal/ui/upload"
+	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 type Options struct {
@@ -83,14 +84,17 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	return result, nil
 }
 
-func readArtifact(path string) (types.Artifact, error) {
+func readArtifact(path string) (contracts.RunArtifact, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return types.Artifact{}, fmt.Errorf("read artifact: %w", err)
+		return contracts.RunArtifact{}, fmt.Errorf("read artifact: %w", err)
 	}
-	var artifact types.Artifact
+	var artifact contracts.RunArtifact
 	if err := json.Unmarshal(data, &artifact); err != nil {
-		return types.Artifact{}, fmt.Errorf("parse artifact: %w", err)
+		return contracts.RunArtifact{}, fmt.Errorf("decode artifact: %w", err)
+	}
+	if err := artifact.Validate(); err != nil {
+		return contracts.RunArtifact{}, fmt.Errorf("validate artifact: %w", err)
 	}
 	return artifact, nil
 }
