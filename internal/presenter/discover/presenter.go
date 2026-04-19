@@ -23,7 +23,7 @@ func (p Presenter) Run(ctx context.Context, opts vllmdiscovery.DiscoverOptions) 
 		return vllmdiscovery.Candidate{}, nil, err
 	}
 	p.view.ShowCandidates(candidates)
-	selected, err := p.service.Select(candidates, opts.NoInteractive)
+	selected, err := p.view.Select(candidates, opts.NoInteractive)
 	if err != nil {
 		return vllmdiscovery.Candidate{}, candidates, err
 	}

@@ -1,11 +1,8 @@
 package vllmdiscovery
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/docker"
@@ -44,33 +41,6 @@ func (Service) Discover(ctx context.Context, opts DiscoverOptions) ([]Candidate,
 		}
 	}
 	return dedupe(all), nil
-}
-
-func (Service) Select(candidates []Candidate, noInteractive bool) (Candidate, error) {
-	if len(candidates) == 0 {
-		return Candidate{}, fmt.Errorf("no vLLM targets discovered")
-	}
-	if len(candidates) == 1 || noInteractive {
-		return candidates[0], nil
-	}
-	for i, item := range candidates {
-		fmt.Printf("[%d] %s pid=%d container=%s pod=%s cmd=%q\n", i+1, item.Source, item.PID, item.ContainerID, item.PodName, short(item.RawCommandLine))
-	}
-	fmt.Print("Select target [1-", len(candidates), "]: ")
-	reader := bufio.NewReader(os.Stdin)
-	line, _ := reader.ReadString('\n')
-	idx, err := strconv.Atoi(strings.TrimSpace(line))
-	if err != nil || idx < 1 || idx > len(candidates) {
-		return Candidate{}, fmt.Errorf("invalid selection")
-	}
-	return candidates[idx-1], nil
-}
-
-func short(text string) string {
-	if len(text) <= 80 {
-		return text
-	}
-	return text[:77] + "..."
 }
 
 func dedupe(items []Candidate) []Candidate {
