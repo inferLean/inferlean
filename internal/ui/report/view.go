@@ -1,11 +1,11 @@
 package report
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/term"
 )
 
 type View struct{}
@@ -15,32 +15,29 @@ func NewView() View {
 }
 
 func (View) Render(report map[string]any) {
-	fmt.Println("[report] brief view")
-	if diagnosis, ok := report["diagnosis"].(map[string]any); ok {
-		fmt.Printf("  diagnosis keys: %v\n", mapKeys(diagnosis))
-	}
-	if entitlement, ok := report["entitlement"].(map[string]any); ok {
-		fmt.Printf("  entitlement: %v\n", entitlement)
-	}
-	fmt.Print("Show full report? (y/N): ")
-	reader := bufio.NewReader(os.Stdin)
-	line, _ := reader.ReadString('\n')
-	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "y") {
-		return
-	}
-	fmt.Println("[report] full view")
-	data, err := json.MarshalIndent(report, "", "  ")
+	tty := interactiveTTY()
+	content, summary, err := formatReportForDisplay(report, tty)
 	if err != nil {
-		fmt.Printf("[report] failed to render full report: %v\n", err)
+		fmt.Printf("[report] failed to render report: %v\n", err)
 		return
 	}
-	fmt.Println(string(data))
+	if !tty {
+		printReport(content)
+		return
+	}
+
+	model := newViewerModel(content, summary)
+	if _, err := tea.NewProgram(model, tea.WithAltScreen()).Run(); err != nil {
+		fmt.Printf("[report] interactive viewer failed, showing plain output: %v\n", err)
+		printReport(content)
+	}
 }
 
-func mapKeys(input map[string]any) []string {
-	keys := make([]string, 0, len(input))
-	for key := range input {
-		keys = append(keys, key)
-	}
-	return keys
+func printReport(content string) {
+	fmt.Println("[report] parsed report")
+	fmt.Println(content)
+}
+
+func interactiveTTY() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 }

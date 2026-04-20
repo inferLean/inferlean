@@ -1,21 +1,36 @@
 package collection
 
-import "fmt"
+import (
+	"fmt"
 
-type View struct{}
+	"github.com/inferLean/inferlean-main/cli/internal/ui/progress"
+)
+
+type View struct {
+	steps *progress.Stepper
+}
 
 func NewView() View {
-	return View{}
+	return View{
+		steps: progress.New("collect", progress.InteractiveTTY()),
+	}
 }
 
-func (View) ShowStart(seconds float64) {
-	fmt.Printf("[collect] collecting for %.0fs...\n", seconds)
+func (v *View) ShowStart(seconds float64) {
+	v.getStepper().Begin(fmt.Sprintf("collecting for %.0fs", seconds))
 }
 
-func (View) ShowStep(message string) {
-	fmt.Printf("[collect] %s\n", message)
+func (v *View) ShowStep(message string) {
+	v.getStepper().Step(message)
 }
 
-func (View) ShowDone(path string) {
-	fmt.Printf("[collect] artifact written: %s\n", path)
+func (v *View) ShowDone(path string) {
+	v.getStepper().Done(fmt.Sprintf("artifact written: %s", path))
+}
+
+func (v *View) getStepper() *progress.Stepper {
+	if v.steps == nil {
+		v.steps = progress.New("collect", progress.InteractiveTTY())
+	}
+	return v.steps
 }

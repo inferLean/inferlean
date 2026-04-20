@@ -77,8 +77,12 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	}
 	result.Report = report
 	runDir := artifactRunDir(opts.ArtifactPath)
-	reportPath := runDir + "/report.json"
+	reportPath := filepath.Join(runDir, "report.json")
 	if err := p.runStore.SaveReport(reportPath, report); err != nil {
+		return Result{}, err
+	}
+	finalReportPath := filepath.Join(runDir, "final-report.json")
+	if err := p.runStore.SaveReport(finalReportPath, report); err != nil {
 		return Result{}, err
 	}
 	return result, nil

@@ -82,12 +82,12 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 
-	start := time.Now().UTC()
-	evidence, err := p.collectEvidence(ctx, opts, paths)
+	intent, err := p.resolveIntent(opts)
 	if err != nil {
 		return Result{}, err
 	}
-	intent, err := p.resolveIntent(opts)
+	start := time.Now().UTC()
+	evidence, err := p.collectEvidence(ctx, opts, paths)
 	if err != nil {
 		return Result{}, err
 	}

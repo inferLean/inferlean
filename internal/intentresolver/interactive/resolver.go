@@ -4,59 +4,189 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/inferLean/inferlean-main/cli/internal/types"
+	"golang.org/x/term"
 )
 
+type questionKey string
+
+const (
+	keyWorkloadMode    questionKey = "workload_mode"
+	keyWorkloadTarget  questionKey = "workload_target"
+	keyPrefixHeavy     questionKey = "prefix_heavy"
+	keyMultimodal      questionKey = "multimodal"
+	keyMultimodalCache questionKey = "multimodal_cache"
+)
+
+type questionOption struct {
+	title       string
+	description string
+	value       string
+}
+
+type question struct {
+	key          questionKey
+	prompt       string
+	options      []questionOption
+	defaultIndex int
+}
+
 func Resolve(seed types.UserIntent) (types.UserIntent, error) {
+	questions := buildQuestions(seed)
+	if len(questions) == 0 {
+		return seed, nil
+	}
+	if !isInteractiveTTY() {
+		return resolveWithPrompts(seed, questions)
+	}
+	return resolveWithTUI(seed, questions)
+}
+
+func isInteractiveTTY() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+func buildQuestions(seed types.UserIntent) []question {
+	questions := make([]question, 0, 5)
+	if strings.TrimSpace(seed.WorkloadMode) == "" {
+		questions = append(questions, modeQuestion())
+	}
+	if strings.TrimSpace(seed.WorkloadTarget) == "" {
+		questions = append(questions, targetQuestion())
+	}
+	questions = append(questions, yesNoQuestion(
+		keyPrefixHeavy,
+		"Prefix-heavy traffic?",
+		seed.PrefixHeavy,
+		"Repeated prefixes are common.",
+	))
+	questions = append(questions, yesNoQuestion(
+		keyMultimodal,
+		"Multimodal workload?",
+		seed.Multimodal,
+		"Requests include image, video, or audio.",
+	))
+	questions = append(questions, yesNoQuestion(
+		keyMultimodalCache,
+		"Multimodal cache enabled?",
+		seed.MultimodalCache,
+		"Server-side multimodal preprocessing cache is on.",
+	))
+	return questions
+}
+
+func modeQuestion() question {
+	return question{
+		key:    keyWorkloadMode,
+		prompt: "Workload mode",
+		options: []questionOption{
+			{title: "realtime_chat", description: "Interactive, low-latency conversation.", value: "realtime_chat"},
+			{title: "batch_processing", description: "Offline jobs optimized for throughput.", value: "batch_processing"},
+			{title: "mixed", description: "Mix of realtime and batch traffic.", value: "mixed"},
+		},
+		defaultIndex: 2,
+	}
+}
+
+func targetQuestion() question {
+	return question{
+		key:    keyWorkloadTarget,
+		prompt: "Primary optimization target",
+		options: []questionOption{
+			{title: "latency", description: "Prioritize response and tail latency.", value: "latency"},
+			{title: "throughput", description: "Prioritize tokens/sec and total volume.", value: "throughput"},
+		},
+		defaultIndex: 0,
+	}
+}
+
+func yesNoQuestion(key questionKey, prompt string, yesDefault bool, detail string) question {
+	defaultIndex := 1
+	if yesDefault {
+		defaultIndex = 0
+	}
+	return question{
+		key:    key,
+		prompt: prompt,
+		options: []questionOption{
+			{title: "yes", description: detail, value: "true"},
+			{title: "no", description: detail, value: "false"},
+		},
+		defaultIndex: defaultIndex,
+	}
+}
+
+func resolveWithPrompts(seed types.UserIntent, questions []question) (types.UserIntent, error) {
 	intent := seed
 	reader := bufio.NewReader(os.Stdin)
-	if strings.TrimSpace(intent.WorkloadMode) == "" {
-		mode, err := ask(reader, "Workload mode (realtime_chat|batch_processing|mixed) [mixed]: ", "mixed")
+	for _, q := range questions {
+		answer, err := askQuestion(reader, q)
 		if err != nil {
 			return intent, err
 		}
-		intent.WorkloadMode = mode
+		applyAnswer(&intent, q.key, answer)
 	}
-	if strings.TrimSpace(intent.WorkloadTarget) == "" {
-		target, err := ask(reader, "Workload target (latency|throughput) [latency]: ", "latency")
-		if err != nil {
-			return intent, err
-		}
-		intent.WorkloadTarget = target
-	}
-	prefixAnswer, err := ask(reader, "Prefix heavy traffic? (y/N): ", "n")
-	if err != nil {
-		return intent, err
-	}
-	intent.PrefixHeavy = isYes(prefixAnswer)
-	multimodalAnswer, err := ask(reader, "Multimodal workload? (y/N): ", "n")
-	if err != nil {
-		return intent, err
-	}
-	intent.Multimodal = isYes(multimodalAnswer)
-	cacheAnswer, err := ask(reader, "Multimodal cache enabled? (y/N): ", "n")
-	if err != nil {
-		return intent, err
-	}
-	intent.MultimodalCache = isYes(cacheAnswer)
 	return intent, nil
 }
 
-func isYes(input string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(input)), "y")
-}
-
-func ask(reader *bufio.Reader, prompt, defaultValue string) (string, error) {
-	fmt.Print(prompt)
+func askQuestion(reader *bufio.Reader, q question) (string, error) {
+	if len(q.options) == 0 {
+		return "", fmt.Errorf("question %s has no options", q.key)
+	}
+	defaultOption := q.options[boundedIndex(q.defaultIndex, len(q.options))]
+	optionLabels := make([]string, 0, len(q.options))
+	for _, option := range q.options {
+		optionLabels = append(optionLabels, option.title)
+	}
+	fmt.Printf("%s (%s) [%s]: ", q.prompt, strings.Join(optionLabels, "|"), defaultOption.title)
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		return "", err
 	}
-	trimmed := strings.TrimSpace(line)
+	trimmed := strings.ToLower(strings.TrimSpace(line))
 	if trimmed == "" {
-		return defaultValue, nil
+		return defaultOption.value, nil
 	}
-	return trimmed, nil
+	for _, option := range q.options {
+		if trimmed == strings.ToLower(option.title) || trimmed == strings.ToLower(option.value) {
+			return option.value, nil
+		}
+	}
+	return defaultOption.value, nil
+}
+
+func applyAnswer(intent *types.UserIntent, key questionKey, value string) {
+	switch key {
+	case keyWorkloadMode:
+		intent.WorkloadMode = value
+	case keyWorkloadTarget:
+		intent.WorkloadTarget = value
+	case keyPrefixHeavy:
+		intent.PrefixHeavy = parseBool(value)
+	case keyMultimodal:
+		intent.Multimodal = parseBool(value)
+	case keyMultimodalCache:
+		intent.MultimodalCache = parseBool(value)
+	}
+}
+
+func parseBool(value string) bool {
+	result, err := strconv.ParseBool(strings.TrimSpace(value))
+	return err == nil && result
+}
+
+func boundedIndex(idx, length int) int {
+	if length <= 0 {
+		return 0
+	}
+	if idx < 0 {
+		return 0
+	}
+	if idx >= length {
+		return length - 1
+	}
+	return idx
 }

@@ -50,9 +50,13 @@ func newSelectorModel(candidates []vllmdiscovery.Candidate) selectorModel {
 		items = append(items, candidateItem{candidate: candidate})
 	}
 	delegate := list.NewDefaultDelegate()
-	l := list.New(items, delegate, 100, min(14, len(candidates)+6))
+	delegate.ShowDescription = false
+	delegate.SetSpacing(0)
+	l := list.New(items, delegate, 48, 9)
 	l.Title = "Select vLLM Target"
-	l.SetShowStatusBar(false)
+	l.SetShowStatusBar(true)
+	l.SetShowPagination(true)
+	l.SetShowHelp(true)
 	l.SetFilteringEnabled(true)
 	return selectorModel{list: l}
 }
@@ -62,6 +66,10 @@ func (m selectorModel) Init() tea.Cmd {
 }
 
 func (m selectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if window, ok := msg.(tea.WindowSizeMsg); ok {
+		m.resize(window)
+		return m, nil
+	}
 	if key, ok := msg.(tea.KeyMsg); ok {
 		switch key.String() {
 		case "enter":
@@ -83,6 +91,21 @@ func (m selectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m selectorModel) View() string {
 	return m.list.View()
+}
+
+func (m *selectorModel) resize(window tea.WindowSizeMsg) {
+	width := window.Width - 4
+	if width < 24 {
+		width = max(10, window.Width)
+	}
+	height := window.Height - 6
+	if height < 9 {
+		height = 9
+	}
+	if height > 18 {
+		height = 18
+	}
+	m.list.SetSize(width, height)
 }
 
 func selectCandidateTUI(candidates []vllmdiscovery.Candidate) (vllmdiscovery.Candidate, error) {
@@ -113,10 +136,17 @@ func shouldUseTUI(noInteractive bool, candidates []vllmdiscovery.Candidate) bool
 
 func targetLabel(item vllmdiscovery.Candidate) string {
 	parts := make([]string, 0, 4)
-	if item.PID > 0 {
+	containerName := ""
+	if isDockerSource(item) {
+		containerName = dockerContainerName(item)
+	}
+	if item.PID > 0 && !isDockerSource(item) {
 		parts = append(parts, fmt.Sprintf("pid=%d", item.PID))
 	}
-	if containerID := strings.TrimSpace(item.ContainerID); containerID != "" {
+	if containerName != "" {
+		parts = append(parts, "container="+containerName)
+	}
+	if containerID := strings.TrimSpace(item.ContainerID); containerID != "" && containerName == "" {
 		parts = append(parts, "container="+containerID)
 	}
 	if podName := strings.TrimSpace(item.PodName); podName != "" {
@@ -131,10 +161,23 @@ func targetLabel(item vllmdiscovery.Candidate) string {
 	return strings.Join(parts, " ")
 }
 
+func isDockerSource(item vllmdiscovery.Candidate) bool {
+	return strings.EqualFold(strings.TrimSpace(item.Source), "docker")
+}
+
+func dockerContainerName(item vllmdiscovery.Candidate) string {
+	const prefix = "docker-container:"
+	executable := strings.TrimSpace(item.Executable)
+	if !strings.HasPrefix(executable, prefix) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(executable, prefix))
+}
+
 func shorten(text string) string {
 	trimmed := strings.TrimSpace(text)
-	if len(trimmed) <= 96 {
+	if len(trimmed) <= 48 {
 		return trimmed
 	}
-	return trimmed[:93] + "..."
+	return trimmed[:45] + "..."
 }
