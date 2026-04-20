@@ -5,11 +5,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 	uploadpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/upload"
 )
 
 func newUploadCommand() *cobra.Command {
-	var backendURL string
+	backendURL := defaults.BackendURL
 	var requireReport bool
 	cmd := &cobra.Command{
 		Use:   "upload <artifact-path>",
@@ -32,7 +33,7 @@ func newUploadCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&backendURL, "backend-url", "", "backend base URL")
+	cmd.Flags().StringVar(&backendURL, "backend-url", defaults.BackendURL, "backend base URL")
 	cmd.Flags().BoolVar(&requireReport, "require-report", false, "require report retrieval after upload")
 	return cmd
 }

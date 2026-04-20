@@ -4,10 +4,12 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 )
 
 func newLoginCommand() *cobra.Command {
-	var backendURL string
+	backendURL := defaults.BackendURL
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "Login via browser OIDC flow",
@@ -29,7 +31,6 @@ func newLoginCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&backendURL, "backend-url", "", "backend base URL")
-	_ = cmd.MarkFlagRequired("backend-url")
+	cmd.Flags().StringVar(&backendURL, "backend-url", defaults.BackendURL, "backend base URL")
 	return cmd
 }

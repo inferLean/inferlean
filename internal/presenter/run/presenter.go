@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
 	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
 	reportpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/report"
@@ -73,7 +74,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	}
 	result := Result{ArtifactPath: collectRes.ArtifactPath}
 	if opts.BackendURL == "" {
-		opts.BackendURL = "https://app.inferlean.com"
+		opts.BackendURL = defaults.BackendURL
 	}
 	return p.handleUpload(ctx, opts, result)
 }

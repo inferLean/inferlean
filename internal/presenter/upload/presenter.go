@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/inferLean/inferlean-main/cli/internal/api"
+	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 	configstore "github.com/inferLean/inferlean-main/cli/internal/storage/configuration"
 	runstore "github.com/inferLean/inferlean-main/cli/internal/storage/run"
 	"github.com/inferLean/inferlean-main/cli/internal/types"
@@ -50,6 +51,9 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	backend := opts.BackendURL
 	if backend == "" {
 		backend = cfg.Auth.BackendURL
+	}
+	if backend == "" {
+		backend = defaults.BackendURL
 	}
 	if backend == "" {
 		return Result{}, fmt.Errorf("backend URL is required")

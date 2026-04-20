@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 	runpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/run"
 )
 
@@ -19,7 +20,7 @@ func newRunCommand() *cobra.Command {
 	var prefixHeavy string
 	var multimodal string
 	var multimodalCache string
-	backendURL := "https://app.inferlean.com"
+	backendURL := defaults.BackendURL
 	var requireUpload bool
 
 	cmd := &cobra.Command{
@@ -73,7 +74,7 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&prefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
 	cmd.Flags().StringVar(&multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
 	cmd.Flags().StringVar(&multimodalCache, "multimodal-cache", "auto", "multimodal cache enabled (true|false|auto)")
-	cmd.Flags().StringVar(&backendURL, "backend-url", "", "backend base URL")
+	cmd.Flags().StringVar(&backendURL, "backend-url", defaults.BackendURL, "backend base URL")
 	cmd.Flags().BoolVar(&requireUpload, "require-upload", false, "fail run when upload/report fails")
 	return cmd
 }
