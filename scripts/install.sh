@@ -580,6 +580,16 @@ if [ -d "${tmpdir}/tools" ]; then
   cp -R "${tmpdir}/tools/." "${install_dir}/tools/"
 fi
 
+defaults_dir="${tmpdir}/vllm_defaults"
+if [ ! -d "${defaults_dir}" ]; then
+  defaults_dir="$(find "${tmpdir}" -maxdepth 3 -type d -name vllm_defaults | head -n1)"
+fi
+
+if [ -n "${defaults_dir}" ] && [ -d "${defaults_dir}" ]; then
+  mkdir -p "${install_dir}/vllm_defaults"
+  cp -R "${defaults_dir}/." "${install_dir}/vllm_defaults/"
+fi
+
 #install_dcgm_if_needed
 #build_dcgm_exporter_if_needed
 

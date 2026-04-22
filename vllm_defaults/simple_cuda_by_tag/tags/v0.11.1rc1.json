@@ -1,0 +1,748 @@
+{
+  "profiles": {
+    "cuda_default": {
+      "models": {
+        "Qwen/Qwen3-1.7B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-1.7B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-14B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-14B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-235B-A22B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-235B-A22B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-30B-A3B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-30B-A3B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-32B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-32B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-4B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-4B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-8B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-8B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-122B-A10B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-122B-A10B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-27B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-27B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-2B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-2B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-35B-A3B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-35B-A3B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-397B-A17B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-397B-A17B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-4B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-4B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-9B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-9B"
+          },
+          "unresolved": {}
+        },
+        "meta-llama/Llama-4-Maverick-17B-128E": {
+          "resolved": {
+            "--model": "meta-llama/Llama-4-Maverick-17B-128E"
+          },
+          "unresolved": {
+            "--max-model-len": ""
+          }
+        },
+        "meta-llama/Llama-4-Scout-17B-16E": {
+          "resolved": {
+            "--model": "meta-llama/Llama-4-Scout-17B-16E"
+          },
+          "unresolved": {
+            "--max-model-len": ""
+          }
+        },
+        "openai/gpt-oss-120b": {
+          "resolved": {
+            "--max-model-len": 131072,
+            "--model": "openai/gpt-oss-120b"
+          },
+          "unresolved": {}
+        },
+        "openai/gpt-oss-20b": {
+          "resolved": {
+            "--max-model-len": 131072,
+            "--model": "openai/gpt-oss-20b"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.5": {
+          "resolved": {
+            "--max-model-len": 131072,
+            "--model": "zai-org/GLM-4.5"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.5-Air": {
+          "resolved": {
+            "--max-model-len": 131072,
+            "--model": "zai-org/GLM-4.5-Air"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.5V": {
+          "resolved": {
+            "--max-model-len": 128000,
+            "--model": "zai-org/GLM-4.5V"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.7": {
+          "resolved": {
+            "--max-model-len": 202752,
+            "--model": "zai-org/GLM-4.7"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.7-Flash": {
+          "resolved": {
+            "--max-model-len": 202752,
+            "--model": "zai-org/GLM-4.7-Flash"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-5": {
+          "resolved": {
+            "--max-model-len": 202752,
+            "--model": "zai-org/GLM-5"
+          },
+          "unresolved": {}
+        }
+      },
+      "resolved": {
+        "--additional-config": {},
+        "--aggregate-engine-logging": false,
+        "--allow-credentials": false,
+        "--allowed-headers": [
+          "*"
+        ],
+        "--allowed-local-media-path": "",
+        "--allowed-methods": [
+          "*"
+        ],
+        "--allowed-origins": [
+          "*"
+        ],
+        "--api-server-count": 1,
+        "--async-scheduling": false,
+        "--block-size": 16,
+        "--calculate-kv-scales": false,
+        "--chat-template-content-format": "auto",
+        "--compilation-config": "CompilationConfig",
+        "--config-format": "auto",
+        "--convert": "auto",
+        "--cpu-offload-gb": 0,
+        "--cuda-graph-sizes": [],
+        "--data-parallel-backend": "mp",
+        "--data-parallel-hybrid-lb": false,
+        "--data-parallel-size": 1,
+        "--dbo-decode-token-threshold": 32,
+        "--dbo-prefill-token-threshold": 512,
+        "--decode-context-parallel-size": 1,
+        "--disable-cascade-attn": false,
+        "--disable-chunked-mm-input": false,
+        "--disable-custom-all-reduce": false,
+        "--disable-fastapi-docs": false,
+        "--disable-frontend-multiprocessing": false,
+        "--disable-hybrid-kv-cache-manager": false,
+        "--disable-log-requests": "not AsyncEngineArgs.enable_log_requests",
+        "--disable-log-stats": false,
+        "--disable-mm-preprocessor-cache": false,
+        "--disable-nccl-for-dp-synchronization": false,
+        "--disable-sliding-window": false,
+        "--disable-uvicorn-access-log": false,
+        "--dtype": "auto",
+        "--enable-auto-tool-choice": false,
+        "--enable-dbo": false,
+        "--enable-eplb": false,
+        "--enable-expert-parallel": false,
+        "--enable-force-include-usage": false,
+        "--enable-log-outputs": false,
+        "--enable-lora": false,
+        "--enable-multimodal-encoder-data-parallel": false,
+        "--enable-prompt-embeds": false,
+        "--enable-prompt-tokens-details": false,
+        "--enable-request-id-headers": false,
+        "--enable-server-load-tracking": false,
+        "--enable-sleep-mode": false,
+        "--enable-ssl-refresh": false,
+        "--enable-tokenizer-info-endpoint": false,
+        "--enforce-eager": false,
+        "--eplb-config": "EPLBConfig",
+        "--eplb-log-balancedness": false,
+        "--eplb-step-interval": 3000,
+        "--eplb-window-size": 1000,
+        "--exclude-tools-when-tool-choice-none": false,
+        "--expert-placement-strategy": "linear",
+        "--fully-sharded-loras": false,
+        "--generation-config": "auto",
+        "--gpu-memory-utilization": 0.9,
+        "--h11-max-header-count": "H11_MAX_HEADER_COUNT_DEFAULT",
+        "--h11-max-incomplete-event-size": "H11_MAX_INCOMPLETE_EVENT_SIZE_DEFAULT",
+        "--headless": false,
+        "--hf-overrides": {},
+        "--hf-token": "model_kwargs[\"hf_token\"][\"default\"]",
+        "--ignore-patterns": [
+          "original/**/*"
+        ],
+        "--interleave-mm-strings": false,
+        "--kv-cache-dtype": "auto",
+        "--kv-sharing-fast-prefill": false,
+        "--limit-mm-per-prompt": {},
+        "--load-format": "auto",
+        "--logprobs-mode": "raw_logprobs",
+        "--long-prefill-token-threshold": 0,
+        "--lora-dtype": "auto",
+        "--lora-extra-vocab-size": 256,
+        "--mamba-cache-dtype": "auto",
+        "--mamba-ssm-cache-dtype": "auto",
+        "--max-logprobs": 20,
+        "--max-long-partial-prefills": 1,
+        "--max-lora-rank": 16,
+        "--max-loras": 1,
+        "--max-num-partial-prefills": 1,
+        "--media-io-kwargs": {},
+        "--middleware": [],
+        "--mm-encoder-tp-mode": "weights",
+        "--mm-processor-cache-gb": 4,
+        "--mm-processor-cache-type": "lru",
+        "--mm-shm-cache-max-object-size-mb": 128,
+        "--model": "Qwen/Qwen3-0.6B",
+        "--model-impl": "auto",
+        "--model-loader-extra-config": {},
+        "--num-lookahead-slots": 0,
+        "--num-redundant-experts": 0,
+        "--override-generation-config": {},
+        "--pipeline-parallel-size": 1,
+        "--port": 8000,
+        "--prefix-caching-hash-algo": "sha256",
+        "--pt-load-map-location": "cpu",
+        "--ray-workers-use-nsight": false,
+        "--reasoning-parser": "",
+        "--response-role": "assistant",
+        "--return-tokens-as-token-ids": false,
+        "--rope-scaling": {},
+        "--runner": "auto",
+        "--safetensors-load-strategy": "lazy",
+        "--scheduling-policy": "fcfs",
+        "--skip-mm-profiling": false,
+        "--skip-tokenizer-init": false,
+        "--structured-outputs-config": "StructuredOutputsConfig",
+        "--swap-space": 4,
+        "--tensor-parallel-size": 1,
+        "--tokenizer-mode": "auto",
+        "--tool-parser-plugin": "",
+        "--trust-remote-code": false,
+        "--trust-request-chat-template": false,
+        "--use-tqdm-on-load": true,
+        "--uvicorn-log-level": "info",
+        "--worker-cls": "auto",
+        "--worker-extension-cls": ""
+      },
+      "unresolved": {
+        "--all2all-backend": "",
+        "--allowed-media-domains": "",
+        "--api-key": "",
+        "--chat-template": "",
+        "--code-revision": "",
+        "--collect-detailed-traces": "",
+        "--config": "",
+        "--data-parallel-address": "",
+        "--data-parallel-rank": "",
+        "--data-parallel-rpc-port": "",
+        "--data-parallel-size-local": "",
+        "--data-parallel-start-rank": "",
+        "--default-mm-loras": "",
+        "--distributed-executor-backend": "",
+        "--download-dir": "",
+        "--enable-chunked-prefill": "",
+        "--enable-log-requests": "",
+        "--enable-prefix-caching": "",
+        "--guided-decoding-backend": "",
+        "--guided-decoding-disable-additional-properties": "",
+        "--guided-decoding-disable-any-whitespace": "",
+        "--guided-decoding-disable-fallback": "",
+        "--hf-config-path": "",
+        "--host": "",
+        "--io-processor-plugin": "",
+        "--kv-cache-memory-bytes": "",
+        "--kv-events-config": "",
+        "--kv-transfer-config": "",
+        "--log-config-file": "",
+        "--log-error-stack": "",
+        "--logits-processor-pattern": "",
+        "--logits-processors": "",
+        "--lora-modules": "",
+        "--max-cpu-loras": "",
+        "--max-log-len": "",
+        "--max-model-len": "",
+        "--max-num-batched-tokens": "",
+        "--max-num-seqs": "",
+        "--max-parallel-loading-workers": "",
+        "--mm-processor-kwargs": "",
+        "--num-gpu-blocks-override": "",
+        "--otlp-traces-endpoint": "",
+        "--override-attention-dtype": "",
+        "--override-pooler-config": "",
+        "--pooler-config": "",
+        "--quantization": "",
+        "--revision": "",
+        "--root-path": "",
+        "--rope-theta": "",
+        "--scheduler-cls": "",
+        "--seed": "",
+        "--served-model-name": "",
+        "--show-hidden-metrics-for-version": "",
+        "--speculative-config": "",
+        "--ssl-ca-certs": "",
+        "--ssl-cert-reqs": "",
+        "--ssl-certfile": "",
+        "--ssl-keyfile": "",
+        "--task": "",
+        "--tokenizer": "",
+        "--tokenizer-revision": "",
+        "--tool-call-parser": "",
+        "--tool-server": "",
+        "--uds": "",
+        "--video-pruning-rate": "",
+        "model_tag": ""
+      }
+    },
+    "cuda_high_memory_non_a100": {
+      "models": {
+        "Qwen/Qwen3-1.7B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-1.7B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-14B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-14B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-235B-A22B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-235B-A22B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-30B-A3B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-30B-A3B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-32B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-32B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-4B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-4B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3-8B": {
+          "resolved": {
+            "--max-model-len": 40960,
+            "--model": "Qwen/Qwen3-8B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-122B-A10B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-122B-A10B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-27B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-27B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-2B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-2B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-35B-A3B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-35B-A3B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-397B-A17B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-397B-A17B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-4B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-4B"
+          },
+          "unresolved": {}
+        },
+        "Qwen/Qwen3.5-9B": {
+          "resolved": {
+            "--max-model-len": 262144,
+            "--model": "Qwen/Qwen3.5-9B"
+          },
+          "unresolved": {}
+        },
+        "meta-llama/Llama-4-Maverick-17B-128E": {
+          "resolved": {
+            "--model": "meta-llama/Llama-4-Maverick-17B-128E"
+          },
+          "unresolved": {
+            "--max-model-len": ""
+          }
+        },
+        "meta-llama/Llama-4-Scout-17B-16E": {
+          "resolved": {
+            "--model": "meta-llama/Llama-4-Scout-17B-16E"
+          },
+          "unresolved": {
+            "--max-model-len": ""
+          }
+        },
+        "openai/gpt-oss-120b": {
+          "resolved": {
+            "--max-model-len": 131072,
+            "--model": "openai/gpt-oss-120b"
+          },
+          "unresolved": {}
+        },
+        "openai/gpt-oss-20b": {
+          "resolved": {
+            "--max-model-len": 131072,
+            "--model": "openai/gpt-oss-20b"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.5": {
+          "resolved": {
+            "--max-model-len": 131072,
+            "--model": "zai-org/GLM-4.5"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.5-Air": {
+          "resolved": {
+            "--max-model-len": 131072,
+            "--model": "zai-org/GLM-4.5-Air"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.5V": {
+          "resolved": {
+            "--max-model-len": 128000,
+            "--model": "zai-org/GLM-4.5V"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.7": {
+          "resolved": {
+            "--max-model-len": 202752,
+            "--model": "zai-org/GLM-4.7"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-4.7-Flash": {
+          "resolved": {
+            "--max-model-len": 202752,
+            "--model": "zai-org/GLM-4.7-Flash"
+          },
+          "unresolved": {}
+        },
+        "zai-org/GLM-5": {
+          "resolved": {
+            "--max-model-len": 202752,
+            "--model": "zai-org/GLM-5"
+          },
+          "unresolved": {}
+        }
+      },
+      "resolved": {
+        "--additional-config": {},
+        "--aggregate-engine-logging": false,
+        "--allow-credentials": false,
+        "--allowed-headers": [
+          "*"
+        ],
+        "--allowed-local-media-path": "",
+        "--allowed-methods": [
+          "*"
+        ],
+        "--allowed-origins": [
+          "*"
+        ],
+        "--api-server-count": 1,
+        "--async-scheduling": false,
+        "--block-size": 16,
+        "--calculate-kv-scales": false,
+        "--chat-template-content-format": "auto",
+        "--compilation-config": "CompilationConfig",
+        "--config-format": "auto",
+        "--convert": "auto",
+        "--cpu-offload-gb": 0,
+        "--cuda-graph-sizes": [],
+        "--data-parallel-backend": "mp",
+        "--data-parallel-hybrid-lb": false,
+        "--data-parallel-size": 1,
+        "--dbo-decode-token-threshold": 32,
+        "--dbo-prefill-token-threshold": 512,
+        "--decode-context-parallel-size": 1,
+        "--disable-cascade-attn": false,
+        "--disable-chunked-mm-input": false,
+        "--disable-custom-all-reduce": false,
+        "--disable-fastapi-docs": false,
+        "--disable-frontend-multiprocessing": false,
+        "--disable-hybrid-kv-cache-manager": false,
+        "--disable-log-requests": "not AsyncEngineArgs.enable_log_requests",
+        "--disable-log-stats": false,
+        "--disable-mm-preprocessor-cache": false,
+        "--disable-nccl-for-dp-synchronization": false,
+        "--disable-sliding-window": false,
+        "--disable-uvicorn-access-log": false,
+        "--dtype": "auto",
+        "--enable-auto-tool-choice": false,
+        "--enable-dbo": false,
+        "--enable-eplb": false,
+        "--enable-expert-parallel": false,
+        "--enable-force-include-usage": false,
+        "--enable-log-outputs": false,
+        "--enable-lora": false,
+        "--enable-multimodal-encoder-data-parallel": false,
+        "--enable-prompt-embeds": false,
+        "--enable-prompt-tokens-details": false,
+        "--enable-request-id-headers": false,
+        "--enable-server-load-tracking": false,
+        "--enable-sleep-mode": false,
+        "--enable-ssl-refresh": false,
+        "--enable-tokenizer-info-endpoint": false,
+        "--enforce-eager": false,
+        "--eplb-config": "EPLBConfig",
+        "--eplb-log-balancedness": false,
+        "--eplb-step-interval": 3000,
+        "--eplb-window-size": 1000,
+        "--exclude-tools-when-tool-choice-none": false,
+        "--expert-placement-strategy": "linear",
+        "--fully-sharded-loras": false,
+        "--generation-config": "auto",
+        "--gpu-memory-utilization": 0.9,
+        "--h11-max-header-count": "H11_MAX_HEADER_COUNT_DEFAULT",
+        "--h11-max-incomplete-event-size": "H11_MAX_INCOMPLETE_EVENT_SIZE_DEFAULT",
+        "--headless": false,
+        "--hf-overrides": {},
+        "--hf-token": "model_kwargs[\"hf_token\"][\"default\"]",
+        "--ignore-patterns": [
+          "original/**/*"
+        ],
+        "--interleave-mm-strings": false,
+        "--kv-cache-dtype": "auto",
+        "--kv-sharing-fast-prefill": false,
+        "--limit-mm-per-prompt": {},
+        "--load-format": "auto",
+        "--logprobs-mode": "raw_logprobs",
+        "--long-prefill-token-threshold": 0,
+        "--lora-dtype": "auto",
+        "--lora-extra-vocab-size": 256,
+        "--mamba-cache-dtype": "auto",
+        "--mamba-ssm-cache-dtype": "auto",
+        "--max-logprobs": 20,
+        "--max-long-partial-prefills": 1,
+        "--max-lora-rank": 16,
+        "--max-loras": 1,
+        "--max-num-partial-prefills": 1,
+        "--media-io-kwargs": {},
+        "--middleware": [],
+        "--mm-encoder-tp-mode": "weights",
+        "--mm-processor-cache-gb": 4,
+        "--mm-processor-cache-type": "lru",
+        "--mm-shm-cache-max-object-size-mb": 128,
+        "--model": "Qwen/Qwen3-0.6B",
+        "--model-impl": "auto",
+        "--model-loader-extra-config": {},
+        "--num-lookahead-slots": 0,
+        "--num-redundant-experts": 0,
+        "--override-generation-config": {},
+        "--pipeline-parallel-size": 1,
+        "--port": 8000,
+        "--prefix-caching-hash-algo": "sha256",
+        "--pt-load-map-location": "cpu",
+        "--ray-workers-use-nsight": false,
+        "--reasoning-parser": "",
+        "--response-role": "assistant",
+        "--return-tokens-as-token-ids": false,
+        "--rope-scaling": {},
+        "--runner": "auto",
+        "--safetensors-load-strategy": "lazy",
+        "--scheduling-policy": "fcfs",
+        "--skip-mm-profiling": false,
+        "--skip-tokenizer-init": false,
+        "--structured-outputs-config": "StructuredOutputsConfig",
+        "--swap-space": 4,
+        "--tensor-parallel-size": 1,
+        "--tokenizer-mode": "auto",
+        "--tool-parser-plugin": "",
+        "--trust-remote-code": false,
+        "--trust-request-chat-template": false,
+        "--use-tqdm-on-load": true,
+        "--uvicorn-log-level": "info",
+        "--worker-cls": "auto",
+        "--worker-extension-cls": ""
+      },
+      "unresolved": {
+        "--all2all-backend": "",
+        "--allowed-media-domains": "",
+        "--api-key": "",
+        "--chat-template": "",
+        "--code-revision": "",
+        "--collect-detailed-traces": "",
+        "--config": "",
+        "--data-parallel-address": "",
+        "--data-parallel-rank": "",
+        "--data-parallel-rpc-port": "",
+        "--data-parallel-size-local": "",
+        "--data-parallel-start-rank": "",
+        "--default-mm-loras": "",
+        "--distributed-executor-backend": "",
+        "--download-dir": "",
+        "--enable-chunked-prefill": "",
+        "--enable-log-requests": "",
+        "--enable-prefix-caching": "",
+        "--guided-decoding-backend": "",
+        "--guided-decoding-disable-additional-properties": "",
+        "--guided-decoding-disable-any-whitespace": "",
+        "--guided-decoding-disable-fallback": "",
+        "--hf-config-path": "",
+        "--host": "",
+        "--io-processor-plugin": "",
+        "--kv-cache-memory-bytes": "",
+        "--kv-events-config": "",
+        "--kv-transfer-config": "",
+        "--log-config-file": "",
+        "--log-error-stack": "",
+        "--logits-processor-pattern": "",
+        "--logits-processors": "",
+        "--lora-modules": "",
+        "--max-cpu-loras": "",
+        "--max-log-len": "",
+        "--max-model-len": "",
+        "--max-num-batched-tokens": "",
+        "--max-num-seqs": "",
+        "--max-parallel-loading-workers": "",
+        "--mm-processor-kwargs": "",
+        "--num-gpu-blocks-override": "",
+        "--otlp-traces-endpoint": "",
+        "--override-attention-dtype": "",
+        "--override-pooler-config": "",
+        "--pooler-config": "",
+        "--quantization": "",
+        "--revision": "",
+        "--root-path": "",
+        "--rope-theta": "",
+        "--scheduler-cls": "",
+        "--seed": "",
+        "--served-model-name": "",
+        "--show-hidden-metrics-for-version": "",
+        "--speculative-config": "",
+        "--ssl-ca-certs": "",
+        "--ssl-cert-reqs": "",
+        "--ssl-certfile": "",
+        "--ssl-keyfile": "",
+        "--task": "",
+        "--tokenizer": "",
+        "--tokenizer-revision": "",
+        "--tool-call-parser": "",
+        "--tool-server": "",
+        "--uds": "",
+        "--video-pruning-rate": "",
+        "model_tag": ""
+      }
+    }
+  }
+}

@@ -21,7 +21,7 @@ func discoverDefaultsDir() (string, error) {
 			return path, nil
 		}
 	}
-	return "", fmt.Errorf("unable to locate backend/internal/analysis/data/vllm_defaults")
+	return "", fmt.Errorf("unable to locate vllm_defaults data directory")
 }
 
 func collectSearchRoots() []string {
@@ -38,13 +38,15 @@ func collectSearchRoots() []string {
 func findDefaultsUnderRoot(start string) string {
 	current := start
 	for depth := 0; depth < 8; depth++ {
-		candidate := filepath.Join(current, "backend", "internal", "analysis", "data", "vllm_defaults")
-		if isDefaultsDir(candidate) {
-			return candidate
+		candidates := []string{
+			filepath.Join(current, "internal", "analysis", "data", "vllm_defaults"),
+			filepath.Join(current, "vllm_defaults"),
+			filepath.Join(current, "cli", "vllm_defaults"),
 		}
-		nested := filepath.Join(current, "internal", "analysis", "data", "vllm_defaults")
-		if isDefaultsDir(nested) {
-			return nested
+		for _, candidate := range candidates {
+			if isDefaultsDir(candidate) {
+				return candidate
+			}
 		}
 		parent := filepath.Dir(current)
 		if parent == current {

@@ -28,6 +28,7 @@ archives:
     files:
       - README*
       - dist/release/{{ .Os }}_{{ .Arch }}/**
+      - vllm_defaults/simple_cuda_by_tag/**
 
 checksum:
   name_template: "checksums.txt"
