@@ -168,6 +168,9 @@ type Action struct {
 	Title                string `json:"title"`
 	Why                  string `json:"why,omitempty"`
 	How                  string `json:"how,omitempty"`
+	CurrentValue         string `json:"current_value,omitempty"`
+	ProposedValue        string `json:"proposed_value,omitempty"`
+	ValueKind            string `json:"value_kind,omitempty"`
 	ExpectedSignalChange string `json:"expected_signal_change,omitempty"`
 	Risk                 string `json:"risk,omitempty"`
 	Confidence           string `json:"confidence,omitempty"`
