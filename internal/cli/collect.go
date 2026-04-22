@@ -18,7 +18,7 @@ func newCollectCommand() *cobra.Command {
 	var workloadTarget string
 	var prefixHeavy string
 	var multimodal string
-	var multimodalCache string
+	var repeatedMultimodalMedia string
 
 	cmd := &cobra.Command{
 		Use:   "collect",
@@ -37,22 +37,22 @@ func newCollectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			multimodalCacheValue, err := parseOptionalBool(multimodalCache)
+			repeatedMultimodalMediaValue, err := parseOptionalBool(repeatedMultimodalMedia)
 			if err != nil {
 				return err
 			}
 			res, err := application.collect.Run(cmd.Context(), collectpresenter.Options{
-				Target:           selected,
-				CollectFor:       collectFor,
-				ScrapeEvery:      scrapeEvery,
-				OutputPath:       outputPath,
-				CollectorVersion: version,
-				WorkloadMode:     workloadMode,
-				WorkloadTarget:   workloadTarget,
-				PrefixHeavy:      prefixValue,
-				Multimodal:       multimodalValue,
-				MultimodalCache:  multimodalCacheValue,
-				NoInteractive:    target.noInteractive,
+				Target:                  selected,
+				CollectFor:              collectFor,
+				ScrapeEvery:             scrapeEvery,
+				OutputPath:              outputPath,
+				CollectorVersion:        version,
+				WorkloadMode:            workloadMode,
+				WorkloadTarget:          workloadTarget,
+				PrefixHeavy:             prefixValue,
+				Multimodal:              multimodalValue,
+				RepeatedMultimodalMedia: repeatedMultimodalMediaValue,
+				NoInteractive:           target.noInteractive,
 			})
 			if err != nil {
 				return err
@@ -69,6 +69,6 @@ func newCollectCommand() *cobra.Command {
 	cmd.Flags().StringVar(&workloadTarget, "workload-target", "", "workload target")
 	cmd.Flags().StringVar(&prefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
 	cmd.Flags().StringVar(&multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
-	cmd.Flags().StringVar(&multimodalCache, "multimodal-cache", "auto", "multimodal cache enabled (true|false|auto)")
+	cmd.Flags().StringVar(&repeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto)")
 	return cmd
 }

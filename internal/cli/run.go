@@ -19,7 +19,7 @@ func newRunCommand() *cobra.Command {
 	var workloadTarget string
 	var prefixHeavy string
 	var multimodal string
-	var multimodalCache string
+	var repeatedMultimodalMedia string
 	backendURL := defaults.BackendURL
 	var requireUpload bool
 
@@ -36,24 +36,24 @@ func newRunCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			multimodalCacheValue, err := parseOptionalBool(multimodalCache)
+			repeatedMultimodalMediaValue, err := parseOptionalBool(repeatedMultimodalMedia)
 			if err != nil {
 				return err
 			}
 			result, err := application.run.Run(cmd.Context(), runpresenter.Options{
-				Discover:        target.toDiscoverOptions(),
-				CollectFor:      collectFor,
-				ScrapeEvery:     scrapeEvery,
-				OutputPath:      outputPath,
-				Version:         version,
-				WorkloadMode:    workloadMode,
-				WorkloadTarget:  workloadTarget,
-				PrefixHeavy:     prefixValue,
-				Multimodal:      multimodalValue,
-				MultimodalCache: multimodalCacheValue,
-				NoInteractive:   target.noInteractive,
-				BackendURL:      backendURL,
-				RequireUpload:   requireUpload,
+				Discover:                target.toDiscoverOptions(),
+				CollectFor:              collectFor,
+				ScrapeEvery:             scrapeEvery,
+				OutputPath:              outputPath,
+				Version:                 version,
+				WorkloadMode:            workloadMode,
+				WorkloadTarget:          workloadTarget,
+				PrefixHeavy:             prefixValue,
+				Multimodal:              multimodalValue,
+				RepeatedMultimodalMedia: repeatedMultimodalMediaValue,
+				NoInteractive:           target.noInteractive,
+				BackendURL:              backendURL,
+				RequireUpload:           requireUpload,
 			})
 			if err != nil {
 				return err
@@ -73,7 +73,7 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&workloadTarget, "workload-target", "", "workload target")
 	cmd.Flags().StringVar(&prefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
 	cmd.Flags().StringVar(&multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
-	cmd.Flags().StringVar(&multimodalCache, "multimodal-cache", "auto", "multimodal cache enabled (true|false|auto)")
+	cmd.Flags().StringVar(&repeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto)")
 	cmd.Flags().StringVar(&backendURL, "backend-url", defaults.BackendURL, "backend base URL")
 	cmd.Flags().BoolVar(&requireUpload, "require-upload", false, "fail run when upload/report fails")
 	return cmd

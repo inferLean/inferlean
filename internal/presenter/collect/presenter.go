@@ -23,17 +23,17 @@ import (
 )
 
 type Options struct {
-	Target           vllmdiscovery.Candidate
-	CollectFor       time.Duration
-	ScrapeEvery      time.Duration
-	OutputPath       string
-	CollectorVersion string
-	WorkloadMode     string
-	WorkloadTarget   string
-	PrefixHeavy      *bool
-	Multimodal       *bool
-	MultimodalCache  *bool
-	NoInteractive    bool
+	Target                  vllmdiscovery.Candidate
+	CollectFor              time.Duration
+	ScrapeEvery             time.Duration
+	OutputPath              string
+	CollectorVersion        string
+	WorkloadMode            string
+	WorkloadTarget          string
+	PrefixHeavy             *bool
+	Multimodal              *bool
+	RepeatedMultimodalMedia *bool
+	NoInteractive           bool
 }
 
 type Result struct {
@@ -144,11 +144,11 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 
 func (p Presenter) resolveIntent(opts Options) (types.UserIntent, error) {
 	intentSeed, _ := noninteractive.Resolve(noninteractive.Input{
-		WorkloadMode:    opts.WorkloadMode,
-		WorkloadTarget:  opts.WorkloadTarget,
-		PrefixHeavy:     opts.PrefixHeavy,
-		Multimodal:      opts.Multimodal,
-		MultimodalCache: opts.MultimodalCache,
+		WorkloadMode:            opts.WorkloadMode,
+		WorkloadTarget:          opts.WorkloadTarget,
+		PrefixHeavy:             opts.PrefixHeavy,
+		Multimodal:              opts.Multimodal,
+		RepeatedMultimodalMedia: opts.RepeatedMultimodalMedia,
 	})
 	if opts.NoInteractive || hasCompleteIntent(opts, intentSeed) {
 		p.intentView.ShowResolved(intentSeed)
@@ -167,7 +167,7 @@ func hasCompleteIntent(opts Options, seed types.UserIntent) bool {
 		strings.TrimSpace(seed.WorkloadTarget) != "" &&
 		opts.PrefixHeavy != nil &&
 		opts.Multimodal != nil &&
-		opts.MultimodalCache != nil
+		opts.RepeatedMultimodalMedia != nil
 }
 
 func validateDurations(collectFor, scrapeEvery time.Duration) error {

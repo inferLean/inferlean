@@ -14,11 +14,11 @@ import (
 type questionKey string
 
 const (
-	keyWorkloadMode    questionKey = "workload_mode"
-	keyWorkloadTarget  questionKey = "workload_target"
-	keyPrefixHeavy     questionKey = "prefix_heavy"
-	keyMultimodal      questionKey = "multimodal"
-	keyMultimodalCache questionKey = "multimodal_cache"
+	keyWorkloadMode            questionKey = "workload_mode"
+	keyWorkloadTarget          questionKey = "workload_target"
+	keyPrefixHeavy             questionKey = "prefix_heavy"
+	keyMultimodal              questionKey = "multimodal"
+	keyRepeatedMultimodalMedia questionKey = "repeated_multimodal_media"
 )
 
 type questionOption struct {
@@ -70,10 +70,10 @@ func buildQuestions(seed types.UserIntent) []question {
 		"Requests include image, video, or audio.",
 	))
 	questions = append(questions, yesNoQuestion(
-		keyMultimodalCache,
-		"Multimodal cache enabled?",
-		seed.MultimodalCache,
-		"Server-side multimodal preprocessing cache is on.",
+		keyRepeatedMultimodalMedia,
+		"Do the same images/media repeat across requests?",
+		seed.RepeatedMultimodalMedia,
+		"Repeated multimodal content appears across separate requests.",
 	))
 	return questions
 }
@@ -168,8 +168,8 @@ func applyAnswer(intent *types.UserIntent, key questionKey, value string) {
 		intent.PrefixHeavy = parseBool(value)
 	case keyMultimodal:
 		intent.Multimodal = parseBool(value)
-	case keyMultimodalCache:
-		intent.MultimodalCache = parseBool(value)
+	case keyRepeatedMultimodalMedia:
+		intent.RepeatedMultimodalMedia = parseBool(value)
 	}
 }
 

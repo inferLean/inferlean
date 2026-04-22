@@ -146,8 +146,5 @@ func buildMultimodalFlags(input Input) []string {
 	if input.UserIntent.Multimodal {
 		flags = append(flags, "multimodal")
 	}
-	if input.UserIntent.MultimodalCache {
-		flags = append(flags, "multimodal_cache")
-	}
 	return flags
 }

@@ -16,11 +16,11 @@ type Configurations struct {
 }
 
 type UserIntent struct {
-	WorkloadMode    string `json:"workload_mode,omitempty"`
-	WorkloadTarget  string `json:"workload_target,omitempty"`
-	PrefixHeavy     bool   `json:"prefix_heavy"`
-	Multimodal      bool   `json:"multimodal"`
-	MultimodalCache bool   `json:"multimodal_cache"`
+	WorkloadMode            string `json:"workload_mode,omitempty"`
+	WorkloadTarget          string `json:"workload_target,omitempty"`
+	PrefixHeavy             bool   `json:"prefix_heavy"`
+	Multimodal              bool   `json:"multimodal"`
+	RepeatedMultimodalMedia bool   `json:"repeated_multimodal_media"`
 }
 
 type CollectionQuality struct {

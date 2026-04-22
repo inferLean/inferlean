@@ -7,11 +7,11 @@ import (
 )
 
 type Input struct {
-	WorkloadMode    string
-	WorkloadTarget  string
-	PrefixHeavy     *bool
-	Multimodal      *bool
-	MultimodalCache *bool
+	WorkloadMode            string
+	WorkloadTarget          string
+	PrefixHeavy             *bool
+	Multimodal              *bool
+	RepeatedMultimodalMedia *bool
 }
 
 func Resolve(input Input) (types.UserIntent, bool) {
@@ -33,8 +33,8 @@ func Resolve(input Input) (types.UserIntent, bool) {
 		intent.Multimodal = *input.Multimodal
 		hasAny = true
 	}
-	if input.MultimodalCache != nil {
-		intent.MultimodalCache = *input.MultimodalCache
+	if input.RepeatedMultimodalMedia != nil {
+		intent.RepeatedMultimodalMedia = *input.RepeatedMultimodalMedia
 		hasAny = true
 	}
 	return intent, hasAny
