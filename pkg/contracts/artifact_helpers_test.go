@@ -21,7 +21,6 @@ func runtimeRequiredFields() []string {
 		"flashinfer_presence",
 		"flash_attention_presence",
 		"image_processor",
-		"multimodal_cache_hints",
 	}
 }
 

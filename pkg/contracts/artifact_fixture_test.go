@@ -11,6 +11,13 @@ func validArtifact() RunArtifact {
 		RuntimeConfig:     validRuntimeConfig(),
 		Metrics:           validMetrics(now),
 		ProcessInspection: validProcessInspection(now),
+		WorkloadObservations: WorkloadObservations{
+			Mode:            "mixed",
+			Target:          "balanced",
+			PrefixReuse:     "high",
+			Multimodal:      "present",
+			MultimodalCache: "enabled",
+		},
 		CollectionQuality: validCollectionQuality(),
 	}
 }
@@ -54,7 +61,6 @@ func validRuntimeConfig() RuntimeConfig {
 		FlashinferPresent:     boolPointer(false),
 		FlashAttentionPresent: boolPointer(true),
 		ImageProcessor:        "qwen-vl",
-		MultimodalCacheHints:  []string{"image-cache"},
 		Coverage:              coverage(runtimeRequiredFields()...),
 	}
 }

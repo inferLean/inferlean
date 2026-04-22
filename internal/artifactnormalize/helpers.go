@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/inferLean/inferlean-main/cli/internal/types"
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
@@ -199,13 +198,4 @@ func floatPtr(value float64) *float64 {
 
 func boolPtr(value bool) *bool {
 	return &value
-}
-
-func boolFromIntent(intent types.UserIntent) (string, string) {
-	prefixReuse := "low"
-	if intent.PrefixHeavy {
-		prefixReuse = "high"
-	}
-	multimodal := strconv.FormatBool(intent.Multimodal)
-	return prefixReuse, multimodal
 }

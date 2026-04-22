@@ -37,25 +37,54 @@ func normalizeProcessInspection(input Input) contracts.ProcessInspection {
 }
 
 func normalizeWorkload(input Input) contracts.WorkloadObservations {
-	prefixReuse, multimodal := boolFromIntent(input.UserIntent)
-	target := strings.TrimSpace(input.UserIntent.WorkloadTarget)
-	mode := strings.TrimSpace(input.UserIntent.WorkloadMode)
-	if mode == "" {
-		mode = "online"
-	}
-	if target == "" {
-		target = "balanced"
-	}
+	mode := canonicalWorkloadMode(input.UserIntent.WorkloadMode)
+	target := canonicalWorkloadTarget(input.UserIntent.WorkloadTarget)
 	return contracts.WorkloadObservations{
-		Mode:    mode,
-		Target:  target,
-		Summary: "resolved from collector intent and observed vLLM metrics",
-		Hints: map[string]string{
-			"prefix_reuse":  prefixReuse,
-			"multimodal":    multimodal,
-			"dominant_goal": target,
-		},
+		Mode:            mode,
+		Target:          target,
+		PrefixReuse:     prefixReuseState(input.UserIntent.PrefixHeavy),
+		Multimodal:      multimodalState(input.UserIntent.Multimodal),
+		MultimodalCache: multimodalCacheState(input.UserIntent.MultimodalCache),
 	}
+}
+
+func canonicalWorkloadMode(value string) string {
+	switch strings.TrimSpace(value) {
+	case "realtime_chat", "batch_processing", "mixed":
+		return strings.TrimSpace(value)
+	default:
+		return "unknown"
+	}
+}
+
+func canonicalWorkloadTarget(value string) string {
+	switch strings.TrimSpace(value) {
+	case "latency", "throughput", "balanced":
+		return strings.TrimSpace(value)
+	default:
+		return "unknown"
+	}
+}
+
+func prefixReuseState(value bool) string {
+	if value {
+		return "high"
+	}
+	return "low"
+}
+
+func multimodalState(value bool) string {
+	if value {
+		return "present"
+	}
+	return "absent"
+}
+
+func multimodalCacheState(value bool) string {
+	if value {
+		return "enabled"
+	}
+	return "disabled"
 }
 
 func inferExecutable(raw string) string {

@@ -1,7 +1,6 @@
 package artifactnormalize
 
 import (
-	"strconv"
 	"strings"
 
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
@@ -36,7 +35,6 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 		flashAttention = boolPtr(strings.Contains(strings.ToLower(attentionBackend), "flash"))
 	}
 	multimodalFlags := buildMultimodalFlags(input)
-	multimodalHints := buildMultimodalCacheHints(input)
 	runtime := contracts.RuntimeConfig{
 		Model:                 firstNonEmpty(args["model"], hints["vllm_model"]),
 		ServedModelName:       firstNonEmpty(args["served-model-name"], args["model"]),
@@ -64,7 +62,6 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 		FlashinferPresent:     flashInfer,
 		FlashAttentionPresent: flashAttention,
 		ImageProcessor:        firstNonEmpty(args["image-processor"], "unknown"),
-		MultimodalCacheHints:  multimodalHints,
 	}
 	runtime.Coverage = runtimeCoverage(runtime)
 	return runtime
@@ -89,7 +86,6 @@ func runtimeCoverage(runtime contracts.RuntimeConfig) contracts.SourceCoverage {
 	appendPresent(present, "flashinfer_presence", runtime.FlashinferPresent != nil)
 	appendPresent(present, "flash_attention_presence", runtime.FlashAttentionPresent != nil)
 	appendPresent(present, "image_processor", runtime.ImageProcessor != "")
-	appendPresent(present, "multimodal_cache_hints", len(runtime.MultimodalCacheHints) > 0)
 	return newCoverage(present, runtimeRequiredFields())
 }
 
@@ -112,7 +108,6 @@ func runtimeRequiredFields() []string {
 		"flashinfer_presence",
 		"flash_attention_presence",
 		"image_processor",
-		"multimodal_cache_hints",
 	}
 }
 
@@ -155,13 +150,4 @@ func buildMultimodalFlags(input Input) []string {
 		flags = append(flags, "multimodal_cache")
 	}
 	return flags
-}
-
-func buildMultimodalCacheHints(input Input) []string {
-	hints := []string{}
-	hints = append(hints, "workload_mode="+input.UserIntent.WorkloadMode)
-	hints = append(hints, "workload_target="+input.UserIntent.WorkloadTarget)
-	hints = append(hints, "multimodal="+strconv.FormatBool(input.UserIntent.Multimodal))
-	hints = append(hints, "multimodal_cache="+strconv.FormatBool(input.UserIntent.MultimodalCache))
-	return hints
 }
