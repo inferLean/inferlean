@@ -24,6 +24,25 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 					"label":  "KV cache pressure",
 					"family": "kv_pressure",
 				},
+				"recommendation": map[string]any{
+					"title":      "Reduce KV footprint",
+					"rationale":  "KV pressure is causing preemption, so widening scheduler posture first would be premature.",
+					"risk":       "medium",
+					"confidence": "high",
+					"tradeoff": map[string]any{
+						"summary": "May reduce maximum accepted context length for some requests.",
+					},
+					"expected_effect": map[string]any{
+						"summary": "Likely improvement: +5% to +15% throughput under the observed workload.",
+					},
+					"actions": []map[string]any{{
+						"id":             "action:reduce-max-model-len",
+						"title":          "Reduce `--max-model-len`",
+						"current_value":  "8192",
+						"proposed_value": "4096",
+						"value_kind":     "number",
+					}},
+				},
 			},
 			"scenario_overlays": map[string]any{
 				"latency":    map[string]any{"target": "latency"},
@@ -47,6 +66,12 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 	}
 	if !strings.Contains(content, "KV cache pressure") {
 		t.Fatalf("formatted report missing parsed limiter label: %s", content)
+	}
+	if !strings.Contains(content, "Expected Gain Range: Likely improvement: +5% to +15% throughput under the observed workload.") {
+		t.Fatalf("formatted report missing gain range: %s", content)
+	}
+	if !strings.Contains(content, "Current: 8192") || !strings.Contains(content, "Proposed: 4096") {
+		t.Fatalf("formatted report missing action delta: %s", content)
 	}
 	if !strings.Contains(summary, "run=run_123") {
 		t.Fatalf("summary missing run id: %s", summary)

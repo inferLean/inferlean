@@ -7,6 +7,13 @@ import (
 
 func TestFinalReportValidateAcceptsCanonicalShape(t *testing.T) {
 	report := validFinalReport()
+	report.Diagnosis.BaseDiagnosis.Recommendation.Actions = []Action{{
+		ID:            "action:set-max-num-batched-tokens",
+		Title:         "Raise `--max-num-batched-tokens`",
+		CurrentValue:  "2048",
+		ProposedValue: "4096",
+		ValueKind:     "number",
+	}}
 	if err := report.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}

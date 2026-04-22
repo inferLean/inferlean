@@ -106,14 +106,12 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 
 	if base.Recommendation != nil {
 		writeSection(&b, "Primary Recommendation", useColor)
-		writeKeyValue(&b, "Decision", fallback(base.Recommendation.Decision, "-"), useColor)
-		writeKeyValue(&b, "Title", fallback(base.Recommendation.Title, "-"), useColor)
-		writeKeyValue(&b, "Rationale", fallback(base.Recommendation.Rationale, "-"), useColor)
-		writeKeyValue(&b, "Mechanism", fallback(base.Recommendation.Mechanism, "-"), useColor)
-		writeKeyValue(&b, "Expected Effect", fallback(base.Recommendation.ExpectedEffect.Summary, "-"), useColor)
-		writeKeyValue(&b, "Tradeoff", fallback(base.Recommendation.Tradeoff.Summary, "-"), useColor)
-		writeKeyValue(&b, "Effort", fallback(base.Recommendation.Effort, "-"), useColor)
+		writeKeyValue(&b, "Primary Recommendation", fallback(base.Recommendation.Title, "-"), useColor)
+		writeKeyValue(&b, "Why this is next", fallback(base.Recommendation.Rationale, "-"), useColor)
+		writeKeyValue(&b, "Expected Gain Range", fallback(base.Recommendation.ExpectedEffect.Summary, "-"), useColor)
 		writeKeyValue(&b, "Risk", fallback(base.Recommendation.Risk, "-"), useColor)
+		writeKeyValue(&b, "Confidence", fallback(base.Recommendation.Confidence, "-"), useColor)
+		writeKeyValue(&b, "Tradeoff", fallback(base.Recommendation.Tradeoff.Summary, "-"), useColor)
 		if len(base.Recommendation.Actions) == 0 {
 			writeKeyValue(&b, "Actions", "-", useColor)
 		} else {
@@ -123,6 +121,10 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 				b.WriteString(colorize(useColor, reportGreen, item) + "\n")
 				if why := strings.TrimSpace(action.Why); why != "" {
 					b.WriteString(colorize(useColor, reportDim, "     Why: ") + why + "\n")
+				}
+				if current, proposed := actionChange(action); current != "" || proposed != "" {
+					b.WriteString(colorize(useColor, reportDim, "     Current: ") + fallback(current, "-") + "\n")
+					b.WriteString(colorize(useColor, reportDim, "     Proposed: ") + fallback(proposed, "-") + "\n")
 				}
 				if how := strings.TrimSpace(action.How); how != "" {
 					b.WriteString(colorize(useColor, reportDim, "     How: ") + how + "\n")
@@ -296,6 +298,10 @@ func renderOverlay(b *strings.Builder, overlay contracts.ScenarioOverlay, useCol
 	b.WriteString(colorize(useColor, reportBold+reportCyan, line) + "\n")
 	b.WriteString(colorize(useColor, reportDim, "      recommendation: ") + recommendation + "\n")
 	b.WriteString(colorize(useColor, reportDim, "      confidence: ") + fallback(overlay.Confidence, "-") + "\n")
+}
+
+func actionChange(action contracts.Action) (string, string) {
+	return strings.TrimSpace(action.CurrentValue), strings.TrimSpace(action.ProposedValue)
 }
 
 func colorize(useColor bool, colorCode, text string) string {
