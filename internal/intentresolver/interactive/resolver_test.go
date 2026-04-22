@@ -52,7 +52,7 @@ func TestApplyAnswer(t *testing.T) {
 	applyAnswer(&intent, keyWorkloadTarget, "throughput")
 	applyAnswer(&intent, keyPrefixHeavy, "true")
 	applyAnswer(&intent, keyMultimodal, "false")
-	applyAnswer(&intent, keyMultimodalCache, "true")
+	applyAnswer(&intent, keyRepeatedMultimodalMedia, "true")
 
 	if intent.WorkloadMode != "mixed" {
 		t.Fatalf("WorkloadMode=%q, want mixed", intent.WorkloadMode)
@@ -66,8 +66,8 @@ func TestApplyAnswer(t *testing.T) {
 	if intent.Multimodal {
 		t.Fatalf("Multimodal=%v, want false", intent.Multimodal)
 	}
-	if !intent.MultimodalCache {
-		t.Fatalf("MultimodalCache=%v, want true", intent.MultimodalCache)
+	if !intent.RepeatedMultimodalMedia {
+		t.Fatalf("RepeatedMultimodalMedia=%v, want true", intent.RepeatedMultimodalMedia)
 	}
 }
 

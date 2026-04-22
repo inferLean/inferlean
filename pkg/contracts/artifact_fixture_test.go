@@ -12,11 +12,11 @@ func validArtifact() RunArtifact {
 		Metrics:           validMetrics(now),
 		ProcessInspection: validProcessInspection(now),
 		WorkloadObservations: WorkloadObservations{
-			Mode:            "mixed",
-			Target:          "balanced",
-			PrefixReuse:     "high",
-			Multimodal:      "present",
-			MultimodalCache: "enabled",
+			Mode:                    "mixed",
+			Target:                  "balanced",
+			PrefixReuse:             "high",
+			Multimodal:              "present",
+			RepeatedMultimodalMedia: "high",
 		},
 		CollectionQuality: validCollectionQuality(),
 	}

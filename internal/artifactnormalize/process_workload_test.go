@@ -26,8 +26,8 @@ func TestNormalizeWorkloadUsesCLIWorkloadModeValues(t *testing.T) {
 	if got, want := workload.Multimodal, "absent"; got != want {
 		t.Fatalf("Multimodal = %q, want %q", got, want)
 	}
-	if got, want := workload.MultimodalCache, "disabled"; got != want {
-		t.Fatalf("MultimodalCache = %q, want %q", got, want)
+	if got, want := workload.RepeatedMultimodalMedia, "low"; got != want {
+		t.Fatalf("RepeatedMultimodalMedia = %q, want %q", got, want)
 	}
 }
 

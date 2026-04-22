@@ -64,7 +64,7 @@ func validateWorkloadObservations(w WorkloadObservations) []error {
 	errs = append(errs, validateEnum("workload_observations.target", w.Target, "latency", "throughput", "balanced", "unknown"))
 	errs = append(errs, validateEnum("workload_observations.prefix_reuse", w.PrefixReuse, "high", "low", "unknown"))
 	errs = append(errs, validateEnum("workload_observations.multimodal", w.Multimodal, "present", "absent", "unknown"))
-	errs = append(errs, validateEnum("workload_observations.multimodal_cache", w.MultimodalCache, "enabled", "disabled", "unknown"))
+	errs = append(errs, validateEnum("workload_observations.repeated_multimodal_media", w.RepeatedMultimodalMedia, "high", "low", "unknown"))
 
 	return errs
 }

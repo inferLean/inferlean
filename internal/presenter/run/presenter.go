@@ -14,19 +14,19 @@ import (
 )
 
 type Options struct {
-	Discover        vllmdiscovery.DiscoverOptions
-	CollectFor      time.Duration
-	ScrapeEvery     time.Duration
-	OutputPath      string
-	Version         string
-	WorkloadMode    string
-	WorkloadTarget  string
-	PrefixHeavy     *bool
-	Multimodal      *bool
-	MultimodalCache *bool
-	NoInteractive   bool
-	BackendURL      string
-	RequireUpload   bool
+	Discover                vllmdiscovery.DiscoverOptions
+	CollectFor              time.Duration
+	ScrapeEvery             time.Duration
+	OutputPath              string
+	Version                 string
+	WorkloadMode            string
+	WorkloadTarget          string
+	PrefixHeavy             *bool
+	Multimodal              *bool
+	RepeatedMultimodalMedia *bool
+	NoInteractive           bool
+	BackendURL              string
+	RequireUpload           bool
 }
 
 type Result struct {
@@ -57,17 +57,17 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 	collectRes, err := p.collect.Run(ctx, collectpresenter.Options{
-		Target:           target,
-		CollectFor:       opts.CollectFor,
-		ScrapeEvery:      opts.ScrapeEvery,
-		OutputPath:       opts.OutputPath,
-		CollectorVersion: opts.Version,
-		WorkloadMode:     opts.WorkloadMode,
-		WorkloadTarget:   opts.WorkloadTarget,
-		PrefixHeavy:      opts.PrefixHeavy,
-		Multimodal:       opts.Multimodal,
-		MultimodalCache:  opts.MultimodalCache,
-		NoInteractive:    opts.NoInteractive,
+		Target:                  target,
+		CollectFor:              opts.CollectFor,
+		ScrapeEvery:             opts.ScrapeEvery,
+		OutputPath:              opts.OutputPath,
+		CollectorVersion:        opts.Version,
+		WorkloadMode:            opts.WorkloadMode,
+		WorkloadTarget:          opts.WorkloadTarget,
+		PrefixHeavy:             opts.PrefixHeavy,
+		Multimodal:              opts.Multimodal,
+		RepeatedMultimodalMedia: opts.RepeatedMultimodalMedia,
+		NoInteractive:           opts.NoInteractive,
 	})
 	if err != nil {
 		return Result{}, err

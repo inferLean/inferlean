@@ -14,11 +14,11 @@ func NewView() View {
 
 func (View) ShowResolved(intent types.UserIntent) {
 	fmt.Printf(
-		"[intent] mode=%s target=%s prefix_heavy=%t multimodal=%t multimodal_cache=%t\n",
+		"[intent] mode=%s target=%s prefix_heavy=%t multimodal=%t repeated_multimodal_media=%t\n",
 		intent.WorkloadMode,
 		intent.WorkloadTarget,
 		intent.PrefixHeavy,
 		intent.Multimodal,
-		intent.MultimodalCache,
+		intent.RepeatedMultimodalMedia,
 	)
 }

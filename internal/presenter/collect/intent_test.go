@@ -18,9 +18,9 @@ func TestHasCompleteIntent(t *testing.T) {
 		{
 			name: "complete",
 			opts: Options{
-				PrefixHeavy:     &yes,
-				Multimodal:      &yes,
-				MultimodalCache: &yes,
+				PrefixHeavy:             &yes,
+				Multimodal:              &yes,
+				RepeatedMultimodalMedia: &yes,
 			},
 			seed: types.UserIntent{WorkloadMode: "mixed", WorkloadTarget: "latency"},
 			want: true,
@@ -28,9 +28,9 @@ func TestHasCompleteIntent(t *testing.T) {
 		{
 			name: "missing mode",
 			opts: Options{
-				PrefixHeavy:     &yes,
-				Multimodal:      &yes,
-				MultimodalCache: &yes,
+				PrefixHeavy:             &yes,
+				Multimodal:              &yes,
+				RepeatedMultimodalMedia: &yes,
 			},
 			seed: types.UserIntent{WorkloadTarget: "throughput"},
 			want: false,
@@ -38,27 +38,27 @@ func TestHasCompleteIntent(t *testing.T) {
 		{
 			name: "missing target",
 			opts: Options{
-				PrefixHeavy:     &yes,
-				Multimodal:      &yes,
-				MultimodalCache: &yes,
+				PrefixHeavy:             &yes,
+				Multimodal:              &yes,
+				RepeatedMultimodalMedia: &yes,
 			},
 			seed: types.UserIntent{WorkloadMode: "mixed"},
 			want: false,
 		},
 		{
 			name: "missing prefix",
-			opts: Options{Multimodal: &yes, MultimodalCache: &yes},
+			opts: Options{Multimodal: &yes, RepeatedMultimodalMedia: &yes},
 			seed: types.UserIntent{WorkloadMode: "mixed", WorkloadTarget: "latency"},
 			want: false,
 		},
 		{
 			name: "missing multimodal",
-			opts: Options{PrefixHeavy: &yes, MultimodalCache: &yes},
+			opts: Options{PrefixHeavy: &yes, RepeatedMultimodalMedia: &yes},
 			seed: types.UserIntent{WorkloadMode: "mixed", WorkloadTarget: "latency"},
 			want: false,
 		},
 		{
-			name: "missing multimodal cache",
+			name: "missing repeated multimodal media",
 			opts: Options{PrefixHeavy: &yes, Multimodal: &yes},
 			seed: types.UserIntent{WorkloadMode: "mixed", WorkloadTarget: "latency"},
 			want: false,

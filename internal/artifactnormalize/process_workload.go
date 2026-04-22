@@ -40,11 +40,11 @@ func normalizeWorkload(input Input) contracts.WorkloadObservations {
 	mode := canonicalWorkloadMode(input.UserIntent.WorkloadMode)
 	target := canonicalWorkloadTarget(input.UserIntent.WorkloadTarget)
 	return contracts.WorkloadObservations{
-		Mode:            mode,
-		Target:          target,
-		PrefixReuse:     prefixReuseState(input.UserIntent.PrefixHeavy),
-		Multimodal:      multimodalState(input.UserIntent.Multimodal),
-		MultimodalCache: multimodalCacheState(input.UserIntent.MultimodalCache),
+		Mode:                    mode,
+		Target:                  target,
+		PrefixReuse:             prefixReuseState(input.UserIntent.PrefixHeavy),
+		Multimodal:              multimodalState(input.UserIntent.Multimodal),
+		RepeatedMultimodalMedia: repeatedMultimodalMediaState(input.UserIntent.RepeatedMultimodalMedia),
 	}
 }
 
@@ -80,11 +80,11 @@ func multimodalState(value bool) string {
 	return "absent"
 }
 
-func multimodalCacheState(value bool) string {
+func repeatedMultimodalMediaState(value bool) string {
 	if value {
-		return "enabled"
+		return "high"
 	}
-	return "disabled"
+	return "low"
 }
 
 func inferExecutable(raw string) string {
