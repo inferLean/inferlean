@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -37,6 +38,7 @@ type gpuSnapshot struct {
 func collectConfigEnvironment(
 	ctx context.Context,
 	target vllmdiscovery.Candidate,
+	processIODir string,
 	staticNvidiaSMI string,
 	promRes promcollector.Result,
 ) types.Configurations {
@@ -49,7 +51,7 @@ func collectConfigEnvironment(
 	fillHostConfig(ctx, &cfg)
 	gpu := collectGPUSnapshot(ctx, promRes, staticNvidiaSMI)
 	applyGPUSnapshot(&cfg, gpu, staticNvidiaSMI)
-	applyVLLMDefaults(&cfg, rawCommandLine, inferVLLMVersionHint(ctx, target), gpu)
+	applyVLLMDefaults(ctx, &cfg, target, processIODir, rawCommandLine, inferVLLMVersionHint(ctx, target), gpu)
 	return cfg
 }
 
@@ -106,13 +108,29 @@ func withSMIVersions(snapshot gpuSnapshot, staticNvidiaSMI string) gpuSnapshot {
 	return snapshot
 }
 
-func applyVLLMDefaults(cfg *types.Configurations, rawCommandLine, versionHint string, snapshot gpuSnapshot) {
-	resolved, err := vllmdefaults.Resolve(vllmdefaults.Input{
-		RawCommandLine: rawCommandLine,
-		ExplicitArgs:   cfg.ParsedArgs,
-		VLLMVersion:    versionHint,
-		GPUModel:       snapshot.Model,
-		GPUMemoryMiB:   snapshot.MaxMemoryMiB,
+func applyVLLMDefaults(
+	ctx context.Context,
+	cfg *types.Configurations,
+	target vllmdiscovery.Candidate,
+	processIODir string,
+	rawCommandLine string,
+	versionHint string,
+	snapshot gpuSnapshot,
+) {
+	dumpPath := ""
+	if strings.TrimSpace(processIODir) != "" {
+		dumpPath = filepath.Join(processIODir, "vllm-defaults-runtime.json")
+	}
+	resolved, err := vllmdefaults.ResolveFromRuntime(ctx, vllmdefaults.RuntimeInput{
+		Input: vllmdefaults.Input{
+			RawCommandLine: rawCommandLine,
+			ExplicitArgs:   cfg.ParsedArgs,
+			VLLMVersion:    versionHint,
+			GPUModel:       snapshot.Model,
+			GPUMemoryMiB:   snapshot.MaxMemoryMiB,
+		},
+		Target:   target,
+		DumpPath: dumpPath,
 	})
 	if err != nil {
 		cfg.EnvironmentHints = withHint(cfg.EnvironmentHints, "vllm_defaults_error", err.Error())
@@ -120,12 +138,22 @@ func applyVLLMDefaults(cfg *types.Configurations, rawCommandLine, versionHint st
 	}
 	cfg.ParsedArgs = resolved.Args
 	hints := cfg.EnvironmentHints
-	hints = withHint(hints, "vllm_defaults_tag", resolved.SelectedTag)
-	hints = withHint(hints, "vllm_defaults_profile", resolved.SelectedProfile)
 	hints = withHint(hints, "vllm_defaults_applied", strconv.Itoa(resolved.AppliedDefaults))
-	hints = withHint(hints, "vllm_defaults_dir", resolved.DefaultsDir)
+	hints = withHint(hints, "vllm_defaults_source", resolved.RuntimeSource)
+	hints = withHint(hints, "vllm_defaults_dump_path", resolved.RuntimeDumpPath)
+	hints = withHint(hints, "vllm_defaults_script_path", resolved.RuntimeScriptPath)
+	hints = withHint(hints, "vllm_defaults_runtime_pid", strconv.Itoa(int(resolved.RuntimePID)))
 	if strings.TrimSpace(resolved.RequestedVersion) != "" {
 		hints = withHint(hints, "vllm_defaults_requested_version", resolved.RequestedVersion)
+	}
+	if strings.TrimSpace(resolved.ResolvedVersion) != "" {
+		hints = withHint(hints, "vllm_defaults_runtime_version", resolved.ResolvedVersion)
+	}
+	if strings.TrimSpace(resolved.RuntimeWarnings) != "" {
+		hints = withHint(hints, "vllm_defaults_warnings", resolved.RuntimeWarnings)
+	}
+	if strings.TrimSpace(resolved.RuntimeErrors) != "" {
+		hints = withHint(hints, "vllm_defaults_runtime_errors", resolved.RuntimeErrors)
 	}
 	if strings.TrimSpace(versionHint) != "" {
 		hints = withHint(hints, "vllm_version_hint", versionHint)

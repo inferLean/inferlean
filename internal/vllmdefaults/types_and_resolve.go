@@ -16,13 +16,20 @@ type Input struct {
 }
 
 type Output struct {
-	Args             map[string]string
-	SelectedTag      string
-	SelectedProfile  string
-	SelectedModel    string
-	RequestedVersion string
-	AppliedDefaults  int
-	DefaultsDir      string
+	Args              map[string]string
+	SelectedTag       string
+	SelectedProfile   string
+	SelectedModel     string
+	RequestedVersion  string
+	AppliedDefaults   int
+	DefaultsDir       string
+	RuntimeSource     string
+	RuntimeDumpPath   string
+	RuntimeScriptPath string
+	RuntimePID        int32
+	ResolvedVersion   string
+	RuntimeWarnings   string
+	RuntimeErrors     string
 }
 
 type manifestFile struct {

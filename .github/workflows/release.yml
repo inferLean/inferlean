@@ -143,6 +143,9 @@ jobs:
             cp -R "dist/release/${TARGET_OS}_${TARGET_ARCH}/." "${out_dir}/"
           fi
 
+          mkdir -p "${out_dir}/scripts"
+          cp "scripts/dump_vllm_defaults.py" "${out_dir}/scripts/dump_vllm_defaults.py"
+
           if [ "${ARCHIVE_EXT}" = "zip" ]; then
             (cd "${out_dir}" && zip -r "../../${archive_name}" .)
           else

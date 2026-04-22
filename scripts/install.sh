@@ -580,14 +580,15 @@ if [ -d "${tmpdir}/tools" ]; then
   cp -R "${tmpdir}/tools/." "${install_dir}/tools/"
 fi
 
-defaults_dir="${tmpdir}/vllm_defaults"
-if [ ! -d "${defaults_dir}" ]; then
-  defaults_dir="$(find "${tmpdir}" -maxdepth 3 -type d -name vllm_defaults | head -n1)"
+dump_script="${tmpdir}/scripts/dump_vllm_defaults.py"
+if [ ! -f "${dump_script}" ]; then
+  dump_script="$(find "${tmpdir}" -maxdepth 4 -type f -path '*/scripts/dump_vllm_defaults.py' | head -n1)"
 fi
 
-if [ -n "${defaults_dir}" ] && [ -d "${defaults_dir}" ]; then
-  mkdir -p "${install_dir}/vllm_defaults"
-  cp -R "${defaults_dir}/." "${install_dir}/vllm_defaults/"
+if [ -n "${dump_script}" ] && [ -f "${dump_script}" ]; then
+  mkdir -p "${install_dir}/scripts"
+  cp "${dump_script}" "${install_dir}/scripts/dump_vllm_defaults.py"
+  chmod +x "${install_dir}/scripts/dump_vllm_defaults.py"
 fi
 
 #install_dcgm_if_needed

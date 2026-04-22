@@ -28,7 +28,7 @@ archives:
     files:
       - README*
       - dist/release/{{ .Os }}_{{ .Arch }}/**
-      - vllm_defaults/simple_cuda_by_tag/**
+      - scripts/dump_vllm_defaults.py
 
 checksum:
   name_template: "checksums.txt"

@@ -22,10 +22,11 @@ type buildInput struct {
 	Intent           types.UserIntent
 	PromResult       promcollector.Result
 	StaticNvidiaSMI  string
+	ProcessIODir     string
 }
 
 func buildArtifact(ctx context.Context, in buildInput) (contracts.RunArtifact, error) {
-	env := collectConfigEnvironment(ctx, in.Target, in.StaticNvidiaSMI, in.PromResult)
+	env := collectConfigEnvironment(ctx, in.Target, in.ProcessIODir, in.StaticNvidiaSMI, in.PromResult)
 	quality := buildQuality(in)
 	return artifactnormalize.Build(artifactnormalize.Input{
 		Job: artifactnormalize.JobInput{

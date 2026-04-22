@@ -102,6 +102,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		Intent:           intent,
 		PromResult:       evidence.promResult,
 		StaticNvidiaSMI:  evidence.staticSMI,
+		ProcessIODir:     paths.ProcessIO,
 	})
 	if err != nil {
 		return Result{}, err
