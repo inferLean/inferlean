@@ -11,6 +11,7 @@ func (a RunArtifact) Validate() error {
 
 	errs = append(errs, validateSchema(a)...)
 	errs = append(errs, validateIdentity(a.Job)...)
+	errs = append(errs, validateWorkloadObservations(a.WorkloadObservations)...)
 	errs = append(errs, a.RuntimeConfig.validate()...)
 	errs = append(errs, a.ProcessInspection.validate()...)
 	errs = append(errs, a.CollectionQuality.validate()...)
@@ -56,6 +57,31 @@ func validateIdentity(j Job) []error {
 	return errs
 }
 
+func validateWorkloadObservations(w WorkloadObservations) []error {
+	var errs []error
+
+	errs = append(errs, validateEnum("workload_observations.mode", w.Mode, "realtime_chat", "batch_processing", "mixed", "unknown"))
+	errs = append(errs, validateEnum("workload_observations.target", w.Target, "latency", "throughput", "balanced", "unknown"))
+	errs = append(errs, validateEnum("workload_observations.prefix_reuse", w.PrefixReuse, "high", "low", "unknown"))
+	errs = append(errs, validateEnum("workload_observations.multimodal", w.Multimodal, "present", "absent", "unknown"))
+	errs = append(errs, validateEnum("workload_observations.multimodal_cache", w.MultimodalCache, "enabled", "disabled", "unknown"))
+
+	return errs
+}
+
+func validateEnum(field, value string, allowed ...string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fmt.Errorf("%s is required", field)
+	}
+	for _, candidate := range allowed {
+		if value == candidate {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s must be one of %s", field, strings.Join(allowed, ", "))
+}
+
 func (r RuntimeConfig) validate() []error {
 	checks := map[string]bool{
 		"max_model_len":            r.MaxModelLen != 0,
@@ -75,7 +101,6 @@ func (r RuntimeConfig) validate() []error {
 		"flashinfer_presence":      r.FlashinferPresent != nil,
 		"flash_attention_presence": r.FlashAttentionPresent != nil,
 		"image_processor":          strings.TrimSpace(r.ImageProcessor) != "",
-		"multimodal_cache_hints":   hasStrings(r.MultimodalCacheHints),
 	}
 
 	return validateCoverage("runtime_config", r.Coverage, checks)

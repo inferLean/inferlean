@@ -22,7 +22,7 @@ func TestHasCompleteIntent(t *testing.T) {
 				Multimodal:      &yes,
 				MultimodalCache: &yes,
 			},
-			seed: types.UserIntent{WorkloadMode: "latency", WorkloadTarget: "p95"},
+			seed: types.UserIntent{WorkloadMode: "mixed", WorkloadTarget: "latency"},
 			want: true,
 		},
 		{
@@ -42,25 +42,25 @@ func TestHasCompleteIntent(t *testing.T) {
 				Multimodal:      &yes,
 				MultimodalCache: &yes,
 			},
-			seed: types.UserIntent{WorkloadMode: "balanced"},
+			seed: types.UserIntent{WorkloadMode: "mixed"},
 			want: false,
 		},
 		{
 			name: "missing prefix",
 			opts: Options{Multimodal: &yes, MultimodalCache: &yes},
-			seed: types.UserIntent{WorkloadMode: "balanced", WorkloadTarget: "latency"},
+			seed: types.UserIntent{WorkloadMode: "mixed", WorkloadTarget: "latency"},
 			want: false,
 		},
 		{
 			name: "missing multimodal",
 			opts: Options{PrefixHeavy: &yes, MultimodalCache: &yes},
-			seed: types.UserIntent{WorkloadMode: "balanced", WorkloadTarget: "latency"},
+			seed: types.UserIntent{WorkloadMode: "mixed", WorkloadTarget: "latency"},
 			want: false,
 		},
 		{
 			name: "missing multimodal cache",
 			opts: Options{PrefixHeavy: &yes, Multimodal: &yes},
-			seed: types.UserIntent{WorkloadMode: "balanced", WorkloadTarget: "latency"},
+			seed: types.UserIntent{WorkloadMode: "mixed", WorkloadTarget: "latency"},
 			want: false,
 		},
 	}

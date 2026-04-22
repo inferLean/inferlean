@@ -31,7 +31,6 @@ type RuntimeConfig struct {
 	FlashinferPresent     *bool             `json:"flashinfer_present,omitempty"`
 	FlashAttentionPresent *bool             `json:"flash_attention_present,omitempty"`
 	ImageProcessor        string            `json:"image_processor,omitempty"`
-	MultimodalCacheHints  []string          `json:"multimodal_cache_hints,omitempty"`
 	ProbeWarnings         []string          `json:"probe_warnings,omitempty"`
 	ProbeEvidenceRef      string            `json:"probe_evidence_ref,omitempty"`
 	Coverage              SourceCoverage    `json:"coverage,omitempty"`

@@ -36,11 +36,11 @@ type Environment struct {
 }
 
 type WorkloadObservations struct {
-	Mode         string            `json:"mode,omitempty"`
-	Target       string            `json:"target,omitempty"`
-	Summary      string            `json:"summary,omitempty"`
-	Hints        map[string]string `json:"hints,omitempty"`
-	Measurements map[string]any    `json:"measurements,omitempty"`
+	Mode            string `json:"mode,omitempty"`
+	Target          string `json:"target,omitempty"`
+	PrefixReuse     string `json:"prefix_reuse,omitempty"`
+	Multimodal      string `json:"multimodal,omitempty"`
+	MultimodalCache string `json:"multimodal_cache,omitempty"`
 }
 
 type CollectionQuality struct {
