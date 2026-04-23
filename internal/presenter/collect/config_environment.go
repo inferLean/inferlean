@@ -155,8 +155,12 @@ func applyVLLMDefaults(
 	if strings.TrimSpace(resolved.RuntimeErrors) != "" {
 		hints = withHint(hints, "vllm_defaults_runtime_errors", resolved.RuntimeErrors)
 	}
-	if strings.TrimSpace(versionHint) != "" {
-		hints = withHint(hints, "vllm_version_hint", versionHint)
+	effectiveVersionHint := strings.TrimSpace(resolved.ResolvedVersion)
+	if effectiveVersionHint == "" {
+		effectiveVersionHint = strings.TrimSpace(versionHint)
+	}
+	if effectiveVersionHint != "" {
+		hints = withHint(hints, "vllm_version_hint", effectiveVersionHint)
 	}
 	if strings.TrimSpace(resolved.SelectedModel) != "" {
 		hints = withHint(hints, "vllm_model", resolved.SelectedModel)

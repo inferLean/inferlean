@@ -36,11 +36,19 @@ type runtimeExecution struct {
 
 var allowedEffectiveKeys = map[string]bool{
 	"model":                  true,
+	"served-model-name":      true,
+	"tensor-parallel-size":   true,
+	"data-parallel-size":     true,
+	"pipeline-parallel-size": true,
 	"max-model-len":          true,
 	"max-num-batched-tokens": true,
 	"max-num-seqs":           true,
 	"gpu-memory-utilization": true,
+	"kv-cache-dtype":         true,
+	"enable-prefix-caching":  true,
 	"enable-chunked-prefill": true,
+	"quantization":           true,
+	"dtype":                  true,
 	"attention-backend":      true,
 }
 

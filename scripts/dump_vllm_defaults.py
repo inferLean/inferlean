@@ -614,6 +614,34 @@ def _clean_attention_backend(value: Any) -> str | None:
     return cleaned
 
 
+def _clean_string_value(value: Any) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    if not cleaned:
+        return None
+    return cleaned
+
+
+def _clean_served_model_name(value: Any) -> str | None:
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            cleaned = _clean_string_value(item)
+            if cleaned is not None:
+                return cleaned
+        return None
+    return _clean_string_value(value)
+
+
+def _clean_dtype_value(value: Any) -> str | None:
+    cleaned = _clean_string_value(value)
+    if cleaned is None:
+        return None
+    if cleaned.startswith("torch."):
+        return cleaned.split(".", 1)[1]
+    return cleaned
+
+
 def _aggregate_effective_serve_parameters(
     *,
     parsed_cli: dict[str, Any] | None,
@@ -635,6 +663,7 @@ def _aggregate_effective_serve_parameters(
         full_model_cfg: dict[str, Any] = {}
         full_sched_cfg: dict[str, Any] = {}
         full_cache_cfg: dict[str, Any] = {}
+        full_parallel_cfg: dict[str, Any] = {}
         fallback_engine_args: dict[str, Any] = effective_cfg.get("engine_args", {}) or {}
         derived_defaults: dict[str, Any] = effective_cfg.get(
             "derived_model_defaults", {}
@@ -644,6 +673,7 @@ def _aggregate_effective_serve_parameters(
         full_model_cfg = effective_cfg.get("model_config", {}) or {}
         full_sched_cfg = effective_cfg.get("scheduler_config", {}) or {}
         full_cache_cfg = effective_cfg.get("cache_config", {}) or {}
+        full_parallel_cfg = effective_cfg.get("parallel_config", {}) or {}
         fallback_engine_args = {}
         derived_defaults = {}
         resolved_attention_backend = (
@@ -653,6 +683,7 @@ def _aggregate_effective_serve_parameters(
         full_model_cfg = {}
         full_sched_cfg = {}
         full_cache_cfg = {}
+        full_parallel_cfg = {}
         fallback_engine_args = {}
         derived_defaults = {}
         resolved_attention_backend = {}
@@ -671,6 +702,102 @@ def _aggregate_effective_serve_parameters(
     )
     values["model"] = model
     sources["model"] = source
+
+    served_model_name, source = _pick_value(
+        [
+            (
+                _clean_served_model_name(full_model_cfg.get("served_model_name")),
+                "effective_engine_config.model_config.served_model_name",
+            ),
+            (
+                _clean_served_model_name(fallback_engine_args.get("served_model_name")),
+                "effective_engine_config.engine_args.served_model_name",
+            ),
+            (
+                _clean_served_model_name(engine_args.get("served_model_name")),
+                "engine_args_from_input.served_model_name",
+            ),
+            (
+                _clean_served_model_name(parsed_cli.get("served_model_name")),
+                "parsed_cli_from_input.served_model_name",
+            ),
+            (
+                _clean_served_model_name(model),
+                "effective_serve_parameters.model",
+            ),
+        ]
+    )
+    values["served_model_name"] = served_model_name
+    sources["served_model_name"] = source
+
+    tensor_parallel_size, source = _pick_value(
+        [
+            (
+                full_parallel_cfg.get("tensor_parallel_size"),
+                "effective_engine_config.parallel_config.tensor_parallel_size",
+            ),
+            (
+                fallback_engine_args.get("tensor_parallel_size"),
+                "effective_engine_config.engine_args.tensor_parallel_size",
+            ),
+            (
+                engine_args.get("tensor_parallel_size"),
+                "engine_args_from_input.tensor_parallel_size",
+            ),
+            (
+                parsed_cli.get("tensor_parallel_size"),
+                "parsed_cli_from_input.tensor_parallel_size",
+            ),
+        ]
+    )
+    values["tensor_parallel_size"] = tensor_parallel_size
+    sources["tensor_parallel_size"] = source
+
+    data_parallel_size, source = _pick_value(
+        [
+            (
+                full_parallel_cfg.get("data_parallel_size"),
+                "effective_engine_config.parallel_config.data_parallel_size",
+            ),
+            (
+                fallback_engine_args.get("data_parallel_size"),
+                "effective_engine_config.engine_args.data_parallel_size",
+            ),
+            (
+                engine_args.get("data_parallel_size"),
+                "engine_args_from_input.data_parallel_size",
+            ),
+            (
+                parsed_cli.get("data_parallel_size"),
+                "parsed_cli_from_input.data_parallel_size",
+            ),
+        ]
+    )
+    values["data_parallel_size"] = data_parallel_size
+    sources["data_parallel_size"] = source
+
+    pipeline_parallel_size, source = _pick_value(
+        [
+            (
+                full_parallel_cfg.get("pipeline_parallel_size"),
+                "effective_engine_config.parallel_config.pipeline_parallel_size",
+            ),
+            (
+                fallback_engine_args.get("pipeline_parallel_size"),
+                "effective_engine_config.engine_args.pipeline_parallel_size",
+            ),
+            (
+                engine_args.get("pipeline_parallel_size"),
+                "engine_args_from_input.pipeline_parallel_size",
+            ),
+            (
+                parsed_cli.get("pipeline_parallel_size"),
+                "parsed_cli_from_input.pipeline_parallel_size",
+            ),
+        ]
+    )
+    values["pipeline_parallel_size"] = pipeline_parallel_size
+    sources["pipeline_parallel_size"] = source
 
     max_model_len, source = _pick_value(
         [
@@ -756,6 +883,52 @@ def _aggregate_effective_serve_parameters(
     values["gpu_memory_utilization"] = gpu_memory_utilization
     sources["gpu_memory_utilization"] = source
 
+    kv_cache_dtype, source = _pick_value(
+        [
+            (
+                _clean_string_value(full_cache_cfg.get("cache_dtype")),
+                "effective_engine_config.cache_config.cache_dtype",
+            ),
+            (
+                _clean_string_value(fallback_engine_args.get("kv_cache_dtype")),
+                "effective_engine_config.engine_args.kv_cache_dtype",
+            ),
+            (
+                _clean_string_value(engine_args.get("kv_cache_dtype")),
+                "engine_args_from_input.kv_cache_dtype",
+            ),
+            (
+                _clean_string_value(parsed_cli.get("kv_cache_dtype")),
+                "parsed_cli_from_input.kv_cache_dtype",
+            ),
+        ]
+    )
+    values["kv_cache_dtype"] = kv_cache_dtype
+    sources["kv_cache_dtype"] = source
+
+    enable_prefix_caching, source = _pick_value(
+        [
+            (
+                full_cache_cfg.get("enable_prefix_caching"),
+                "effective_engine_config.cache_config.enable_prefix_caching",
+            ),
+            (
+                fallback_engine_args.get("enable_prefix_caching"),
+                "effective_engine_config.engine_args.enable_prefix_caching",
+            ),
+            (
+                engine_args.get("enable_prefix_caching"),
+                "engine_args_from_input.enable_prefix_caching",
+            ),
+            (
+                parsed_cli.get("enable_prefix_caching"),
+                "parsed_cli_from_input.enable_prefix_caching",
+            ),
+        ]
+    )
+    values["enable_prefix_caching"] = enable_prefix_caching
+    sources["enable_prefix_caching"] = source
+
     enable_chunked_prefill, source = _pick_value(
         [
             (
@@ -778,6 +951,52 @@ def _aggregate_effective_serve_parameters(
     )
     values["enable_chunked_prefill"] = enable_chunked_prefill
     sources["enable_chunked_prefill"] = source
+
+    quantization, source = _pick_value(
+        [
+            (
+                _clean_string_value(full_model_cfg.get("quantization")),
+                "effective_engine_config.model_config.quantization",
+            ),
+            (
+                _clean_string_value(fallback_engine_args.get("quantization")),
+                "effective_engine_config.engine_args.quantization",
+            ),
+            (
+                _clean_string_value(engine_args.get("quantization")),
+                "engine_args_from_input.quantization",
+            ),
+            (
+                _clean_string_value(parsed_cli.get("quantization")),
+                "parsed_cli_from_input.quantization",
+            ),
+        ]
+    )
+    values["quantization"] = quantization
+    sources["quantization"] = source
+
+    dtype, source = _pick_value(
+        [
+            (
+                _clean_dtype_value(full_model_cfg.get("dtype")),
+                "effective_engine_config.model_config.dtype",
+            ),
+            (
+                _clean_dtype_value(fallback_engine_args.get("dtype")),
+                "effective_engine_config.engine_args.dtype",
+            ),
+            (
+                _clean_dtype_value(engine_args.get("dtype")),
+                "engine_args_from_input.dtype",
+            ),
+            (
+                _clean_dtype_value(parsed_cli.get("dtype")),
+                "parsed_cli_from_input.dtype",
+            ),
+        ]
+    )
+    values["dtype"] = dtype
+    sources["dtype"] = source
 
     attention_backend, source = _pick_value(
         [
