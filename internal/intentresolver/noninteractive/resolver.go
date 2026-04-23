@@ -7,8 +7,8 @@ import (
 )
 
 type Input struct {
-	WorkloadMode            string
-	WorkloadTarget          string
+	DeclaredWorkloadMode    string
+	DeclaredWorkloadTarget  string
 	PrefixHeavy             *bool
 	Multimodal              *bool
 	RepeatedMultimodalMedia *bool
@@ -17,12 +17,12 @@ type Input struct {
 func Resolve(input Input) (types.UserIntent, bool) {
 	intent := types.UserIntent{}
 	hasAny := false
-	if trimmed := strings.TrimSpace(input.WorkloadMode); trimmed != "" {
-		intent.WorkloadMode = trimmed
+	if trimmed := strings.TrimSpace(input.DeclaredWorkloadMode); trimmed != "" {
+		intent.DeclaredWorkloadMode = trimmed
 		hasAny = true
 	}
-	if trimmed := strings.TrimSpace(input.WorkloadTarget); trimmed != "" {
-		intent.WorkloadTarget = trimmed
+	if trimmed := strings.TrimSpace(input.DeclaredWorkloadTarget); trimmed != "" {
+		intent.DeclaredWorkloadTarget = trimmed
 		hasAny = true
 	}
 	if input.PrefixHeavy != nil {

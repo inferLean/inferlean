@@ -8,7 +8,7 @@ import (
 func TestFormatReportForDisplayStructured(t *testing.T) {
 	t.Parallel()
 	content, summary, err := formatReportForDisplay(map[string]any{
-		"schema_version": "report-v1",
+		"schema_version": "report-v2",
 		"job": map[string]any{
 			"run_id": "run_123",
 		},

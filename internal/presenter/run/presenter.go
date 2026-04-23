@@ -19,8 +19,8 @@ type Options struct {
 	ScrapeEvery             time.Duration
 	OutputPath              string
 	Version                 string
-	WorkloadMode            string
-	WorkloadTarget          string
+	DeclaredWorkloadMode    string
+	DeclaredWorkloadTarget  string
 	PrefixHeavy             *bool
 	Multimodal              *bool
 	RepeatedMultimodalMedia *bool
@@ -62,8 +62,8 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		ScrapeEvery:             opts.ScrapeEvery,
 		OutputPath:              opts.OutputPath,
 		CollectorVersion:        opts.Version,
-		WorkloadMode:            opts.WorkloadMode,
-		WorkloadTarget:          opts.WorkloadTarget,
+		DeclaredWorkloadMode:    opts.DeclaredWorkloadMode,
+		DeclaredWorkloadTarget:  opts.DeclaredWorkloadTarget,
 		PrefixHeavy:             opts.PrefixHeavy,
 		Multimodal:              opts.Multimodal,
 		RepeatedMultimodalMedia: opts.RepeatedMultimodalMedia,

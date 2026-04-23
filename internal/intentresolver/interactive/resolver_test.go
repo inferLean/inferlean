@@ -18,13 +18,13 @@ func TestBuildQuestions(t *testing.T) {
 			name:          "asks all fields when empty",
 			seed:          types.UserIntent{},
 			wantQuestions: 5,
-			firstKey:      keyWorkloadMode,
+			firstKey:      keyDeclaredWorkloadMode,
 		},
 		{
 			name: "skips mode and target when provided",
 			seed: types.UserIntent{
-				WorkloadMode:   "mixed",
-				WorkloadTarget: "latency",
+				DeclaredWorkloadMode:   "mixed",
+				DeclaredWorkloadTarget: "latency",
 			},
 			wantQuestions: 3,
 			firstKey:      keyPrefixHeavy,
@@ -48,17 +48,17 @@ func TestBuildQuestions(t *testing.T) {
 func TestApplyAnswer(t *testing.T) {
 	t.Parallel()
 	intent := types.UserIntent{}
-	applyAnswer(&intent, keyWorkloadMode, "mixed")
-	applyAnswer(&intent, keyWorkloadTarget, "throughput")
+	applyAnswer(&intent, keyDeclaredWorkloadMode, "mixed")
+	applyAnswer(&intent, keyDeclaredWorkloadTarget, "throughput")
 	applyAnswer(&intent, keyPrefixHeavy, "true")
 	applyAnswer(&intent, keyMultimodal, "false")
 	applyAnswer(&intent, keyRepeatedMultimodalMedia, "true")
 
-	if intent.WorkloadMode != "mixed" {
-		t.Fatalf("WorkloadMode=%q, want mixed", intent.WorkloadMode)
+	if intent.DeclaredWorkloadMode != "mixed" {
+		t.Fatalf("DeclaredWorkloadMode=%q, want mixed", intent.DeclaredWorkloadMode)
 	}
-	if intent.WorkloadTarget != "throughput" {
-		t.Fatalf("WorkloadTarget=%q, want throughput", intent.WorkloadTarget)
+	if intent.DeclaredWorkloadTarget != "throughput" {
+		t.Fatalf("DeclaredWorkloadTarget=%q, want throughput", intent.DeclaredWorkloadTarget)
 	}
 	if !intent.PrefixHeavy {
 		t.Fatalf("PrefixHeavy=%v, want true", intent.PrefixHeavy)

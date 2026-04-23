@@ -37,27 +37,27 @@ func normalizeProcessInspection(input Input) contracts.ProcessInspection {
 }
 
 func normalizeWorkload(input Input) contracts.WorkloadObservations {
-	mode := canonicalWorkloadMode(input.UserIntent.WorkloadMode)
-	target := canonicalWorkloadTarget(input.UserIntent.WorkloadTarget)
+	mode := canonicalDeclaredWorkloadMode(input.UserIntent.DeclaredWorkloadMode)
+	target := canonicalDeclaredWorkloadTarget(input.UserIntent.DeclaredWorkloadTarget)
 	return contracts.WorkloadObservations{
-		Mode:                    mode,
-		Target:                  target,
+		DeclaredWorkloadMode:    mode,
+		DeclaredWorkloadTarget:  target,
 		PrefixReuse:             prefixReuseState(input.UserIntent.PrefixHeavy),
 		Multimodal:              multimodalState(input.UserIntent.Multimodal),
 		RepeatedMultimodalMedia: repeatedMultimodalMediaState(input.UserIntent.RepeatedMultimodalMedia),
 	}
 }
 
-func canonicalWorkloadMode(value string) string {
+func canonicalDeclaredWorkloadMode(value string) string {
 	switch strings.TrimSpace(value) {
-	case "realtime_chat", "batch_processing", "mixed":
+	case "chat", "batch", "mixed":
 		return strings.TrimSpace(value)
 	default:
 		return "unknown"
 	}
 }
 
-func canonicalWorkloadTarget(value string) string {
+func canonicalDeclaredWorkloadTarget(value string) string {
 	switch strings.TrimSpace(value) {
 	case "latency", "throughput", "balanced":
 		return strings.TrimSpace(value)

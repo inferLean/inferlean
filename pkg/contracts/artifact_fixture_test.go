@@ -12,8 +12,8 @@ func validArtifact() RunArtifact {
 		Metrics:           validMetrics(now),
 		ProcessInspection: validProcessInspection(now),
 		WorkloadObservations: WorkloadObservations{
-			Mode:                    "mixed",
-			Target:                  "balanced",
+			DeclaredWorkloadMode:    "mixed",
+			DeclaredWorkloadTarget:  "balanced",
 			PrefixReuse:             "high",
 			Multimodal:              "present",
 			RepeatedMultimodalMedia: "high",

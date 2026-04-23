@@ -2,7 +2,7 @@ package contracts
 
 import "time"
 
-const SchemaVersion = "v2.6"
+const SchemaVersion = "v2.7"
 
 type RunArtifact struct {
 	SchemaVersion        string               `json:"schema_version"`
@@ -36,8 +36,8 @@ type Environment struct {
 }
 
 type WorkloadObservations struct {
-	Mode                    string `json:"mode,omitempty"`
-	Target                  string `json:"target,omitempty"`
+	DeclaredWorkloadMode    string `json:"declared_workload_mode,omitempty"`
+	DeclaredWorkloadTarget  string `json:"declared_workload_target,omitempty"`
 	PrefixReuse             string `json:"prefix_reuse,omitempty"`
 	Multimodal              string `json:"multimodal,omitempty"`
 	RepeatedMultimodalMedia string `json:"repeated_multimodal_media,omitempty"`

@@ -28,8 +28,8 @@ type Options struct {
 	ScrapeEvery             time.Duration
 	OutputPath              string
 	CollectorVersion        string
-	WorkloadMode            string
-	WorkloadTarget          string
+	DeclaredWorkloadMode    string
+	DeclaredWorkloadTarget  string
 	PrefixHeavy             *bool
 	Multimodal              *bool
 	RepeatedMultimodalMedia *bool
@@ -144,8 +144,8 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 
 func (p Presenter) resolveIntent(opts Options) (types.UserIntent, error) {
 	intentSeed, _ := noninteractive.Resolve(noninteractive.Input{
-		WorkloadMode:            opts.WorkloadMode,
-		WorkloadTarget:          opts.WorkloadTarget,
+		DeclaredWorkloadMode:    opts.DeclaredWorkloadMode,
+		DeclaredWorkloadTarget:  opts.DeclaredWorkloadTarget,
 		PrefixHeavy:             opts.PrefixHeavy,
 		Multimodal:              opts.Multimodal,
 		RepeatedMultimodalMedia: opts.RepeatedMultimodalMedia,
@@ -163,8 +163,8 @@ func (p Presenter) resolveIntent(opts Options) (types.UserIntent, error) {
 }
 
 func hasCompleteIntent(opts Options, seed types.UserIntent) bool {
-	return strings.TrimSpace(seed.WorkloadMode) != "" &&
-		strings.TrimSpace(seed.WorkloadTarget) != "" &&
+	return strings.TrimSpace(seed.DeclaredWorkloadMode) != "" &&
+		strings.TrimSpace(seed.DeclaredWorkloadTarget) != "" &&
 		opts.PrefixHeavy != nil &&
 		opts.Multimodal != nil &&
 		opts.RepeatedMultimodalMedia != nil
