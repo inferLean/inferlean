@@ -103,6 +103,10 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 	writeKeyValue(&b, "Confidence", fallback(base.Confidence, "-"), useColor)
 	writeKeyValue(&b, "Summary", fallback(base.Situation.Summary, "-"), useColor)
 	writeKeyValue(&b, "Workload", workloadSummary(base.WorkloadSummary), useColor)
+	if base.CapacitySnapshot != nil && base.CapacitySnapshot.HasData() {
+		writeSection(&b, "Capacity Snapshot", useColor)
+		renderCapacitySnapshot(&b, *base.CapacitySnapshot, useColor)
+	}
 
 	if base.Recommendation != nil {
 		writeSection(&b, "Primary Recommendation", useColor)
@@ -284,6 +288,57 @@ func workloadSummary(workload contracts.WorkloadSummary) string {
 	}
 	if summary := strings.TrimSpace(workload.Summary); summary != "" {
 		return strings.Join(parts, ", ") + " | " + summary
+	}
+	return strings.Join(parts, ", ")
+}
+
+func renderCapacitySnapshot(b *strings.Builder, snapshot contracts.CapacitySnapshot, useColor bool) {
+	writeKeyValue(b, "Summary", fallback(snapshot.Summary, "-"), useColor)
+	writeKeyValue(b, "Confidence", fallback(snapshot.Confidence, "-"), useColor)
+	if snapshot.Pressures.HasData() {
+		writeKeyValue(b, "Pressures", pressureSummary(snapshot.Pressures), useColor)
+	}
+	if snapshot.Observed.HasData() {
+		writeKeyValue(b, "Observed Rates", rateSummary(snapshot.Observed), useColor)
+	}
+	if snapshot.CurrentFrontier.HasData() {
+		writeKeyValue(b, "Current Frontier", rateSummary(snapshot.CurrentFrontier), useColor)
+	}
+	if len(snapshot.Notes) > 0 {
+		writeKeyValue(b, "Notes", strings.Join(snapshot.Notes, " "), useColor)
+	}
+}
+
+func pressureSummary(pressures contracts.CapacityPressures) string {
+	parts := make([]string, 0, 5)
+	appendPressure := func(label, value string) {
+		if strings.TrimSpace(value) != "" {
+			parts = append(parts, label+"="+value)
+		}
+	}
+	appendPressure("compute", pressures.Compute)
+	appendPressure("memory_bw", pressures.MemoryBandwidth)
+	appendPressure("kv", pressures.KV)
+	appendPressure("queue", pressures.Queue)
+	appendPressure("host", pressures.Host)
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, ", ")
+}
+
+func rateSummary(rates contracts.CapacityRates) string {
+	parts := make([]string, 0, 3)
+	appendRate := func(label string, value *float64) {
+		if value != nil {
+			parts = append(parts, fmt.Sprintf("%s=%.2f", label, *value))
+		}
+	}
+	appendRate("prompt_tok/s", rates.PromptTokensPerSecond)
+	appendRate("generation_tok/s", rates.GenerationTokensPerSecond)
+	appendRate("req/s", rates.RequestThroughput)
+	if len(parts) == 0 {
+		return "-"
 	}
 	return strings.Join(parts, ", ")
 }

@@ -7,6 +7,12 @@ import (
 
 func TestFinalReportValidateAcceptsCanonicalShape(t *testing.T) {
 	report := validFinalReport()
+	report.Diagnosis.BaseDiagnosis.CapacitySnapshot = &CapacitySnapshot{
+		Confidence: "medium",
+		Observed: CapacityRates{
+			RequestThroughput: floatPointer(2),
+		},
+	}
 	report.Diagnosis.BaseDiagnosis.Recommendation.Actions = []Action{{
 		ID:            "action:set-max-num-batched-tokens",
 		Title:         "Raise `--max-num-batched-tokens`",

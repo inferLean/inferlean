@@ -24,6 +24,24 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 					"label":  "KV cache pressure",
 					"family": "kv_pressure",
 				},
+				"capacity_snapshot": map[string]any{
+					"summary":    "Conservative workload-scoped snapshot.",
+					"confidence": "medium",
+					"pressures": map[string]any{
+						"compute":          "medium",
+						"memory_bandwidth": "low",
+						"kv":               "high",
+					},
+					"observed": map[string]any{
+						"prompt_tokens_per_second":     800.0,
+						"generation_tokens_per_second": 200.0,
+						"request_throughput":           4.0,
+					},
+					"current_frontier": map[string]any{
+						"generation_tokens_per_second": 240.0,
+						"request_throughput":           4.8,
+					},
+				},
 				"recommendation": map[string]any{
 					"title":      "Reduce KV footprint",
 					"rationale":  "KV pressure is causing preemption, so widening scheduler posture first would be premature.",
@@ -66,6 +84,9 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 	}
 	if !strings.Contains(content, "KV cache pressure") {
 		t.Fatalf("formatted report missing parsed limiter label: %s", content)
+	}
+	if !strings.Contains(content, "Capacity Snapshot") || !strings.Contains(content, "prompt_tok/s=800.00") {
+		t.Fatalf("formatted report missing capacity snapshot: %s", content)
 	}
 	if !strings.Contains(content, "Expected Gain Range: Likely improvement: +5% to +15% throughput under the observed workload.") {
 		t.Fatalf("formatted report missing gain range: %s", content)

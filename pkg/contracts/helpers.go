@@ -44,3 +44,15 @@ func containsString(values []string, want string) bool {
 	}
 	return false
 }
+
+func (r CapacityRates) HasData() bool {
+	return r.PromptTokensPerSecond != nil || r.GenerationTokensPerSecond != nil || r.RequestThroughput != nil
+}
+
+func (p CapacityPressures) HasData() bool {
+	return p.Compute != "" || p.MemoryBandwidth != "" || p.KV != "" || p.Queue != "" || p.Host != ""
+}
+
+func (s CapacitySnapshot) HasData() bool {
+	return s.Pressures.HasData() || s.Observed.HasData() || s.CurrentFrontier.HasData() || s.Confidence != "" || s.Summary != "" || len(s.Notes) > 0
+}

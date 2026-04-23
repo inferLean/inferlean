@@ -132,6 +132,9 @@ func deltaRateWindow(samples []promcollector.Sample, name string, scale float64)
 		if deltaTime <= 0 {
 			continue
 		}
+		if current < previous {
+			continue
+		}
 		points = append(points, contracts.MetricSample{
 			Timestamp: samples[idx].Timestamp,
 			Value:     ((current - previous) / deltaTime) * scale,
