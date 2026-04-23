@@ -170,21 +170,6 @@ def _extract_dataclass_defaults(cls: type[Any]) -> dict[str, Any]:
     return out
 
 
-def _extract_msgspec_declared_defaults(cls: type[Any]) -> dict[str, Any]:
-    struct_fields = list(getattr(cls, "__struct_fields__", []))
-    struct_defaults = list(getattr(cls, "__struct_defaults__", []))
-
-    out = {str(name): NO_DEFAULT for name in struct_fields}
-    if not struct_defaults:
-        return out
-
-    first_default_index = len(struct_fields) - len(struct_defaults)
-    for idx, default in enumerate(struct_defaults):
-        field_name = str(struct_fields[first_default_index + idx])
-        out[field_name] = _to_jsonable(default)
-    return out
-
-
 def _extract_parser_defaults(parser: argparse.ArgumentParser) -> dict[str, Any]:
     parsed = parser.parse_args([])
     return _to_jsonable(vars(parsed))
@@ -270,44 +255,6 @@ def _extract_engine_args_defaults(errors: dict[str, str]) -> dict[str, Any]:
             out[cls_name] = _extract_dataclass_defaults(cls)
         except Exception as exc:
             errors[f"engine_args.{cls_name}"] = repr(exc)
-    return out
-
-
-def _extract_request_param_defaults(errors: dict[str, str]) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-
-    sampling_mod = _optional_import("vllm.sampling_params")
-    if sampling_mod is not None and hasattr(sampling_mod, "SamplingParams"):
-        sampling_cls = sampling_mod.SamplingParams
-        try:
-            declared = _extract_msgspec_declared_defaults(sampling_cls)
-            out["SamplingParams_declared"] = declared
-        except Exception as exc:
-            errors["request.SamplingParams_declared"] = repr(exc)
-        try:
-            normalized = sampling_cls()
-            out["SamplingParams_normalized_instance"] = _to_jsonable(normalized)
-        except Exception as exc:
-            errors["request.SamplingParams_normalized_instance"] = repr(exc)
-    else:
-        errors["request.SamplingParams"] = "Could not import vllm.sampling_params.SamplingParams"
-
-    pooling_mod = _optional_import("vllm.pooling_params")
-    if pooling_mod is not None and hasattr(pooling_mod, "PoolingParams"):
-        pooling_cls = pooling_mod.PoolingParams
-        try:
-            declared = _extract_msgspec_declared_defaults(pooling_cls)
-            out["PoolingParams_declared"] = declared
-        except Exception as exc:
-            errors["request.PoolingParams_declared"] = repr(exc)
-        try:
-            normalized = pooling_cls()
-            out["PoolingParams_normalized_instance"] = _to_jsonable(normalized)
-        except Exception as exc:
-            errors["request.PoolingParams_normalized_instance"] = repr(exc)
-    else:
-        errors["request.PoolingParams"] = "Could not import vllm.pooling_params.PoolingParams"
-
     return out
 
 
@@ -474,41 +421,69 @@ def _parse_vllm_cli_input(
         return None, None
 
 
-def _cli_key_covered_in_parsed(flag: str, parsed_cli: dict[str, Any]) -> bool:
-    key = flag.lstrip("-").replace("-", "_")
-    if key.startswith("no_"):
-        key = key[3:]
-    return key in parsed_cli
-
-
-def _validate_cli_arg_coverage(
-    raw_cli_args: list[str], parsed_cli: dict[str, Any] | None
-) -> dict[str, Any]:
-    if parsed_cli is None:
-        return {
-            "raw_flags": [],
-            "covered_flags": [],
-            "missing_flags": [],
-            "all_flags_covered": False,
-        }
-
-    raw_flags = [arg for arg in raw_cli_args if arg.startswith("--")]
-    covered_flags = [flag for flag in raw_flags if _cli_key_covered_in_parsed(flag, parsed_cli)]
-    missing_flags = [flag for flag in raw_flags if flag not in covered_flags]
-
-    return {
-        "raw_flags": raw_flags,
-        "covered_flags": covered_flags,
-        "missing_flags": missing_flags,
-        "all_flags_covered": len(missing_flags) == 0,
-    }
-
-
 def _infer_usage_context_from_cmdline(cmdline: list[str]) -> str:
     # This script is PID-first for online serving processes.
     # Keep OPENAI_API_SERVER as the canonical context.
     _ = cmdline
     return "OPENAI_API_SERVER"
+
+
+def _resolve_runtime_attention_backend(
+    vllm_config: Any,
+    errors: dict[str, str],
+) -> dict[str, Any] | None:
+    try:
+        model_config = getattr(vllm_config, "model_config", None)
+        cache_config = getattr(vllm_config, "cache_config", None)
+        if model_config is None or cache_config is None:
+            return None
+
+        get_head_size = getattr(model_config, "get_head_size", None)
+        if not callable(get_head_size):
+            return None
+
+        from vllm.config.vllm import set_current_vllm_config
+        from vllm.v1.attention.selector import get_attn_backend
+
+        with set_current_vllm_config(vllm_config):
+            backend_cls = get_attn_backend(
+                head_size=get_head_size(),
+                dtype=getattr(model_config, "dtype", None),
+                kv_cache_dtype=getattr(cache_config, "cache_dtype", None),
+            )
+
+        backend_name: Any = None
+        get_name = getattr(backend_cls, "get_name", None)
+        if callable(get_name):
+            backend_name = get_name()
+        if backend_name is None:
+            backend_name = getattr(backend_cls, "__name__", None)
+
+        cleaned_name = _clean_attention_backend(backend_name)
+        if cleaned_name is None:
+            return None
+
+        return {
+            "name": cleaned_name,
+            "class": _callable_name(backend_cls),
+            "module": getattr(backend_cls, "__module__", None),
+            "source": "vllm.v1.attention.selector.get_attn_backend",
+        }
+    except Exception as exc:
+        errors["effective.attention_backend_resolve"] = repr(exc)
+        return None
+
+
+def _serialize_effective_engine_config(
+    vllm_config: Any,
+    errors: dict[str, str],
+) -> Any:
+    serialized = _to_jsonable(vllm_config)
+    if isinstance(serialized, dict):
+        resolved_backend = _resolve_runtime_attention_backend(vllm_config, errors)
+        if resolved_backend is not None:
+            serialized["resolved_attention_backend"] = resolved_backend
+    return serialized
 
 
 def _extract_effective_engine_config(
@@ -536,7 +511,7 @@ def _extract_effective_engine_config(
             usage_context=usage_ctx,
             headless=False,
         )
-        return _to_jsonable(vllm_config)
+        return _serialize_effective_engine_config(vllm_config, errors)
     except Exception as exc:
         message = repr(exc)
 
@@ -576,7 +551,7 @@ def _extract_effective_engine_config(
                     warn_message
                     + " Recovered by rebuilding EngineArgs under forced CPU."
                 )
-                return _to_jsonable(cfg)
+                return _serialize_effective_engine_config(cfg, errors)
             except Exception as derive_exc:
                 warnings["effective.derive_model_defaults"] = (
                     "Failed to recover effective config in fallback mode: "
@@ -603,7 +578,7 @@ def _extract_effective_engine_config(
                     "Fell back to CPU platform because CUDA GPUs were not "
                     "visible in this exec context."
                 )
-                return _to_jsonable(vllm_config)
+                return _serialize_effective_engine_config(vllm_config, errors)
             except Exception as retry_exc:
                 warn_message = (
                     "Could not materialize VllmConfig in this exec context "
@@ -628,6 +603,15 @@ def _pick_value(
         if value is not None:
             return value, source
     return None, None
+
+
+def _clean_attention_backend(value: Any) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    if not cleaned:
+        return None
+    return cleaned
 
 
 def _aggregate_effective_serve_parameters(
@@ -655,18 +639,23 @@ def _aggregate_effective_serve_parameters(
         derived_defaults: dict[str, Any] = effective_cfg.get(
             "derived_model_defaults", {}
         ) or {}
+        resolved_attention_backend: dict[str, Any] = {}
     elif is_cfg_dict:
         full_model_cfg = effective_cfg.get("model_config", {}) or {}
         full_sched_cfg = effective_cfg.get("scheduler_config", {}) or {}
         full_cache_cfg = effective_cfg.get("cache_config", {}) or {}
         fallback_engine_args = {}
         derived_defaults = {}
+        resolved_attention_backend = (
+            effective_cfg.get("resolved_attention_backend", {}) or {}
+        )
     else:
         full_model_cfg = {}
         full_sched_cfg = {}
         full_cache_cfg = {}
         fallback_engine_args = {}
         derived_defaults = {}
+        resolved_attention_backend = {}
 
     values: dict[str, Any] = {}
     sources: dict[str, str | None] = {}
@@ -790,6 +779,52 @@ def _aggregate_effective_serve_parameters(
     values["enable_chunked_prefill"] = enable_chunked_prefill
     sources["enable_chunked_prefill"] = source
 
+    attention_backend, source = _pick_value(
+        [
+            (
+                _clean_attention_backend(resolved_attention_backend.get("name")),
+                "effective_engine_config.resolved_attention_backend.name",
+            ),
+            (
+                _clean_attention_backend(full_model_cfg.get("attention_backend")),
+                "effective_engine_config.model_config.attention_backend",
+            ),
+            (
+                _clean_attention_backend(full_model_cfg.get("attn_backend")),
+                "effective_engine_config.model_config.attn_backend",
+            ),
+            (
+                _clean_attention_backend(fallback_engine_args.get("attention_backend")),
+                "effective_engine_config.engine_args.attention_backend",
+            ),
+            (
+                _clean_attention_backend(fallback_engine_args.get("attn_backend")),
+                "effective_engine_config.engine_args.attn_backend",
+            ),
+            (
+                _clean_attention_backend(engine_args.get("attention_backend")),
+                "engine_args_from_input.attention_backend",
+            ),
+            (
+                _clean_attention_backend(engine_args.get("attn_backend")),
+                "engine_args_from_input.attn_backend",
+            ),
+            (
+                _clean_attention_backend(parsed_cli.get("attention_backend")),
+                "parsed_cli_from_input.attention_backend",
+            ),
+            (
+                _clean_attention_backend(os.environ.get("VLLM_ATTENTION_BACKEND")),
+                "pid_process.environ.VLLM_ATTENTION_BACKEND",
+            ),
+            ("default", "vllm_default"),
+        ]
+    )
+    values["attention_backend"] = attention_backend
+    sources["attention_backend"] = source
+    if resolved_attention_backend:
+        values["attention_backend_details"] = resolved_attention_backend
+
     values["_usage_context"] = usage_context
     values["_effective_mode"] = (
         "fallback" if fallback_mode else "full_vllm_config"
@@ -858,9 +893,7 @@ def main() -> int:
     warnings: dict[str, str] = {}
     parsed_cli_from_input: dict[str, Any] | None = None
     engine_args_from_input: Any | None = None
-    cli_arg_coverage: dict[str, Any] | None = None
     pid_process: dict[str, Any] | None = None
-    raw_cli_args_from_input: list[str] = []
     input_source: str = "pid"
     inferred_usage_context = "OPENAI_API_SERVER"
 
@@ -883,7 +916,6 @@ def main() -> int:
             else pid_environ,
             "pid_env_applied": True,
         }
-        raw_cli_args_from_input = inferred_args
         if not inferred_args:
             errors["pid.inferred_cli_args"] = (
                 "Could not infer vLLM CLI args from /proc/<pid>/cmdline."
@@ -891,13 +923,11 @@ def main() -> int:
     except Exception as exc:
         errors["pid.read"] = repr(exc)
 
-    if raw_cli_args_from_input:
+    if pid_process and pid_process["inferred_vllm_cli_args"]:
+        inferred_args = pid_process["inferred_vllm_cli_args"]
         parsed_cli_from_input, engine_args_from_input = _parse_vllm_cli_input(
-            raw_cli_args_from_input,
+            inferred_args,
             errors,
-        )
-        cli_arg_coverage = _validate_cli_arg_coverage(
-            raw_cli_args_from_input, parsed_cli_from_input
         )
 
     result: dict[str, Any] = {
@@ -905,11 +935,9 @@ def main() -> int:
         "cli_defaults": _extract_cli_defaults(errors),
         "config_defaults": _extract_config_defaults(errors),
         "engine_args_defaults": _extract_engine_args_defaults(errors),
-        "request_defaults": _extract_request_param_defaults(errors),
     }
 
     result["input_source"] = input_source
-    result["raw_cli_args_from_input"] = raw_cli_args_from_input
     if pid_process is not None:
         result["pid_process"] = pid_process
 
@@ -917,8 +945,6 @@ def main() -> int:
         result["parsed_cli_from_input"] = parsed_cli_from_input
     if engine_args_from_input is not None:
         result["engine_args_from_input"] = _to_jsonable(engine_args_from_input)
-    if cli_arg_coverage is not None:
-        result["cli_arg_coverage"] = cli_arg_coverage
 
     result["effective_engine_config"] = _extract_effective_engine_config(
         engine_args_obj=engine_args_from_input,
