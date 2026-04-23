@@ -274,14 +274,17 @@ func limiterLabel(limiter contracts.CurrentLimiter) string {
 
 func workloadSummary(workload contracts.WorkloadSummary) string {
 	parts := make([]string, 0, 3)
-	if mode := strings.TrimSpace(workload.WorkloadMode); mode != "" {
-		parts = append(parts, "mode="+mode)
+	if mode := strings.TrimSpace(workload.DeclaredWorkloadMode); mode != "" {
+		parts = append(parts, "Declared Mode="+mode)
 	}
-	if shape := strings.TrimSpace(workload.RequestShape); shape != "" {
-		parts = append(parts, "shape="+shape)
+	if shape := strings.TrimSpace(workload.ObservedWorkloadShape); shape != "" {
+		parts = append(parts, "Observed Shape="+shape)
+	}
+	if posture := strings.TrimSpace(workload.ConfiguredPosture); posture != "" {
+		parts = append(parts, "Configured Posture="+posture)
 	}
 	if workload.Multimodal {
-		parts = append(parts, "multimodal=true")
+		parts = append(parts, "Multimodal=true")
 	}
 	if len(parts) == 0 {
 		return fallback(workload.Summary, "-")

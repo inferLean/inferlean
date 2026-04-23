@@ -16,8 +16,8 @@ type Configurations struct {
 }
 
 type UserIntent struct {
-	WorkloadMode            string `json:"workload_mode,omitempty"`
-	WorkloadTarget          string `json:"workload_target,omitempty"`
+	DeclaredWorkloadMode    string `json:"declared_workload_mode,omitempty"`
+	DeclaredWorkloadTarget  string `json:"declared_workload_target,omitempty"`
 	PrefixHeavy             bool   `json:"prefix_heavy"`
 	Multimodal              bool   `json:"multimodal"`
 	RepeatedMultimodalMedia bool   `json:"repeated_multimodal_media"`

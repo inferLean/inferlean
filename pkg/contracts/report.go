@@ -2,7 +2,7 @@ package contracts
 
 import "time"
 
-const ReportSchemaVersion = "report-v1"
+const ReportSchemaVersion = "report-v2"
 
 type FinalReport struct {
 	SchemaVersion      string                  `json:"schema_version"`
@@ -72,10 +72,11 @@ type BaseDiagnosis struct {
 }
 
 type WorkloadSummary struct {
-	WorkloadMode string `json:"workload_mode,omitempty"`
-	RequestShape string `json:"request_shape,omitempty"`
-	Multimodal   bool   `json:"multimodal,omitempty"`
-	Summary      string `json:"summary,omitempty"`
+	DeclaredWorkloadMode  string `json:"declared_workload_mode,omitempty"`
+	ObservedWorkloadShape string `json:"observed_workload_shape,omitempty"`
+	ConfiguredPosture     string `json:"configured_posture,omitempty"`
+	Multimodal            bool   `json:"multimodal,omitempty"`
+	Summary               string `json:"summary,omitempty"`
 }
 
 type CurrentLimiter struct {
@@ -152,8 +153,8 @@ type GainRange struct {
 }
 
 type WorkloadContext struct {
-	WorkloadMode string `json:"workload_mode,omitempty"`
-	RequestShape string `json:"request_shape,omitempty"`
+	DeclaredWorkloadMode  string `json:"declared_workload_mode,omitempty"`
+	ObservedWorkloadShape string `json:"observed_workload_shape,omitempty"`
 }
 
 type EstimateValue struct {

@@ -60,8 +60,8 @@ func validateIdentity(j Job) []error {
 func validateWorkloadObservations(w WorkloadObservations) []error {
 	var errs []error
 
-	errs = append(errs, validateEnum("workload_observations.mode", w.Mode, "realtime_chat", "batch_processing", "mixed", "unknown"))
-	errs = append(errs, validateEnum("workload_observations.target", w.Target, "latency", "throughput", "balanced", "unknown"))
+	errs = append(errs, validateEnum("workload_observations.declared_workload_mode", w.DeclaredWorkloadMode, "chat", "batch", "mixed", "unknown"))
+	errs = append(errs, validateEnum("workload_observations.declared_workload_target", w.DeclaredWorkloadTarget, "latency", "throughput", "balanced", "unknown"))
 	errs = append(errs, validateEnum("workload_observations.prefix_reuse", w.PrefixReuse, "high", "low", "unknown"))
 	errs = append(errs, validateEnum("workload_observations.multimodal", w.Multimodal, "present", "absent", "unknown"))
 	errs = append(errs, validateEnum("workload_observations.repeated_multimodal_media", w.RepeatedMultimodalMedia, "high", "low", "unknown"))

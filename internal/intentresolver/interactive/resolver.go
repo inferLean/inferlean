@@ -14,8 +14,8 @@ import (
 type questionKey string
 
 const (
-	keyWorkloadMode            questionKey = "workload_mode"
-	keyWorkloadTarget          questionKey = "workload_target"
+	keyDeclaredWorkloadMode    questionKey = "declared_workload_mode"
+	keyDeclaredWorkloadTarget  questionKey = "declared_workload_target"
 	keyPrefixHeavy             questionKey = "prefix_heavy"
 	keyMultimodal              questionKey = "multimodal"
 	keyRepeatedMultimodalMedia questionKey = "repeated_multimodal_media"
@@ -51,10 +51,10 @@ func isInteractiveTTY() bool {
 
 func buildQuestions(seed types.UserIntent) []question {
 	questions := make([]question, 0, 5)
-	if strings.TrimSpace(seed.WorkloadMode) == "" {
+	if strings.TrimSpace(seed.DeclaredWorkloadMode) == "" {
 		questions = append(questions, modeQuestion())
 	}
-	if strings.TrimSpace(seed.WorkloadTarget) == "" {
+	if strings.TrimSpace(seed.DeclaredWorkloadTarget) == "" {
 		questions = append(questions, targetQuestion())
 	}
 	questions = append(questions, yesNoQuestion(
@@ -80,11 +80,11 @@ func buildQuestions(seed types.UserIntent) []question {
 
 func modeQuestion() question {
 	return question{
-		key:    keyWorkloadMode,
-		prompt: "Workload mode",
+		key:    keyDeclaredWorkloadMode,
+		prompt: "Declared workload mode",
 		options: []questionOption{
-			{title: "realtime_chat", description: "Interactive, low-latency conversation.", value: "realtime_chat"},
-			{title: "batch_processing", description: "Offline jobs optimized for throughput.", value: "batch_processing"},
+			{title: "chat", description: "Interactive, low-latency conversation.", value: "chat"},
+			{title: "batch", description: "Offline jobs optimized for throughput.", value: "batch"},
 			{title: "mixed", description: "Mix of realtime and batch traffic.", value: "mixed"},
 		},
 		defaultIndex: 2,
@@ -93,13 +93,14 @@ func modeQuestion() question {
 
 func targetQuestion() question {
 	return question{
-		key:    keyWorkloadTarget,
-		prompt: "Primary optimization target",
+		key:    keyDeclaredWorkloadTarget,
+		prompt: "Declared optimization target",
 		options: []questionOption{
 			{title: "latency", description: "Prioritize response and tail latency.", value: "latency"},
+			{title: "balanced", description: "Balance responsiveness and throughput.", value: "balanced"},
 			{title: "throughput", description: "Prioritize tokens/sec and total volume.", value: "throughput"},
 		},
-		defaultIndex: 0,
+		defaultIndex: 1,
 	}
 }
 
@@ -160,10 +161,10 @@ func askQuestion(reader *bufio.Reader, q question) (string, error) {
 
 func applyAnswer(intent *types.UserIntent, key questionKey, value string) {
 	switch key {
-	case keyWorkloadMode:
-		intent.WorkloadMode = value
-	case keyWorkloadTarget:
-		intent.WorkloadTarget = value
+	case keyDeclaredWorkloadMode:
+		intent.DeclaredWorkloadMode = value
+	case keyDeclaredWorkloadTarget:
+		intent.DeclaredWorkloadTarget = value
 	case keyPrefixHeavy:
 		intent.PrefixHeavy = parseBool(value)
 	case keyMultimodal:

@@ -15,8 +15,8 @@ func newRunCommand() *cobra.Command {
 	var collectFor time.Duration
 	var scrapeEvery time.Duration
 	var outputPath string
-	var workloadMode string
-	var workloadTarget string
+	var declaredWorkloadMode string
+	var declaredWorkloadTarget string
 	var prefixHeavy string
 	var multimodal string
 	var repeatedMultimodalMedia string
@@ -46,8 +46,8 @@ func newRunCommand() *cobra.Command {
 				ScrapeEvery:             scrapeEvery,
 				OutputPath:              outputPath,
 				Version:                 version,
-				WorkloadMode:            workloadMode,
-				WorkloadTarget:          workloadTarget,
+				DeclaredWorkloadMode:    declaredWorkloadMode,
+				DeclaredWorkloadTarget:  declaredWorkloadTarget,
 				PrefixHeavy:             prefixValue,
 				Multimodal:              multimodalValue,
 				RepeatedMultimodalMedia: repeatedMultimodalMediaValue,
@@ -69,8 +69,8 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().DurationVar(&collectFor, "collect-for", 30*time.Second, "collection duration")
 	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", 5*time.Second, "scrape interval")
 	cmd.Flags().StringVar(&outputPath, "output", "", "artifact output path")
-	cmd.Flags().StringVar(&workloadMode, "workload-mode", "", "workload mode")
-	cmd.Flags().StringVar(&workloadTarget, "workload-target", "", "workload target")
+	cmd.Flags().StringVar(&declaredWorkloadMode, "workload-mode", "", "declared workload mode")
+	cmd.Flags().StringVar(&declaredWorkloadTarget, "workload-target", "", "declared optimization target")
 	cmd.Flags().StringVar(&prefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
 	cmd.Flags().StringVar(&multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
 	cmd.Flags().StringVar(&repeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto)")
