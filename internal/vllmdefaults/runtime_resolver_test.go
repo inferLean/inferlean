@@ -22,6 +22,7 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 				"max_num_seqs":           512,
 				"max_model_len":          16384,
 				"gpu_memory_utilization": 0.9,
+				"attention_backend":      "default",
 				"_sources":               map[string]any{"max_model_len": "x"},
 			},
 		},
@@ -38,8 +39,11 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 	if out.Args["gpu-memory-utilization"] != "0.9" {
 		t.Fatalf("gpu-memory-utilization = %q", out.Args["gpu-memory-utilization"])
 	}
-	if out.AppliedDefaults != 2 {
-		t.Fatalf("AppliedDefaults = %d, want 2", out.AppliedDefaults)
+	if out.Args["attention-backend"] != "default" {
+		t.Fatalf("attention-backend = %q", out.Args["attention-backend"])
+	}
+	if out.AppliedDefaults != 3 {
+		t.Fatalf("AppliedDefaults = %d, want 3", out.AppliedDefaults)
 	}
 }
 

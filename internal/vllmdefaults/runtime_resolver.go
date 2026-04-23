@@ -41,6 +41,7 @@ var allowedEffectiveKeys = map[string]bool{
 	"max-num-seqs":           true,
 	"gpu-memory-utilization": true,
 	"enable-chunked-prefill": true,
+	"attention-backend":      true,
 }
 
 func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
