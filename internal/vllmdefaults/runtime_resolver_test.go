@@ -19,9 +19,17 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 		},
 		runtimeDumpFile{
 			EffectiveServeParameters: map[string]any{
+				"served_model_name":      "served-a",
+				"tensor_parallel_size":   2,
+				"data_parallel_size":     1,
+				"pipeline_parallel_size": 1,
 				"max_num_seqs":           512,
 				"max_model_len":          16384,
 				"gpu_memory_utilization": 0.9,
+				"kv_cache_dtype":         "auto",
+				"enable_prefix_caching":  true,
+				"quantization":           "none",
+				"dtype":                  "bfloat16",
 				"attention_backend":      "default",
 				"_sources":               map[string]any{"max_model_len": "x"},
 			},
@@ -39,11 +47,23 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 	if out.Args["gpu-memory-utilization"] != "0.9" {
 		t.Fatalf("gpu-memory-utilization = %q", out.Args["gpu-memory-utilization"])
 	}
+	if out.Args["served-model-name"] != "served-a" {
+		t.Fatalf("served-model-name = %q", out.Args["served-model-name"])
+	}
+	if out.Args["tensor-parallel-size"] != "2" {
+		t.Fatalf("tensor-parallel-size = %q", out.Args["tensor-parallel-size"])
+	}
+	if out.Args["enable-prefix-caching"] != "true" {
+		t.Fatalf("enable-prefix-caching = %q", out.Args["enable-prefix-caching"])
+	}
+	if out.Args["dtype"] != "bfloat16" {
+		t.Fatalf("dtype = %q", out.Args["dtype"])
+	}
 	if out.Args["attention-backend"] != "default" {
 		t.Fatalf("attention-backend = %q", out.Args["attention-backend"])
 	}
-	if out.AppliedDefaults != 3 {
-		t.Fatalf("AppliedDefaults = %d, want 3", out.AppliedDefaults)
+	if out.AppliedDefaults != 11 {
+		t.Fatalf("AppliedDefaults = %d, want 11", out.AppliedDefaults)
 	}
 }
 
