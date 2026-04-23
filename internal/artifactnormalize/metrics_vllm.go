@@ -9,6 +9,7 @@ func normalizeVLLMMetrics(samples []promcollector.Sample) contracts.VLLMMetrics 
 	metrics := contracts.VLLMMetrics{
 		RequestsRunning:        windowFromMetric(samples, "vllm:num_requests_running"),
 		RequestsWaiting:        windowFromMetric(samples, "vllm:num_requests_waiting"),
+		RequestThroughput:      deltaRateWindow(samples, "vllm:request_success_total", 1),
 		LatencyE2E:             histogramMeanWindow(samples, "vllm:e2e_request_latency_seconds"),
 		LatencyTTFT:            histogramMeanWindow(samples, "vllm:time_to_first_token_seconds"),
 		LatencyQueue:           histogramMeanWindow(samples, "vllm:request_queue_time_seconds"),
@@ -40,6 +41,7 @@ func vllmCoverage(metrics contracts.VLLMMetrics) contracts.SourceCoverage {
 	present := map[string]bool{}
 	appendPresent(present, "requests_running", metrics.RequestsRunning.HasData())
 	appendPresent(present, "requests_waiting", metrics.RequestsWaiting.HasData())
+	appendPresent(present, "request_throughput", metrics.RequestThroughput.HasData())
 	appendPresent(present, "latency_e2e", metrics.LatencyE2E.HasData())
 	appendPresent(present, "latency_ttft", metrics.LatencyTTFT.HasData())
 	appendPresent(present, "latency_queue", metrics.LatencyQueue.HasData())
@@ -54,7 +56,13 @@ func vllmCoverage(metrics contracts.VLLMMetrics) contracts.SourceCoverage {
 	appendPresent(present, "recomputed_prompt_tokens", metrics.RecomputedPromptTokens.HasData())
 	appendPresent(present, "prefix_cache", metrics.PrefixCache.HasData())
 	appendPresent(present, "multimodal_cache", metrics.MultimodalCache.HasData())
-	return newCoverage(present, vllmRequiredFields())
+	coverage := newCoverage(present, vllmRequiredFields())
+	if metrics.RequestThroughput.HasData() {
+		coverage.PresentFields = append(coverage.PresentFields, "request_throughput")
+	} else {
+		coverage.MissingFields = append(coverage.MissingFields, "request_throughput")
+	}
+	return coverage
 }
 
 func vllmRequiredFields() []string {

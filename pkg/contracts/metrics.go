@@ -71,6 +71,7 @@ type ReliabilityMetrics struct {
 type VLLMMetrics struct {
 	RequestsRunning        MetricWindow         `json:"requests_running,omitempty"`
 	RequestsWaiting        MetricWindow         `json:"requests_waiting,omitempty"`
+	RequestThroughput      MetricWindow         `json:"request_throughput,omitempty"`
 	LatencyE2E             MetricWindow         `json:"latency_e2e,omitempty"`
 	LatencyTTFT            MetricWindow         `json:"latency_ttft,omitempty"`
 	LatencyQueue           MetricWindow         `json:"latency_queue,omitempty"`

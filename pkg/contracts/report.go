@@ -58,16 +58,17 @@ type DiagnosisSection struct {
 }
 
 type BaseDiagnosis struct {
-	ID                         string          `json:"id,omitempty"`
-	WorkloadSummary            WorkloadSummary `json:"workload_summary"`
-	CurrentLimiter             CurrentLimiter  `json:"current_limiter"`
-	RealLoadSummary            RealLoadSummary `json:"real_load_summary"`
-	Situation                  Situation       `json:"situation"`
-	Frontier                   FrontierBundle  `json:"frontier"`
-	Recommendation             *Recommendation `json:"recommendation,omitempty"`
-	Confidence                 string          `json:"confidence,omitempty"`
-	Caveats                    []string        `json:"caveats,omitempty"`
-	NoSafeRecommendationReason string          `json:"no_safe_recommendation_reason,omitempty"`
+	ID                         string            `json:"id,omitempty"`
+	WorkloadSummary            WorkloadSummary   `json:"workload_summary"`
+	CurrentLimiter             CurrentLimiter    `json:"current_limiter"`
+	RealLoadSummary            RealLoadSummary   `json:"real_load_summary"`
+	CapacitySnapshot           *CapacitySnapshot `json:"capacity_snapshot,omitempty"`
+	Situation                  Situation         `json:"situation"`
+	Frontier                   FrontierBundle    `json:"frontier"`
+	Recommendation             *Recommendation   `json:"recommendation,omitempty"`
+	Confidence                 string            `json:"confidence,omitempty"`
+	Caveats                    []string          `json:"caveats,omitempty"`
+	NoSafeRecommendationReason string            `json:"no_safe_recommendation_reason,omitempty"`
 }
 
 type WorkloadSummary struct {
@@ -90,6 +91,29 @@ type RealLoadSummary struct {
 	QueuePressure           string `json:"queue_pressure,omitempty"`
 	HostPipelinePressure    string `json:"host_pipeline_pressure,omitempty"`
 	Summary                 string `json:"summary,omitempty"`
+}
+
+type CapacitySnapshot struct {
+	Pressures       CapacityPressures `json:"pressures,omitempty"`
+	Observed        CapacityRates     `json:"observed,omitempty"`
+	CurrentFrontier CapacityRates     `json:"current_frontier,omitempty"`
+	Confidence      string            `json:"confidence,omitempty"`
+	Summary         string            `json:"summary,omitempty"`
+	Notes           []string          `json:"notes,omitempty"`
+}
+
+type CapacityPressures struct {
+	Compute         string `json:"compute,omitempty"`
+	MemoryBandwidth string `json:"memory_bandwidth,omitempty"`
+	KV              string `json:"kv,omitempty"`
+	Queue           string `json:"queue,omitempty"`
+	Host            string `json:"host,omitempty"`
+}
+
+type CapacityRates struct {
+	PromptTokensPerSecond     *float64 `json:"prompt_tokens_per_second,omitempty"`
+	GenerationTokensPerSecond *float64 `json:"generation_tokens_per_second,omitempty"`
+	RequestThroughput         *float64 `json:"request_throughput,omitempty"`
 }
 
 type Situation struct {

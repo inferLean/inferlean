@@ -79,6 +79,7 @@ func validVLLMMetrics(now time.Time) VLLMMetrics {
 	return VLLMMetrics{
 		RequestsRunning:        window,
 		RequestsWaiting:        window,
+		RequestThroughput:      window,
 		LatencyE2E:             window,
 		LatencyTTFT:            window,
 		LatencyQueue:           window,
