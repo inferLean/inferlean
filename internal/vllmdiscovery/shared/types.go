@@ -15,9 +15,21 @@ type Candidate struct {
 }
 
 type DiscoverOptions struct {
-	PID           int32
-	ContainerName string
-	PodName       string
-	Namespace     string
-	NoInteractive bool
+	PID               int32
+	ContainerName     string
+	PodName           string
+	Namespace         string
+	NoInteractive     bool
+	ExcludeProcesses  bool
+	ExcludeDocker     bool
+	ExcludeKubernetes bool
+	CancelCurrent     <-chan struct{}
+	OnSourceStart     func(source string)
+	OnSourceCancelled func(source string)
 }
+
+const (
+	SourceProcesses  = "processes"
+	SourceDocker     = "docker"
+	SourceKubernetes = "kubernetes"
+)

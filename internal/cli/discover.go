@@ -22,11 +22,14 @@ func newDiscoverCommand() *cobra.Command {
 }
 
 type targetFlags struct {
-	pid           int32
-	containerName string
-	podName       string
-	namespace     string
-	noInteractive bool
+	pid               int32
+	containerName     string
+	podName           string
+	namespace         string
+	noInteractive     bool
+	excludeProcesses  bool
+	excludeDocker     bool
+	excludeKubernetes bool
 }
 
 func bindTargetFlags(cmd *cobra.Command, opts *targetFlags) {
@@ -35,14 +38,20 @@ func bindTargetFlags(cmd *cobra.Command, opts *targetFlags) {
 	cmd.Flags().StringVar(&opts.podName, "pod", "", "target kubernetes pod name")
 	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "kubernetes namespace")
 	cmd.Flags().BoolVar(&opts.noInteractive, "no-interactive", false, "disable interactive chooser and intent prompts")
+	cmd.Flags().BoolVar(&opts.excludeProcesses, "exclude-processes", false, "skip process-based discovery")
+	cmd.Flags().BoolVar(&opts.excludeDocker, "exclude-docker", false, "skip docker-based discovery")
+	cmd.Flags().BoolVar(&opts.excludeKubernetes, "exclude-kubernetes", false, "skip kubernetes-based discovery")
 }
 
 func (f targetFlags) toDiscoverOptions() vllmdiscovery.DiscoverOptions {
 	return vllmdiscovery.DiscoverOptions{
-		PID:           f.pid,
-		ContainerName: f.containerName,
-		PodName:       f.podName,
-		Namespace:     f.namespace,
-		NoInteractive: f.noInteractive,
+		PID:               f.pid,
+		ContainerName:     f.containerName,
+		PodName:           f.podName,
+		Namespace:         f.namespace,
+		NoInteractive:     f.noInteractive,
+		ExcludeProcesses:  f.excludeProcesses,
+		ExcludeDocker:     f.excludeDocker,
+		ExcludeKubernetes: f.excludeKubernetes,
 	}
 }

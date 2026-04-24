@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -118,7 +119,12 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("run artifact: %s\n", result.ArtifactPath)
+	if strings.TrimSpace(result.RunID) != "" {
+		fmt.Printf("run_id: %s\n", result.RunID)
+		if result.Uploaded {
+			fmt.Printf("view again: inferlean upload --run-id %s\n", result.RunID)
+		}
+	}
 	if result.UploadErr != nil {
 		fmt.Printf("run upload warning: %v\n", result.UploadErr)
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -69,6 +70,14 @@ func (c Client) GetReport(ctx context.Context, reportURL string, auth types.Auth
 		return nil, fmt.Errorf("decode report: %w", err)
 	}
 	return report, nil
+}
+
+func (c Client) GetRunReport(ctx context.Context, backendURL string, runID string, auth types.AuthState) (map[string]any, error) {
+	if strings.TrimSpace(runID) == "" {
+		return nil, fmt.Errorf("run id is required")
+	}
+	reportURL := normalizeBaseURL(backendURL) + "/api/v1/runs/" + url.PathEscape(strings.TrimSpace(runID)) + "/report"
+	return c.GetReport(ctx, reportURL, auth)
 }
 
 func attachAuth(req *http.Request, auth types.AuthState) {

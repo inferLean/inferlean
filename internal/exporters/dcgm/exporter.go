@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -41,6 +43,9 @@ func Check(ctx context.Context) Result {
 }
 
 func Start(ctx context.Context) StartResult {
+	if endpoint := detectExistingEndpoint(ctx); endpoint != "" {
+		return StartResult{Available: true, Endpoint: endpoint}
+	}
 	path, err := exec.LookPath("dcgm-exporter")
 	if err != nil {
 		return StartResult{Available: false, Reason: "dcgm-exporter not found"}
@@ -60,6 +65,50 @@ func Start(ctx context.Context) StartResult {
 		}
 	}
 	return StartResult{Available: false, Reason: "dcgm-exporter failed to start"}
+}
+
+func detectExistingEndpoint(ctx context.Context) string {
+	candidates := []string{}
+	if endpoint := strings.TrimSpace(os.Getenv("INFERLEAN_DCGM_EXPORTER_ENDPOINT")); endpoint != "" {
+		candidates = append(candidates, endpoint)
+	}
+	candidates = append(candidates,
+		"http://127.0.0.1:9400/metrics",
+		"http://localhost:9400/metrics",
+	)
+	for _, candidate := range candidates {
+		endpoint := normalizeEndpoint(candidate)
+		if endpoint == "" {
+			continue
+		}
+		if err := waitReady(ctx, endpoint, 1500*time.Millisecond); err == nil {
+			return endpoint
+		}
+	}
+	return ""
+}
+
+func normalizeEndpoint(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	if !strings.Contains(trimmed, "://") {
+		trimmed = "http://" + trimmed
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return ""
+	}
+	if strings.TrimSpace(parsed.Scheme) == "" || strings.TrimSpace(parsed.Host) == "" {
+		return ""
+	}
+	if strings.TrimSpace(parsed.Path) == "" || parsed.Path == "/" {
+		parsed.Path = "/metrics"
+	}
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
 }
 
 func startAttempt(ctx context.Context, path string, args []string, address string) StartResult {

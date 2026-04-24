@@ -6,9 +6,10 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 )
 
@@ -30,24 +31,149 @@ type stepState struct {
 	status int
 }
 
+type beginMsg struct {
+	title string
+}
+
+type stepMsg struct {
+	label string
+}
+
+type doneMsg struct {
+	summary string
+}
+
+type stepperModel struct {
+	component string
+	useColor  bool
+	spin      spinner.Model
+	title     string
+	steps     []stepState
+	summary   string
+}
+
+var (
+	stepperHeaderStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"})
+	stepperActiveStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#875F00", Dark: "#FFD75F"})
+	stepperDoneStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F00", Dark: "#87FF87"})
+)
+
+func newStepperModel(component string, useColor bool) stepperModel {
+	spin := spinner.New(spinner.WithSpinner(spinner.Line))
+	return stepperModel{
+		component: component,
+		useColor:  useColor,
+		spin:      spin,
+	}
+}
+
+func (m stepperModel) Init() tea.Cmd {
+	return m.spin.Tick
+}
+
+func (m stepperModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch typed := msg.(type) {
+	case beginMsg:
+		m.title = typed.title
+		m.steps = nil
+		m.summary = ""
+		return m, nil
+	case stepMsg:
+		m.markActiveDone()
+		m.steps = append(m.steps, stepState{label: typed.label, status: statusActive})
+		return m, nil
+	case doneMsg:
+		m.markActiveDone()
+		m.summary = strings.TrimSpace(typed.summary)
+		return m, tea.Quit
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spin, cmd = m.spin.Update(msg)
+		return m, cmd
+	default:
+		return m, nil
+	}
+}
+
+func (m stepperModel) View() string {
+	lines := make([]string, 0, len(m.steps)+2)
+	if strings.TrimSpace(m.title) != "" {
+		header := "[" + m.component + "]"
+		if m.useColor {
+			header = stepperHeaderStyle.Render(header)
+		}
+		lines = append(lines, fmt.Sprintf("%s %s", header, m.title))
+	}
+	spinFrame := strings.TrimSpace(m.spin.View())
+	if spinFrame == "" {
+		spinFrame = "-"
+	}
+	for _, step := range m.steps {
+		switch step.status {
+		case statusActive:
+			marker := "[" + spinFrame + "]"
+			label := step.label
+			if m.useColor {
+				marker = stepperHeaderStyle.Render(marker)
+				label = stepperActiveStyle.Render(label)
+			}
+			lines = append(lines, fmt.Sprintf("  %s %s", marker, label))
+		case statusDone:
+			marker := "[x]"
+			label := step.label
+			if m.useColor {
+				marker = stepperDoneStyle.Render(marker)
+				label = stepperDoneStyle.Render(label)
+			}
+			lines = append(lines, fmt.Sprintf("  %s %s", marker, label))
+		default:
+			lines = append(lines, fmt.Sprintf("  [ ] %s", step.label))
+		}
+	}
+	if m.summary != "" {
+		marker := "[x]"
+		label := m.summary
+		if m.useColor {
+			marker = stepperDoneStyle.Render(marker)
+			label = stepperDoneStyle.Render(label)
+		}
+		lines = append(lines, fmt.Sprintf("  %s %s", marker, label))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *stepperModel) markActiveDone() {
+	for i := range m.steps {
+		if m.steps[i].status == statusActive {
+			m.steps[i].label = stripTransientHint(m.steps[i].label)
+			m.steps[i].status = statusDone
+		}
+	}
+}
+
+func stripTransientHint(label string) string {
+	trimmed := strings.TrimSpace(label)
+	for _, suffix := range []string{
+		" (press c to cancel current source)",
+		" (press c to cancel)",
+	} {
+		if strings.HasSuffix(trimmed, suffix) {
+			return strings.TrimSpace(strings.TrimSuffix(trimmed, suffix))
+		}
+	}
+	return label
+}
+
 type Stepper struct {
 	component string
 	enabled   bool
 	useColor  bool
 	out       io.Writer
-	frames    []string
-	interval  time.Duration
 
-	mu       sync.Mutex
-	title    string
-	steps    []stepState
-	summary  string
-	frame    int
-	rendered int
-	ticking  bool
-	stopTick chan struct{}
-	tickDone chan struct{}
-	isClosed bool
+	mu      sync.Mutex
+	program *tea.Program
+	doneCh  chan struct{}
+	closed  bool
 }
 
 func New(component string, enabled bool) *Stepper {
@@ -55,17 +181,11 @@ func New(component string, enabled bool) *Stepper {
 }
 
 func newStepper(component string, enabled bool, out io.Writer) *Stepper {
-	ascii := spinner.Spinner{
-		Frames: []string{"-", "\\", "|", "/"},
-		FPS:    120 * time.Millisecond,
-	}
 	return &Stepper{
 		component: component,
 		enabled:   enabled,
 		useColor:  term.IsTerminal(int(os.Stdout.Fd())),
 		out:       out,
-		frames:    ascii.Frames,
-		interval:  ascii.FPS,
 	}
 }
 
@@ -81,16 +201,22 @@ func (s *Stepper) Begin(title string) {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.isClosed {
+	if s.closed {
+		s.mu.Unlock()
 		return
 	}
-	s.title = title
-	s.summary = ""
-	s.steps = nil
-	s.frame = 0
-	s.renderLocked()
-	s.startTickerLocked()
+	if s.program == nil {
+		model := newStepperModel(s.component, s.useColor)
+		s.program = tea.NewProgram(model, tea.WithOutput(s.out), tea.WithInput(nil), tea.WithAltScreen())
+		s.doneCh = make(chan struct{})
+		go func(program *tea.Program, doneCh chan struct{}) {
+			_, _ = program.Run()
+			close(doneCh)
+		}(s.program, s.doneCh)
+	}
+	program := s.program
+	s.mu.Unlock()
+	program.Send(beginMsg{title: title})
 }
 
 func (s *Stepper) Step(label string) {
@@ -101,13 +227,13 @@ func (s *Stepper) Step(label string) {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.isClosed {
+	program := s.program
+	closed := s.closed
+	s.mu.Unlock()
+	if closed || program == nil {
 		return
 	}
-	s.markActiveDoneLocked()
-	s.steps = append(s.steps, stepState{label: label, status: statusActive})
-	s.renderLocked()
+	program.Send(stepMsg{label: label})
 }
 
 func (s *Stepper) Done(summary string) {
@@ -120,116 +246,21 @@ func (s *Stepper) Done(summary string) {
 		return
 	}
 	s.mu.Lock()
-	if s.isClosed {
+	program := s.program
+	doneCh := s.doneCh
+	if s.closed || program == nil {
 		s.mu.Unlock()
 		return
 	}
-	s.markActiveDoneLocked()
-	s.summary = strings.TrimSpace(summary)
-	s.renderLocked()
-	s.stopTickerLocked()
-	s.isClosed = true
+	s.closed = true
 	s.mu.Unlock()
-}
-
-func (s *Stepper) markActiveDoneLocked() {
-	for i := range s.steps {
-		if s.steps[i].status == statusActive {
-			s.steps[i].status = statusDone
-		}
+	program.Send(doneMsg{summary: summary})
+	<-doneCh
+	if strings.TrimSpace(summary) != "" {
+		header := colorize(s.useColor, ansiGreen, fmt.Sprintf("[%s]", s.component))
+		message := colorize(s.useColor, ansiGreen, summary)
+		fmt.Fprintf(s.out, "%s %s\n", header, message)
 	}
-}
-
-func (s *Stepper) startTickerLocked() {
-	if s.ticking {
-		return
-	}
-	s.stopTick = make(chan struct{})
-	s.tickDone = make(chan struct{})
-	s.ticking = true
-	interval := s.interval
-	if interval <= 0 {
-		interval = 120 * time.Millisecond
-	}
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		defer close(s.tickDone)
-		for {
-			select {
-			case <-ticker.C:
-				s.tick()
-			case <-s.stopTick:
-				return
-			}
-		}
-	}()
-}
-
-func (s *Stepper) stopTickerLocked() {
-	if !s.ticking {
-		return
-	}
-	close(s.stopTick)
-	done := s.tickDone
-	s.ticking = false
-	s.stopTick = nil
-	s.tickDone = nil
-	s.mu.Unlock()
-	<-done
-	s.mu.Lock()
-}
-
-func (s *Stepper) tick() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.isClosed || !s.ticking {
-		return
-	}
-	if len(s.frames) > 0 {
-		s.frame = (s.frame + 1) % len(s.frames)
-	}
-	s.renderLocked()
-}
-
-func (s *Stepper) renderLocked() {
-	s.clearLocked()
-	lines := s.linesLocked()
-	for _, line := range lines {
-		fmt.Fprintln(s.out, line)
-	}
-	s.rendered = len(lines)
-}
-
-func (s *Stepper) linesLocked() []string {
-	lines := make([]string, 0, len(s.steps)+2)
-	if strings.TrimSpace(s.title) != "" {
-		lines = append(lines, fmt.Sprintf("[%s] %s", s.component, s.title))
-	}
-	frame := "-"
-	if len(s.frames) > 0 {
-		frame = s.frames[s.frame%len(s.frames)]
-	}
-	for _, step := range s.steps {
-		switch step.status {
-		case statusActive:
-			marker := colorize(s.useColor, ansiCyan, "["+frame+"]")
-			label := colorize(s.useColor, ansiYellow, step.label)
-			lines = append(lines, fmt.Sprintf("  %s %s", marker, label))
-		case statusDone:
-			marker := colorize(s.useColor, ansiGreen, "[x]")
-			label := colorize(s.useColor, ansiGreen, step.label)
-			lines = append(lines, fmt.Sprintf("  %s %s", marker, label))
-		default:
-			lines = append(lines, fmt.Sprintf("  [ ] %s", step.label))
-		}
-	}
-	if s.summary != "" {
-		marker := colorize(s.useColor, ansiGreen, "[x]")
-		label := colorize(s.useColor, ansiGreen, s.summary)
-		lines = append(lines, fmt.Sprintf("  %s %s", marker, label))
-	}
-	return lines
 }
 
 func colorize(enabled bool, colorCode, text string) string {
@@ -237,13 +268,4 @@ func colorize(enabled bool, colorCode, text string) string {
 		return text
 	}
 	return colorCode + text + ansiReset
-}
-
-func (s *Stepper) clearLocked() {
-	if s.rendered == 0 {
-		return
-	}
-	for i := 0; i < s.rendered; i++ {
-		fmt.Fprint(s.out, "\x1b[1A\r\x1b[2K")
-	}
 }

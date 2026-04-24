@@ -63,6 +63,7 @@ func NewPresenter(collectView collectionui.View, intentView intentui.View, cfgSt
 }
 
 func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
+	p.collectView.SetNoInteractive(opts.NoInteractive)
 	if err := validateDurations(opts.CollectFor, opts.ScrapeEvery); err != nil {
 		return Result{}, err
 	}
@@ -110,7 +111,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	if err := p.runStore.SaveArtifact(paths.ArtifactPath, artifact); err != nil {
 		return Result{}, err
 	}
-	p.collectView.ShowDone(paths.ArtifactPath)
+	p.collectView.ShowDone(runID)
 	return Result{Artifact: artifact, ArtifactPath: paths.ArtifactPath, RunDir: paths.RunDir}, nil
 }
 
