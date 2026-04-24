@@ -11,11 +11,10 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
+	"github.com/inferLean/inferlean-main/cli/internal/browser"
 	"github.com/inferLean/inferlean-main/cli/internal/types"
 )
 
@@ -252,16 +251,7 @@ func codeChallenge(verifier string) string {
 }
 
 func openBrowser(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	return cmd.Start()
+	return browser.Open(url)
 }
 
 func firstNonEmpty(values ...string) string {

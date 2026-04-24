@@ -2,6 +2,7 @@ package collection
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/inferLean/inferlean-main/cli/internal/ui/progress"
 )
@@ -33,6 +34,14 @@ func (v *View) ShowStep(message string) {
 	v.getStepper().Step(message)
 }
 
+func (v *View) ShowMetricsCollectionStart(remaining time.Duration) {
+	v.getStepper().Step(renderMetricsCollectionCountdown(remaining))
+}
+
+func (v *View) ShowMetricsCollectionCountdown(remaining time.Duration) {
+	v.getStepper().UpdateActive(renderMetricsCollectionCountdown(remaining))
+}
+
 func (v *View) ShowDone(runID string) {
 	v.getStepper().Done(fmt.Sprintf("artifact captured (run_id=%s)", runID))
 }
@@ -46,4 +55,15 @@ func (v *View) getStepper() *progress.Stepper {
 
 func stepperEnabled(noInteractive bool) bool {
 	return progress.InteractiveTTY() && !noInteractive
+}
+
+func renderMetricsCollectionCountdown(remaining time.Duration) string {
+	seconds := int(remaining.Round(time.Second) / time.Second)
+	if remaining > 0 && remaining < time.Second {
+		seconds = 1
+	}
+	if seconds < 0 {
+		seconds = 0
+	}
+	return fmt.Sprintf("collecting metrics through prometheus scrape manager (%ds remaining)", seconds)
 }

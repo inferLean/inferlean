@@ -1,3 +1,6 @@
 package defaults
 
-const BackendURL = "https://app.inferlean.com"
+const (
+	AppBaseURL = "https://app.inferlean.com"
+	BackendURL = AppBaseURL
+)

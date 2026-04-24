@@ -62,6 +62,7 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&opts.debug, "debug", false, "show debug output")
 	cmd.PersistentFlags().StringVar(&opts.debugFile, "debug-file", "", "write debug output to a file")
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		maybePrintHeader(cmd)
 		application, err := newApp(opts)
 		if err != nil {
 			return err

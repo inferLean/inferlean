@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/inferLean/inferlean-main/cli/internal/defaults"
+	reportpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/report"
 	uploadpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/upload"
 )
 
@@ -14,6 +15,7 @@ func newUploadCommand() *cobra.Command {
 	backendURL := defaults.BackendURL
 	var requireReport bool
 	var runID string
+	var noInteractive bool
 	cmd := &cobra.Command{
 		Use:   "upload [artifact-path]",
 		Short: "Upload an artifact or load a report by run id",
@@ -45,10 +47,20 @@ func newUploadCommand() *cobra.Command {
 				return err
 			}
 			if len(result.Report) > 0 {
-				application.report.Run(result.Report)
+				application.report.Run(reportpresenter.Options{
+					Payload:        result.Report,
+					RunID:          result.RunID,
+					InstallationID: result.InstallationID,
+					NoInteractive:  noInteractive,
+				})
 			}
 			if strings.TrimSpace(result.RunID) != "" {
 				fmt.Printf("run_id: %s\n", result.RunID)
+				if shouldEmitBrowserURL(noInteractive) {
+					if url, ok := browserReportURL(result.InstallationID, result.RunID); ok {
+						fmt.Printf("browser_url: %s\n", url)
+					}
+				}
 				fmt.Printf("view again: inferlean upload --run-id %s\n", result.RunID)
 			}
 			return nil
@@ -57,5 +69,6 @@ func newUploadCommand() *cobra.Command {
 	cmd.Flags().StringVar(&backendURL, "backend-url", defaults.BackendURL, "backend base URL")
 	cmd.Flags().BoolVar(&requireReport, "require-report", false, "require report retrieval after upload")
 	cmd.Flags().StringVar(&runID, "run-id", "", "load and render report for an existing run id")
+	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "disable interactive report prompts and viewer")
 	return cmd
 }

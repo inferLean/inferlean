@@ -124,9 +124,11 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	p.collectView.ShowStart(opts.CollectFor.Seconds())
 	p.collectView.ShowStep("starting exporters and local bridges")
 	sources := startSources(ctx)
-	p.collectView.ShowStep("collecting metrics through prometheus scrape manager")
+	p.collectView.ShowMetricsCollectionStart(opts.CollectFor)
 	targets := buildPromTargets(opts, sources)
+	stopCountdown := p.startCollectionCountdown(ctx, opts.CollectFor)
 	promRes := promcollector.NewCollector().CollectTargets(ctx, targets, opts.CollectFor, opts.ScrapeEvery)
+	close(stopCountdown)
 	savePrometheusObservations(p, paths, promRes)
 	p.collectView.ShowStep("collecting nvidia-smi process output")
 	staticSMI := readStaticNvidiaSMI(ctx)
@@ -141,6 +143,31 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 		promResult: promRes,
 		staticSMI:  staticSMI,
 	}, nil
+}
+
+func (p Presenter) startCollectionCountdown(ctx context.Context, collectFor time.Duration) chan struct{} {
+	stop := make(chan struct{})
+	go func() {
+		started := time.Now()
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-stop:
+				return
+			case <-ticker.C:
+				elapsed := time.Since(started)
+				remaining := collectFor - elapsed
+				if remaining <= 0 {
+					return
+				}
+				p.collectView.ShowMetricsCollectionCountdown(remaining)
+			}
+		}
+	}()
+	return stop
 }
 
 func (p Presenter) resolveIntent(opts Options) (types.UserIntent, error) {

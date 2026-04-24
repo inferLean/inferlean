@@ -24,10 +24,11 @@ type Options struct {
 }
 
 type Result struct {
-	Ack      types.UploadAck
-	Report   map[string]any
-	RunID    string
-	Uploaded bool
+	Ack            types.UploadAck
+	Report         map[string]any
+	RunID          string
+	InstallationID string
+	Uploaded       bool
 }
 
 type Presenter struct {
@@ -65,8 +66,9 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		}
 		p.uploadView.ShowReportFetchSuccess(opts.RunID)
 		return Result{
-			Report: report,
-			RunID:  opts.RunID,
+			Report:         report,
+			RunID:          opts.RunID,
+			InstallationID: installationIDFromReport(report),
 		}, nil
 	}
 	artifact, err := readArtifact(opts.ArtifactPath)
@@ -80,7 +82,12 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 	p.uploadView.ShowUploadSuccess()
-	result := Result{Ack: ack, RunID: ack.RunID, Uploaded: true}
+	result := Result{
+		Ack:            ack,
+		RunID:          ack.RunID,
+		InstallationID: ack.InstallationID,
+		Uploaded:       true,
+	}
 	if ack.ReportURL == "" {
 		if opts.RequireReport {
 			return Result{}, fmt.Errorf("upload succeeded but report_url was empty")
@@ -120,4 +127,13 @@ func readArtifact(path string) (contracts.RunArtifact, error) {
 
 func artifactRunDir(path string) string {
 	return filepath.Dir(path)
+}
+
+func installationIDFromReport(report map[string]any) string {
+	job, ok := report["job"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	installationID, _ := job["installation_id"].(string)
+	return installationID
 }
