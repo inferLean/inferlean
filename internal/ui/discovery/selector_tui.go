@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/inferLean/inferlean-main/cli/internal/ui/chrome"
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 	"golang.org/x/term"
 )
@@ -90,7 +91,11 @@ func (m selectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m selectorModel) View() string {
-	return m.list.View()
+	return strings.Join([]string{
+		chrome.Render(chrome.UseColor()),
+		"",
+		m.list.View(),
+	}, "\n")
 }
 
 func (m *selectorModel) resize(window tea.WindowSizeMsg) {

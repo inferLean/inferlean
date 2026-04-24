@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/inferLean/inferlean-main/cli/internal/ui/chrome"
 )
 
 const (
@@ -123,6 +124,8 @@ func (m viewerModel) View() string {
 	status := viewerStyle(viewerDim+viewerCyan, fmt.Sprintf("Scroll %.0f%%", m.viewport.ScrollPercent()*100))
 	summary := viewerStyle(viewerBold+viewerCyan, m.summary)
 	return strings.Join([]string{
+		chrome.Render(chrome.UseColor()),
+		"",
 		header,
 		summary,
 		status,

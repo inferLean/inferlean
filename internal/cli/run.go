@@ -121,6 +121,11 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 	}
 	if strings.TrimSpace(result.RunID) != "" {
 		fmt.Printf("run_id: %s\n", result.RunID)
+		if shouldEmitBrowserURL(opts.target.noInteractive) {
+			if url, ok := browserReportURL(result.InstallationID, result.RunID); ok {
+				fmt.Printf("browser_url: %s\n", url)
+			}
+		}
 		if result.Uploaded {
 			fmt.Printf("view again: inferlean upload --run-id %s\n", result.RunID)
 		}

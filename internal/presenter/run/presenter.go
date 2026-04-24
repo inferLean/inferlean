@@ -30,10 +30,11 @@ type Options struct {
 }
 
 type Result struct {
-	ArtifactPath string
-	RunID        string
-	Uploaded     bool
-	UploadErr    error
+	ArtifactPath   string
+	RunID          string
+	InstallationID string
+	Uploaded       bool
+	UploadErr      error
 }
 
 type Presenter struct {
@@ -98,8 +99,16 @@ func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result
 	if uploadRes.RunID != "" {
 		result.RunID = uploadRes.RunID
 	}
+	if uploadRes.InstallationID != "" {
+		result.InstallationID = uploadRes.InstallationID
+	}
 	if len(uploadRes.Report) > 0 {
-		p.report.Run(uploadRes.Report)
+		p.report.Run(reportpresenter.Options{
+			Payload:        uploadRes.Report,
+			RunID:          result.RunID,
+			InstallationID: result.InstallationID,
+			NoInteractive:  opts.NoInteractive,
+		})
 	}
 	return result, nil
 }

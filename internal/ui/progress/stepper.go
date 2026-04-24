@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/inferLean/inferlean-main/cli/internal/ui/chrome"
 	"golang.org/x/term"
 )
 
@@ -36,6 +37,10 @@ type beginMsg struct {
 }
 
 type stepMsg struct {
+	label string
+}
+
+type updateActiveMsg struct {
 	label string
 }
 
@@ -82,6 +87,13 @@ func (m stepperModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.markActiveDone()
 		m.steps = append(m.steps, stepState{label: typed.label, status: statusActive})
 		return m, nil
+	case updateActiveMsg:
+		if idx := m.activeStepIndex(); idx >= 0 {
+			m.steps[idx].label = typed.label
+			return m, nil
+		}
+		m.steps = append(m.steps, stepState{label: typed.label, status: statusActive})
+		return m, nil
 	case doneMsg:
 		m.markActiveDone()
 		m.summary = strings.TrimSpace(typed.summary)
@@ -96,7 +108,8 @@ func (m stepperModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m stepperModel) View() string {
-	lines := make([]string, 0, len(m.steps)+2)
+	lines := make([]string, 0, len(m.steps)+4)
+	lines = append(lines, chrome.Render(chrome.UseColor()), "")
 	if strings.TrimSpace(m.title) != "" {
 		header := "[" + m.component + "]"
 		if m.useColor {
@@ -149,6 +162,15 @@ func (m *stepperModel) markActiveDone() {
 			m.steps[i].status = statusDone
 		}
 	}
+}
+
+func (m *stepperModel) activeStepIndex() int {
+	for i := len(m.steps) - 1; i >= 0; i-- {
+		if m.steps[i].status == statusActive {
+			return i
+		}
+	}
+	return -1
 }
 
 func stripTransientHint(label string) string {
@@ -234,6 +256,20 @@ func (s *Stepper) Step(label string) {
 		return
 	}
 	program.Send(stepMsg{label: label})
+}
+
+func (s *Stepper) UpdateActive(label string) {
+	if !s.enabled {
+		return
+	}
+	s.mu.Lock()
+	program := s.program
+	closed := s.closed
+	s.mu.Unlock()
+	if closed || program == nil {
+		return
+	}
+	program.Send(updateActiveMsg{label: label})
 }
 
 func (s *Stepper) Done(summary string) {

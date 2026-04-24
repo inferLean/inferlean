@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inferLean/inferlean-main/cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/internal/ui/chrome"
 )
 
 const (
@@ -179,6 +180,8 @@ func (m questionnaireModel) View() string {
 	description := selectedDescription(m.list.SelectedItem())
 	helpView := m.help.View(m.keys)
 	lines := []string{
+		chrome.Render(chrome.UseColor()),
+		"",
 		header,
 		"Please answer the following questions:",
 	}
