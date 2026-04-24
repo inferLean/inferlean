@@ -60,7 +60,7 @@ type questionnaireModel struct {
 
 func resolveWithTUI(seed types.UserIntent, questions []question) (types.UserIntent, error) {
 	model := newQuestionnaireModel(questions)
-	output, err := tea.NewProgram(model).Run()
+	output, err := tea.NewProgram(model, tea.WithAltScreen()).Run()
 	if err != nil {
 		return seed, fmt.Errorf("run intent questionnaire: %w", err)
 	}

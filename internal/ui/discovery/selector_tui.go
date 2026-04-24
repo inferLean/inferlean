@@ -110,7 +110,7 @@ func (m *selectorModel) resize(window tea.WindowSizeMsg) {
 
 func selectCandidateTUI(candidates []vllmdiscovery.Candidate) (vllmdiscovery.Candidate, error) {
 	model := newSelectorModel(candidates)
-	output, err := tea.NewProgram(model).Run()
+	output, err := tea.NewProgram(model, tea.WithAltScreen()).Run()
 	if err != nil {
 		return vllmdiscovery.Candidate{}, fmt.Errorf("run discovery selector: %w", err)
 	}

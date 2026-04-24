@@ -7,13 +7,22 @@ import (
 )
 
 type View struct {
-	steps *progress.Stepper
+	steps         *progress.Stepper
+	noInteractive bool
 }
 
 func NewView() View {
 	return View{
-		steps: progress.New("collect", progress.InteractiveTTY()),
+		steps: progress.New("collect", stepperEnabled(false)),
 	}
+}
+
+func (v *View) SetNoInteractive(noInteractive bool) {
+	if v.noInteractive == noInteractive && v.steps != nil {
+		return
+	}
+	v.noInteractive = noInteractive
+	v.steps = progress.New("collect", stepperEnabled(noInteractive))
 }
 
 func (v *View) ShowStart(seconds float64) {
@@ -24,13 +33,17 @@ func (v *View) ShowStep(message string) {
 	v.getStepper().Step(message)
 }
 
-func (v *View) ShowDone(path string) {
-	v.getStepper().Done(fmt.Sprintf("artifact written: %s", path))
+func (v *View) ShowDone(runID string) {
+	v.getStepper().Done(fmt.Sprintf("artifact captured (run_id=%s)", runID))
 }
 
 func (v *View) getStepper() *progress.Stepper {
 	if v.steps == nil {
-		v.steps = progress.New("collect", progress.InteractiveTTY())
+		v.steps = progress.New("collect", stepperEnabled(v.noInteractive))
 	}
 	return v.steps
+}
+
+func stepperEnabled(noInteractive bool) bool {
+	return progress.InteractiveTTY() && !noInteractive
 }

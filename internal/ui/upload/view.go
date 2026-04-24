@@ -8,12 +8,20 @@ func NewView() View {
 	return View{}
 }
 
-func (View) ShowStart() {
+func (View) ShowUploadStart() {
 	fmt.Println("[upload] uploading artifact...")
 }
 
-func (View) ShowSuccess(reportURL string) {
-	fmt.Printf("[upload] upload accepted, report_url=%s\n", reportURL)
+func (View) ShowUploadSuccess() {
+	fmt.Println("[upload] upload accepted")
+}
+
+func (View) ShowReportFetchStart(runID string) {
+	fmt.Printf("[upload] loading report for run_id=%s\n", runID)
+}
+
+func (View) ShowReportFetchSuccess(runID string) {
+	fmt.Printf("[upload] report loaded for run_id=%s\n", runID)
 }
 
 func (View) ShowFailure(err error) {

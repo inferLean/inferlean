@@ -8,19 +8,43 @@ import (
 )
 
 type View struct {
-	steps *progress.Stepper
+	steps         *progress.Stepper
+	noInteractive bool
 }
 
 func NewView() View {
 	return View{
-		steps: progress.New("discovery", progress.InteractiveTTY()),
+		steps: progress.New("discovery", stepperEnabled(false)),
 	}
+}
+
+func (v *View) SetNoInteractive(noInteractive bool) {
+	if v.noInteractive == noInteractive && v.steps != nil {
+		return
+	}
+	v.noInteractive = noInteractive
+	v.steps = progress.New("discovery", stepperEnabled(noInteractive))
 }
 
 func (v *View) ShowStart() {
 	stepper := v.getStepper()
-	stepper.Begin("scanning for running vLLM targets")
-	stepper.Step("inspecting processes, containers, and pods")
+	stepper.Begin(startMessage())
+}
+
+func startMessage() string {
+	return "scanning for running vLLM targets"
+}
+
+func (v *View) ShowSourceStart(source string) {
+	label := "checking " + sourceLabel(source)
+	if stepperEnabled(v.noInteractive) {
+		label += " (press c to cancel current source)"
+	}
+	v.getStepper().Step(label)
+}
+
+func (v *View) ShowSourceCancelled(source string) {
+	v.getStepper().Step("cancelled " + sourceLabel(source) + "; continuing")
 }
 
 func (v *View) ShowCandidates(items []vllmdiscovery.Candidate) {
@@ -43,7 +67,20 @@ func (v *View) ShowSelected(item vllmdiscovery.Candidate) {
 
 func (v *View) getStepper() *progress.Stepper {
 	if v.steps == nil {
-		v.steps = progress.New("discovery", progress.InteractiveTTY())
+		v.steps = progress.New("discovery", stepperEnabled(v.noInteractive))
 	}
 	return v.steps
+}
+
+func stepperEnabled(noInteractive bool) bool {
+	return progress.InteractiveTTY() && !noInteractive
+}
+
+func sourceLabel(source string) string {
+	switch source {
+	case "docker":
+		return "docker containers"
+	default:
+		return source
+	}
 }

@@ -19,12 +19,14 @@ import (
 type Options struct {
 	BackendURL    string
 	ArtifactPath  string
+	RunID         string
 	RequireReport bool
 }
 
 type Result struct {
 	Ack      types.UploadAck
 	Report   map[string]any
+	RunID    string
 	Uploaded bool
 }
 
@@ -40,10 +42,6 @@ func NewPresenter(cfgStore *configstore.Store, view uploadui.View) Presenter {
 }
 
 func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
-	artifact, err := readArtifact(opts.ArtifactPath)
-	if err != nil {
-		return Result{}, err
-	}
 	cfg, err := p.cfgStore.Load()
 	if err != nil {
 		return Result{}, err
@@ -58,14 +56,31 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	if backend == "" {
 		return Result{}, fmt.Errorf("backend URL is required")
 	}
-	p.uploadView.ShowStart()
+	if opts.RunID != "" {
+		p.uploadView.ShowReportFetchStart(opts.RunID)
+		report, err := p.apiClient.GetRunReport(ctx, backend, opts.RunID, cfg.Auth)
+		if err != nil {
+			p.uploadView.ShowFailure(err)
+			return Result{}, err
+		}
+		p.uploadView.ShowReportFetchSuccess(opts.RunID)
+		return Result{
+			Report: report,
+			RunID:  opts.RunID,
+		}, nil
+	}
+	artifact, err := readArtifact(opts.ArtifactPath)
+	if err != nil {
+		return Result{}, err
+	}
+	p.uploadView.ShowUploadStart()
 	ack, err := p.apiClient.UploadArtifact(ctx, backend, artifact, cfg.Auth)
 	if err != nil {
 		p.uploadView.ShowFailure(err)
 		return Result{}, err
 	}
-	p.uploadView.ShowSuccess(ack.ReportURL)
-	result := Result{Ack: ack, Uploaded: true}
+	p.uploadView.ShowUploadSuccess()
+	result := Result{Ack: ack, RunID: ack.RunID, Uploaded: true}
 	if ack.ReportURL == "" {
 		if opts.RequireReport {
 			return Result{}, fmt.Errorf("upload succeeded but report_url was empty")
@@ -83,10 +98,6 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	runDir := artifactRunDir(opts.ArtifactPath)
 	reportPath := filepath.Join(runDir, "report.json")
 	if err := p.runStore.SaveReport(reportPath, report); err != nil {
-		return Result{}, err
-	}
-	finalReportPath := filepath.Join(runDir, "final-report.json")
-	if err := p.runStore.SaveReport(finalReportPath, report); err != nil {
 		return Result{}, err
 	}
 	return result, nil

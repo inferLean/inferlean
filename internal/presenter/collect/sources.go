@@ -2,6 +2,7 @@ package collect
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/inferLean/inferlean-main/cli/internal/collectors/nvml"
@@ -45,6 +46,18 @@ func savePrometheusObservations(p Presenter, paths runstore.Paths, promRes promc
 	}
 	if raw, ok := promRes.RawByTarget["vllm"]; ok && strings.TrimSpace(raw) != "" {
 		_, _ = p.obsStore.SaveRaw(paths.Observations, "vllm.metrics", []byte(raw))
+	}
+	if raw, ok := promRes.RawByTarget["node_exporter"]; ok && strings.TrimSpace(raw) != "" {
+		_, _ = p.obsStore.SaveRaw(paths.Observations, "node_exporter.metrics", []byte(raw))
+	}
+	if raw, ok := promRes.RawByTarget["dcgm_exporter"]; ok && strings.TrimSpace(raw) != "" {
+		_, _ = p.obsStore.SaveRaw(paths.Observations, "dcgm_exporter.metrics", []byte(raw))
+	}
+	if len(promRes.Samples) > 0 {
+		if payload, err := json.MarshalIndent(promRes.Samples, "", "  "); err == nil {
+			payload = append(payload, '\n')
+			_, _ = p.obsStore.SaveRaw(paths.Observations, "prometheus.samples.json", payload)
+		}
 	}
 }
 

@@ -31,6 +31,7 @@ type Options struct {
 
 type Result struct {
 	ArtifactPath string
+	RunID        string
 	Uploaded     bool
 	UploadErr    error
 }
@@ -72,7 +73,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	result := Result{ArtifactPath: collectRes.ArtifactPath}
+	result := Result{ArtifactPath: collectRes.ArtifactPath, RunID: collectRes.Artifact.Job.RunID}
 	if opts.BackendURL == "" {
 		opts.BackendURL = defaults.BackendURL
 	}
@@ -94,6 +95,9 @@ func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result
 		return result, nil
 	}
 	result.Uploaded = uploadRes.Uploaded
+	if uploadRes.RunID != "" {
+		result.RunID = uploadRes.RunID
+	}
 	if len(uploadRes.Report) > 0 {
 		p.report.Run(uploadRes.Report)
 	}

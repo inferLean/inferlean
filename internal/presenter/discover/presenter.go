@@ -17,8 +17,23 @@ func NewPresenter(service vllmdiscovery.Service, view discovery.View) Presenter 
 }
 
 func (p Presenter) Run(ctx context.Context, opts vllmdiscovery.DiscoverOptions) (vllmdiscovery.Candidate, []vllmdiscovery.Candidate, error) {
+	p.view.SetNoInteractive(opts.NoInteractive)
 	p.view.ShowStart()
+	cancelCurrent, stopListening := startCancelCurrentListener(opts.NoInteractive)
+	stopped := false
+	stop := func() {
+		if stopped {
+			return
+		}
+		stopped = true
+		stopListening()
+	}
+	defer stop()
+	opts.CancelCurrent = cancelCurrent
+	opts.OnSourceStart = p.view.ShowSourceStart
+	opts.OnSourceCancelled = p.view.ShowSourceCancelled
 	candidates, err := p.service.Discover(ctx, opts)
+	stop()
 	if err != nil {
 		return vllmdiscovery.Candidate{}, nil, err
 	}
