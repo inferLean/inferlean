@@ -54,6 +54,9 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 		Short:         "The optimization copilot for self-hosted LLM inference",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runWithDefaultOptions(cmd)
+		},
 	}
 	cmd.SetContext(ctx)
 	cmd.PersistentFlags().BoolVar(&opts.debug, "debug", false, "show debug output")
