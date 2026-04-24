@@ -11,6 +11,11 @@ import (
 	"github.com/inferLean/inferlean-main/cli/internal/types"
 )
 
+const (
+	defaultQuestionListWidth  = 48
+	defaultQuestionListHeight = 9
+)
+
 type optionItem struct {
 	option questionOption
 }
@@ -84,7 +89,7 @@ func newQuestionnaireModel(questions []question) questionnaireModel {
 		choose: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
 		quit:   key.NewBinding(key.WithKeys("q", "esc", "ctrl+c"), key.WithHelp("q", "cancel")),
 	}
-	l := buildQuestionList(questions[0], 48, 9)
+	l := buildQuestionList(questions[0], defaultQuestionListWidth, defaultQuestionListHeight)
 	return questionnaireModel{
 		questions: questions,
 		index:     0,
@@ -103,6 +108,7 @@ func buildQuestionList(q question, width, height int) list.Model {
 	}
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
+	delegate.SetHeight(1)
 	delegate.SetSpacing(0)
 	l := list.New(items, delegate, width, height)
 	l.Title = q.prompt
@@ -163,7 +169,8 @@ func (m questionnaireModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	m.index++
-	m.list = buildQuestionList(m.questions[m.index], m.width, 8)
+	nextHeight := max(defaultQuestionListHeight, m.list.Height())
+	m.list = buildQuestionList(m.questions[m.index], m.width, nextHeight)
 	return m, nil
 }
 
