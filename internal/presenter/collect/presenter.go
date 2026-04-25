@@ -18,6 +18,7 @@ import (
 	"github.com/inferLean/inferlean-main/cli/internal/types"
 	collectionui "github.com/inferLean/inferlean-main/cli/internal/ui/collection"
 	intentui "github.com/inferLean/inferlean-main/cli/internal/ui/intent"
+	"github.com/inferLean/inferlean-main/cli/internal/ui/progress"
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
@@ -50,6 +51,24 @@ type Presenter struct {
 	pioStore    processio.Store
 	cfgStore    *configstore.Store
 }
+
+const (
+	collectionAdjustShortStep     = 15 * time.Second
+	collectionAdjustLongStep      = time.Minute
+	minInteractiveCollectDuration = time.Second
+	maxInteractiveCollectDuration = 24 * time.Hour
+)
+
+type collectionDurationAction int
+
+const (
+	collectionActionUnknown collectionDurationAction = iota
+	collectionActionIncreaseMinute
+	collectionActionDecreaseMinute
+	collectionActionIncreaseSeconds
+	collectionActionDecreaseSeconds
+	collectionActionStopAndAnalyze
+)
 
 func NewPresenter(collectView collectionui.View, intentView intentui.View, cfgStore *configstore.Store) Presenter {
 	return Presenter{
@@ -121,13 +140,32 @@ type evidence struct {
 }
 
 func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runstore.Paths) (evidence, error) {
+	interactive := interactiveCollectionEnabled(opts.NoInteractive)
+	collectCtx, cancelCollect := context.WithCancel(ctx)
+	defer cancelCollect()
+
 	p.collectView.ShowStart(opts.CollectFor.Seconds())
 	p.collectView.ShowStep("starting exporters and local bridges")
 	sources := startSources(ctx)
 	p.collectView.ShowMetricsCollectionStart(opts.CollectFor)
+
+	actions, stopListening := startCollectionDurationListener(interactive)
+	defer stopListening()
+
 	targets := buildPromTargets(opts, sources)
-	stopCountdown := p.startCollectionCountdown(ctx, opts.CollectFor)
-	promRes := promcollector.NewCollector().CollectTargets(ctx, targets, opts.CollectFor, opts.ScrapeEvery)
+	stopCountdown := p.startCollectionCountdown(
+		collectCtx,
+		opts.CollectFor,
+		collectorDurationWindow(opts.CollectFor, interactive),
+		actions,
+		cancelCollect,
+	)
+	promRes := promcollector.NewCollector().CollectTargets(
+		collectCtx,
+		targets,
+		collectorDurationWindow(opts.CollectFor, interactive),
+		opts.ScrapeEvery,
+	)
 	close(stopCountdown)
 	savePrometheusObservations(p, paths, promRes)
 	p.collectView.ShowStep("collecting nvidia-smi process output")
@@ -145,10 +183,17 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	}, nil
 }
 
-func (p Presenter) startCollectionCountdown(ctx context.Context, collectFor time.Duration) chan struct{} {
+func (p Presenter) startCollectionCountdown(
+	ctx context.Context,
+	collectFor time.Duration,
+	maxDuration time.Duration,
+	actions <-chan collectionDurationAction,
+	cancelCollect context.CancelFunc,
+) chan struct{} {
 	stop := make(chan struct{})
 	go func() {
 		started := time.Now()
+		deadline := started.Add(collectFor)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
@@ -157,10 +202,27 @@ func (p Presenter) startCollectionCountdown(ctx context.Context, collectFor time
 				return
 			case <-stop:
 				return
-			case <-ticker.C:
-				elapsed := time.Since(started)
-				remaining := collectFor - elapsed
+			case action := <-actions:
+				nextDeadline, stopNow, changed := applyCollectionDurationAction(deadline, started, time.Now(), action, maxDuration)
+				if stopNow {
+					p.collectView.ShowMetricsCollectionStopped()
+					cancelCollect()
+					return
+				}
+				if !changed {
+					continue
+				}
+				deadline = nextDeadline
+				remaining := time.Until(deadline)
 				if remaining <= 0 {
+					cancelCollect()
+					return
+				}
+				p.collectView.ShowMetricsCollectionCountdown(remaining)
+			case <-ticker.C:
+				remaining := time.Until(deadline)
+				if remaining <= 0 {
+					cancelCollect()
 					return
 				}
 				p.collectView.ShowMetricsCollectionCountdown(remaining)
@@ -168,6 +230,54 @@ func (p Presenter) startCollectionCountdown(ctx context.Context, collectFor time
 		}
 	}()
 	return stop
+}
+
+func interactiveCollectionEnabled(noInteractive bool) bool {
+	return progress.InteractiveTTY() && !noInteractive
+}
+
+func collectorDurationWindow(collectFor time.Duration, interactive bool) time.Duration {
+	if !interactive {
+		return collectFor
+	}
+	if collectFor > maxInteractiveCollectDuration {
+		return collectFor
+	}
+	return maxInteractiveCollectDuration
+}
+
+func applyCollectionDurationAction(
+	deadline, started, now time.Time,
+	action collectionDurationAction,
+	maxDuration time.Duration,
+) (time.Time, bool, bool) {
+	nextDeadline := deadline
+	switch action {
+	case collectionActionIncreaseMinute:
+		nextDeadline = nextDeadline.Add(collectionAdjustLongStep)
+	case collectionActionDecreaseMinute:
+		nextDeadline = nextDeadline.Add(-collectionAdjustLongStep)
+	case collectionActionIncreaseSeconds:
+		nextDeadline = nextDeadline.Add(collectionAdjustShortStep)
+	case collectionActionDecreaseSeconds:
+		nextDeadline = nextDeadline.Add(-collectionAdjustShortStep)
+	case collectionActionStopAndAnalyze:
+		return deadline, true, false
+	default:
+		return deadline, false, false
+	}
+	minDeadline := started.Add(minInteractiveCollectDuration)
+	if nextDeadline.Before(minDeadline) {
+		nextDeadline = minDeadline
+	}
+	maxDeadline := started.Add(maxDuration)
+	if nextDeadline.After(maxDeadline) {
+		nextDeadline = maxDeadline
+	}
+	if !nextDeadline.After(now) {
+		return nextDeadline, false, true
+	}
+	return nextDeadline, false, true
 }
 
 func (p Presenter) resolveIntent(opts Options) (types.UserIntent, error) {

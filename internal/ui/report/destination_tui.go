@@ -3,6 +3,7 @@ package report
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -14,7 +15,10 @@ import (
 const (
 	defaultDestinationListWidth  = 58
 	defaultDestinationListHeight = 9
+	defaultDestinationCountdown  = 5
 )
+
+type destinationCountdownTickMsg struct{}
 
 type destinationOption struct {
 	title       string
@@ -60,6 +64,9 @@ type destinationModel struct {
 	width     int
 	selected  reportDestination
 	cancelled bool
+
+	countdownSeconds int
+	countdownActive  bool
 }
 
 func chooseDestinationWithTUI() (reportDestination, error) {
@@ -89,11 +96,13 @@ func newDestinationModel() destinationModel {
 	}
 	l := buildDestinationList(defaultDestinationListWidth, defaultDestinationListHeight)
 	return destinationModel{
-		list:     l,
-		help:     help.New(),
-		keys:     keys,
-		width:    defaultDestinationListWidth,
-		selected: destinationBrowser,
+		list:             l,
+		help:             help.New(),
+		keys:             keys,
+		width:            defaultDestinationListWidth,
+		selected:         destinationBrowser,
+		countdownSeconds: defaultDestinationCountdown,
+		countdownActive:  true,
 	}
 }
 
@@ -130,11 +139,19 @@ func buildDestinationList(width, height int) list.Model {
 }
 
 func (m destinationModel) Init() tea.Cmd {
-	return nil
+	return destinationCountdownCmd()
+}
+
+func destinationCountdownCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(time.Time) tea.Msg {
+		return destinationCountdownTickMsg{}
+	})
 }
 
 func (m destinationModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch typed := msg.(type) {
+	case destinationCountdownTickMsg:
+		return m.updateCountdown()
 	case tea.WindowSizeMsg:
 		m.width = typed.Width - 4
 		if m.width < 24 {
@@ -161,6 +178,9 @@ func (m destinationModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m destinationModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.countdownActive {
+		m.countdownActive = false
+	}
 	if key.Matches(msg, m.keys.quit) {
 		m.cancelled = true
 		return m, tea.Quit
@@ -177,12 +197,28 @@ func (m destinationModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
+func (m destinationModel) updateCountdown() (tea.Model, tea.Cmd) {
+	if !m.countdownActive {
+		return m, nil
+	}
+	m.countdownSeconds--
+	if m.countdownSeconds <= 0 {
+		m.countdownActive = false
+		m.selected = destinationBrowser
+		return m, tea.Quit
+	}
+	return m, destinationCountdownCmd()
+}
+
 func (m destinationModel) View() string {
 	selectedDescription := destinationSelectedDescription(m.list.SelectedItem())
 	lines := []string{
 		chrome.Render(chrome.UseColor()),
 		"",
 		"[report] destination",
+	}
+	if m.countdownActive {
+		lines = append(lines, fmt.Sprintf("Auto-open browser in %ds (press any key to cancel timer).", m.countdownSeconds))
 	}
 	if selectedDescription != "" {
 		lines = append(lines, selectedDescription)

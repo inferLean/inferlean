@@ -12,6 +12,8 @@ type View struct {
 	noInteractive bool
 }
 
+const interactiveCollectionHint = " | m:+1m M:-1m s:+15s S:-15s c:stop now | longer collection improves report quality"
+
 func NewView() View {
 	return View{
 		steps: progress.New("collect", stepperEnabled(false)),
@@ -35,11 +37,18 @@ func (v *View) ShowStep(message string) {
 }
 
 func (v *View) ShowMetricsCollectionStart(remaining time.Duration) {
-	v.getStepper().Step(renderMetricsCollectionCountdown(remaining))
+	v.getStepper().Step(renderMetricsCollectionCountdown(remaining, v.interactive()))
 }
 
 func (v *View) ShowMetricsCollectionCountdown(remaining time.Duration) {
-	v.getStepper().UpdateActive(renderMetricsCollectionCountdown(remaining))
+	v.getStepper().UpdateActive(renderMetricsCollectionCountdown(remaining, v.interactive()))
+}
+
+func (v *View) ShowMetricsCollectionStopped() {
+	if !v.interactive() {
+		return
+	}
+	v.getStepper().UpdateActive("collection stop requested; analyzing based on current data")
 }
 
 func (v *View) ShowDone(runID string) {
@@ -57,7 +66,11 @@ func stepperEnabled(noInteractive bool) bool {
 	return progress.InteractiveTTY() && !noInteractive
 }
 
-func renderMetricsCollectionCountdown(remaining time.Duration) string {
+func (v *View) interactive() bool {
+	return stepperEnabled(v.noInteractive)
+}
+
+func renderMetricsCollectionCountdown(remaining time.Duration, interactive bool) string {
 	seconds := int(remaining.Round(time.Second) / time.Second)
 	if remaining > 0 && remaining < time.Second {
 		seconds = 1
@@ -65,5 +78,9 @@ func renderMetricsCollectionCountdown(remaining time.Duration) string {
 	if seconds < 0 {
 		seconds = 0
 	}
-	return fmt.Sprintf("collecting metrics through prometheus scrape manager (%ds remaining)", seconds)
+	line := fmt.Sprintf("collecting metrics through prometheus scrape manager (%ds remaining)", seconds)
+	if !interactive {
+		return line
+	}
+	return line + interactiveCollectionHint
 }
