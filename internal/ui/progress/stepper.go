@@ -178,6 +178,7 @@ func stripTransientHint(label string) string {
 	for _, suffix := range []string{
 		" (press c to cancel current source)",
 		" (press c to cancel)",
+		" | m:+1m M:-1m s:+15s S:-15s c:stop now | longer collection improves report quality",
 	} {
 		if strings.HasSuffix(trimmed, suffix) {
 			return strings.TrimSpace(strings.TrimSuffix(trimmed, suffix))

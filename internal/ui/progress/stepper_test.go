@@ -44,3 +44,12 @@ func TestStepperModelUpdateActiveAddsStepWhenMissing(t *testing.T) {
 		t.Fatalf("expected active step status, got %d", modelAfterUpdate.steps[0].status)
 	}
 }
+
+func TestStripTransientHintCollectionControls(t *testing.T) {
+	t.Parallel()
+	label := "collecting metrics through prometheus scrape manager (45s remaining) | m:+1m M:-1m s:+15s S:-15s c:stop now | longer collection improves report quality"
+	stripped := stripTransientHint(label)
+	if stripped != "collecting metrics through prometheus scrape manager (45s remaining)" {
+		t.Fatalf("stripTransientHint() = %q", stripped)
+	}
+}
