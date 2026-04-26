@@ -32,7 +32,7 @@ func shouldPrintHeader(cmd *cobra.Command) bool {
 }
 
 func noInteractiveFlagEnabled(cmd *cobra.Command) bool {
-	flag := cmd.Flags().Lookup("no-interactive")
+	flag := cmd.Flags().Lookup("non-interactive")
 	return flag != nil && flag.Value.String() == "true"
 }
 

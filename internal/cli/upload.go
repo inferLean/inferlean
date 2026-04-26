@@ -69,6 +69,6 @@ func newUploadCommand() *cobra.Command {
 	cmd.Flags().StringVar(&backendURL, "backend-url", defaults.BackendURL, "backend base URL")
 	cmd.Flags().BoolVar(&requireReport, "require-report", false, "require report retrieval after upload")
 	cmd.Flags().StringVar(&runID, "run-id", "", "load and render report for an existing run id")
-	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "disable interactive report prompts and viewer")
+	cmd.Flags().BoolVar(&noInteractive, "non-interactive", false, "disable interactive report prompts and viewer")
 	return cmd
 }

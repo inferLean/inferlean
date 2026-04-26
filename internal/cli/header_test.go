@@ -25,11 +25,11 @@ func TestRenderHeaderPlain(t *testing.T) {
 func TestNoInteractiveFlagEnabled(t *testing.T) {
 	t.Parallel()
 	cmd := &cobra.Command{Use: "run"}
-	cmd.Flags().Bool("no-interactive", false, "")
-	if err := cmd.Flags().Set("no-interactive", "true"); err != nil {
+	cmd.Flags().Bool("non-interactive", false, "")
+	if err := cmd.Flags().Set("non-interactive", "true"); err != nil {
 		t.Fatalf("set flag: %v", err)
 	}
 	if !noInteractiveFlagEnabled(cmd) {
-		t.Fatalf("expected no-interactive flag to be detected")
+		t.Fatalf("expected non-interactive flag to be detected")
 	}
 }

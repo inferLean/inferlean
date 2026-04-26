@@ -21,7 +21,7 @@ func TestChooseDestinationSkipsSelectorWhenNoInteractive(t *testing.T) {
 	t.Parallel()
 	destination := chooseDestination(reportIdentity{runID: "run_1", installationID: "inst_1"}, true, true)
 	if destination != destinationTerminal {
-		t.Fatalf("expected terminal fallback when no-interactive is enabled, got %q", destination)
+		t.Fatalf("expected terminal fallback when non-interactive is enabled, got %q", destination)
 	}
 }
 
