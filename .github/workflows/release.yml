@@ -112,7 +112,7 @@ jobs:
 
           CGO_ENABLED=0 GOOS="${TARGET_OS}" GOARCH="${TARGET_ARCH}" \
             go build -trimpath \
-              -ldflags "-X github.com/inferLean/inferlean/internal/cli.version=${RELEASE_VERSION}" \
+              -ldflags "-X github.com/inferLean/inferlean-main/cli/internal/cli.version=${RELEASE_VERSION}" \
               -o "dist/bin/${binary}" ./cmd/inferlean
 
       - name: Stage Linux collector tools
