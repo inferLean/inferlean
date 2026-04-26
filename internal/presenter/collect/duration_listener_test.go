@@ -19,3 +19,13 @@ func TestMapCollectionDurationKeyAction(t *testing.T) {
 		}
 	}
 }
+
+func TestIsCollectionInterruptKey(t *testing.T) {
+	t.Parallel()
+	if !isCollectionInterruptKey(3) {
+		t.Fatal("expected ctrl+c byte to interrupt collection")
+	}
+	if isCollectionInterruptKey('c') {
+		t.Fatal("expected c key to remain a collection action")
+	}
+}

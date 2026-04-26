@@ -2,34 +2,34 @@ package collect
 
 import (
 	"errors"
-	"os"
 	"syscall"
 	"time"
 
 	"golang.org/x/term"
 )
 
-func startCollectionDurationListener(enabled bool) (<-chan collectionDurationAction, func()) {
+func startCollectionDurationListener(enabled bool) (<-chan collectionDurationAction, <-chan struct{}, func()) {
 	if !enabled {
-		return nil, func() {}
+		return nil, nil, func() {}
 	}
-	stdinFD := int(os.Stdin.Fd())
-	if !term.IsTerminal(stdinFD) || !term.IsTerminal(int(os.Stdout.Fd())) {
-		return nil, func() {}
+	stdinFD := int(syscall.Stdin)
+	if !term.IsTerminal(stdinFD) || !term.IsTerminal(int(syscall.Stdout)) {
+		return nil, nil, func() {}
 	}
 	state, err := term.MakeRaw(stdinFD)
 	if err != nil {
-		return nil, func() {}
+		return nil, nil, func() {}
 	}
 	if err := syscall.SetNonblock(stdinFD, true); err != nil {
 		_ = term.Restore(stdinFD, state)
-		return nil, func() {}
+		return nil, nil, func() {}
 	}
 	actions := make(chan collectionDurationAction, 8)
+	interrupt := make(chan struct{}, 1)
 	stop := make(chan struct{})
 	done := make(chan struct{})
-	go readCollectionDurationKey(stdinFD, stop, done, actions)
-	return actions, func() {
+	go readCollectionDurationKey(stdinFD, stop, done, actions, interrupt)
+	return actions, interrupt, func() {
 		close(stop)
 		<-done
 		_ = syscall.SetNonblock(stdinFD, false)
@@ -37,7 +37,7 @@ func startCollectionDurationListener(enabled bool) (<-chan collectionDurationAct
 	}
 }
 
-func readCollectionDurationKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, actions chan<- collectionDurationAction) {
+func readCollectionDurationKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, actions chan<- collectionDurationAction, interrupt chan<- struct{}) {
 	defer close(done)
 	buffer := make([]byte, 1)
 	for {
@@ -58,10 +58,10 @@ func readCollectionDurationKey(stdinFD int, stop <-chan struct{}, done chan<- st
 			time.Sleep(20 * time.Millisecond)
 			continue
 		}
-		if buffer[0] == 3 {
-			process, err := os.FindProcess(os.Getpid())
-			if err == nil {
-				_ = process.Signal(os.Interrupt)
+		if isCollectionInterruptKey(buffer[0]) {
+			select {
+			case interrupt <- struct{}{}:
+			default:
 			}
 			continue
 		}
@@ -74,6 +74,10 @@ func readCollectionDurationKey(stdinFD int, stop <-chan struct{}, done chan<- st
 		default:
 		}
 	}
+}
+
+func isCollectionInterruptKey(key byte) bool {
+	return key == 3
 }
 
 func mapCollectionDurationKeyAction(key byte) collectionDurationAction {
