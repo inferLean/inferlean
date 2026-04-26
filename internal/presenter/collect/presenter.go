@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
@@ -145,12 +146,42 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	defer cancelCollect()
 
 	p.collectView.ShowStart(opts.CollectFor.Seconds())
-	p.collectView.ShowStep("starting exporters and local bridges")
-	sources := startSources(ctx)
-	p.collectView.ShowMetricsCollectionStart(opts.CollectFor)
-
-	actions, stopListening := startCollectionDurationListener(interactive)
+	actions, interrupt, stopListening := startCollectionDurationListener(interactive)
 	defer stopListening()
+	var interrupted atomic.Bool
+	doneInterrupt := make(chan struct{})
+	go func() {
+		defer close(doneInterrupt)
+		select {
+		case <-interrupt:
+			interrupted.Store(true)
+			cancelCollect()
+		case <-collectCtx.Done():
+		}
+	}()
+	defer func() {
+		cancelCollect()
+		<-doneInterrupt
+	}()
+
+	p.collectView.ShowStep("starting exporters and local bridges")
+	sources := startSources(collectCtx)
+	stoppedSources := false
+	stopAllSources := func() {
+		if stoppedSources {
+			return
+		}
+		stoppedSources = true
+		bridgeRaw := stopSources(context.Background(), p, paths, sources)
+		if strings.TrimSpace(bridgeRaw) != "" {
+			_, _ = p.obsStore.SaveRaw(paths.Observations, "nvidia-smi.csv", []byte(bridgeRaw))
+		}
+	}
+	defer stopAllSources()
+	if interrupted.Load() {
+		return evidence{}, fmt.Errorf("collection interrupted")
+	}
+	p.collectView.ShowMetricsCollectionStart(opts.CollectFor)
 
 	targets := buildPromTargets(opts, sources)
 	stopCountdown := p.startCollectionCountdown(
@@ -168,15 +199,15 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	)
 	close(stopCountdown)
 	savePrometheusObservations(p, paths, promRes)
+	if interrupted.Load() {
+		return evidence{}, fmt.Errorf("collection interrupted")
+	}
 	p.collectView.ShowStep("collecting nvidia-smi process output")
 	staticSMI := readStaticNvidiaSMI(ctx)
 	if staticSMI != "" {
 		_, _ = p.pioStore.Save(paths.ProcessIO, "nvidia-smi-static.txt", []byte(staticSMI))
 	}
-	bridgeRaw := stopSources(context.Background(), p, paths, sources)
-	if strings.TrimSpace(bridgeRaw) != "" {
-		_, _ = p.obsStore.SaveRaw(paths.Observations, "nvidia-smi.csv", []byte(bridgeRaw))
-	}
+	stopAllSources()
 	return evidence{
 		promResult: promRes,
 		staticSMI:  staticSMI,
