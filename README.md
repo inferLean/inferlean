@@ -54,7 +54,7 @@ For scripted use, provide the target and required intent up front:
 ```sh
 inferlean run \
   --pid 12345 \
-  --no-interactive \
+  --non-interactive \
   --workload-mode online \
   --workload-target latency \
   --prefix-heavy false \
@@ -81,7 +81,7 @@ Useful target flags:
 - `--container`: Docker container name
 - `--pod`: Kubernetes pod name
 - `--namespace`: Kubernetes namespace
-- `--no-interactive`: disable interactive target selection
+- `--non-interactive`: disable interactive target selection
 - `--exclude-processes`: skip process discovery
 - `--exclude-docker`: skip Docker discovery
 - `--exclude-kubernetes`: skip Kubernetes discovery
@@ -134,7 +134,7 @@ Upload flags:
 - `--backend-url`: backend base URL, default `https://app.inferlean.com`
 - `--require-report`: fail if report retrieval after upload fails
 - `--run-id`: load and render an existing report
-- `--no-interactive`: disable interactive report prompts and viewer
+- `--non-interactive`: disable interactive report prompts and viewer
 
 ### `inferlean run`
 
@@ -245,7 +245,7 @@ Collect without upload:
 ```sh
 inferlean collect \
   --pid 12345 \
-  --no-interactive \
+  --non-interactive \
   --workload-mode online \
   --workload-target latency \
   --prefix-heavy false \

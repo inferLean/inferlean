@@ -26,6 +26,6 @@ func TestBrowserReportURLMissingIdentity(t *testing.T) {
 func TestShouldEmitBrowserURLRespectsNoInteractiveFlag(t *testing.T) {
 	t.Parallel()
 	if !shouldEmitBrowserURL(true) {
-		t.Fatal("expected browser URL emission when no-interactive is enabled")
+		t.Fatal("expected browser URL emission when non-interactive is enabled")
 	}
 }

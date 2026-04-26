@@ -37,7 +37,7 @@ func bindTargetFlags(cmd *cobra.Command, opts *targetFlags) {
 	cmd.Flags().StringVar(&opts.containerName, "container", "", "target docker container name")
 	cmd.Flags().StringVar(&opts.podName, "pod", "", "target kubernetes pod name")
 	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "kubernetes namespace")
-	cmd.Flags().BoolVar(&opts.noInteractive, "no-interactive", false, "disable interactive chooser and intent prompts")
+	cmd.Flags().BoolVar(&opts.noInteractive, "non-interactive", false, "disable interactive chooser and intent prompts")
 	cmd.Flags().BoolVar(&opts.excludeProcesses, "exclude-processes", false, "skip process-based discovery")
 	cmd.Flags().BoolVar(&opts.excludeDocker, "exclude-docker", false, "skip docker-based discovery")
 	cmd.Flags().BoolVar(&opts.excludeKubernetes, "exclude-kubernetes", false, "skip kubernetes-based discovery")
