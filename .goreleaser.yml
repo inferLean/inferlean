@@ -7,7 +7,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/inferLean/inferlean/internal/cli.version={{ .Version }}
+      - -s -w -X github.com/inferLean/inferlean-main/cli/internal/cli.version={{ .Version }}
     goos:
       - linux
       - windows
