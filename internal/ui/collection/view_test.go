@@ -24,7 +24,7 @@ func TestRenderMetricsCollectionCountdownRoundsSmallPositiveToOne(t *testing.T) 
 func TestRenderMetricsCollectionCountdownInteractiveHint(t *testing.T) {
 	t.Parallel()
 	rendered := renderMetricsCollectionCountdown(45*time.Second, true)
-	if rendered != "collecting metrics through prometheus scrape manager (45s remaining)"+interactiveCollectionHint {
+	if rendered != "collecting metrics through prometheus scrape manager (45s remaining)"+interactiveCollectionHint() {
 		t.Fatalf("unexpected interactive countdown: %s", rendered)
 	}
 }
