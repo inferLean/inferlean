@@ -25,10 +25,16 @@ func (Service) Discover(ctx context.Context, opts DiscoverOptions) ([]Candidate,
 	}
 	all := make([]Candidate, 0)
 	for _, source := range plan {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if opts.OnSourceStart != nil {
 			opts.OnSourceStart(source)
 		}
 		items, cancelled, err := discoverSource(ctx, opts, source)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		if cancelled {
 			if opts.OnSourceCancelled != nil {
 				opts.OnSourceCancelled(source)
