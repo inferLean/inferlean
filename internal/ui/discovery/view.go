@@ -51,6 +51,10 @@ func (v *View) ShowCandidates(items []vllmdiscovery.Candidate) {
 	v.getStepper().Done(fmt.Sprintf("found %d candidate(s)", len(items)))
 }
 
+func (v *View) Abort() {
+	v.getStepper().Abort()
+}
+
 func (v *View) Select(candidates []vllmdiscovery.Candidate, noInteractive bool) (vllmdiscovery.Candidate, error) {
 	if len(candidates) == 0 {
 		return vllmdiscovery.Candidate{}, fmt.Errorf("no vLLM targets discovered")

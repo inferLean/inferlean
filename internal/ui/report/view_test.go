@@ -1,6 +1,8 @@
 package report
 
 import (
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -114,4 +116,60 @@ func TestFormatReportForDisplayFallback(t *testing.T) {
 	if !strings.Contains(summary, "schema-warning") {
 		t.Fatalf("summary should include schema warning marker: %s", summary)
 	}
+}
+
+func TestRenderNoInteractivePrintsPlainReport(t *testing.T) {
+	payload := map[string]any{
+		"schema_version": "report-v2",
+		"job": map[string]any{
+			"run_id": "run_123",
+		},
+		"entitlement": map[string]any{},
+		"diagnosis": map[string]any{
+			"base_diagnosis": map[string]any{
+				"situation": map[string]any{
+					"headline": "GPU memory pressure",
+				},
+			},
+		},
+		"diagnostic_coverage": map[string]any{},
+		"collection_quality":  map[string]any{},
+	}
+
+	output := captureStdout(t, func() {
+		NewView().Render(payload, RenderOptions{NoInteractive: true})
+	})
+
+	if !strings.Contains(output, "[report] parsed report") {
+		t.Fatalf("rendered output missing report header: %s", output)
+	}
+	if !strings.Contains(output, "GPU memory pressure") {
+		t.Fatalf("rendered output missing full report content: %s", output)
+	}
+	if strings.Contains(output, "\x1b[?1049h") || strings.Contains(output, "\x1b[?1049l") {
+		t.Fatalf("non-interactive output must not use the alternate screen: %q", output)
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	original := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdout pipe: %v", err)
+	}
+	os.Stdout = writer
+	defer func() {
+		os.Stdout = original
+	}()
+
+	fn()
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close stdout pipe: %v", err)
+	}
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read stdout pipe: %v", err)
+	}
+	return string(data)
 }

@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 )
 
@@ -24,7 +23,7 @@ func NewView() View {
 func (View) Render(report map[string]any, opts RenderOptions) {
 	tty := interactiveTTY()
 	identity := resolveIdentity(report, opts)
-	content, summary, err := formatReportForDisplay(report, tty)
+	content, _, err := formatReportForDisplay(report, tty)
 	if err != nil {
 		fmt.Printf("[report] failed to render report: %v\n", err)
 		return
@@ -48,11 +47,7 @@ func (View) Render(report map[string]any, opts RenderOptions) {
 		}
 	}
 
-	model := newViewerModel(content, summary)
-	if _, err := tea.NewProgram(model, tea.WithAltScreen()).Run(); err != nil {
-		fmt.Printf("[report] interactive viewer failed, showing plain output: %v\n", err)
-		printReport(content)
-	}
+	printReport(content)
 }
 
 func printReport(content string) {

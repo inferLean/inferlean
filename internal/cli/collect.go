@@ -63,7 +63,7 @@ func newCollectCommand() *cobra.Command {
 	}
 	bindTargetFlags(cmd, target)
 	cmd.Flags().DurationVar(&collectFor, "collect-for", 30*time.Second, "collection duration")
-	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", 5*time.Second, "scrape interval")
+	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", defaultScrapeEvery, "scrape interval")
 	cmd.Flags().StringVar(&outputPath, "output", "", "artifact output path")
 	cmd.Flags().StringVar(&declaredWorkloadMode, "workload-mode", "", "declared workload mode")
 	cmd.Flags().StringVar(&declaredWorkloadTarget, "workload-target", "", "declared optimization target")
