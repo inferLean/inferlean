@@ -77,6 +77,10 @@ func (v *View) ShowDone(runID string) {
 	v.getStepper().Done(fmt.Sprintf("artifact captured (run_id=%s)", runID))
 }
 
+func (v *View) Abort() {
+	v.getStepper().Abort()
+}
+
 func (v *View) getStepper() *progress.Stepper {
 	if v.steps == nil {
 		v.steps = progress.New("collect", stepperEnabled(v.noInteractive))

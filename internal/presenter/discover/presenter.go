@@ -20,6 +20,12 @@ func NewPresenter(service vllmdiscovery.Service, view discovery.View) Presenter 
 
 func (p Presenter) Run(ctx context.Context, opts vllmdiscovery.DiscoverOptions) (vllmdiscovery.Candidate, []vllmdiscovery.Candidate, error) {
 	p.view.SetNoInteractive(opts.NoInteractive)
+	progressDone := false
+	defer func() {
+		if !progressDone {
+			p.view.Abort()
+		}
+	}()
 	p.view.ShowStart()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	defer cancelRun()
@@ -60,6 +66,7 @@ func (p Presenter) Run(ctx context.Context, opts vllmdiscovery.DiscoverOptions) 
 		return vllmdiscovery.Candidate{}, nil, err
 	}
 	p.view.ShowCandidates(candidates)
+	progressDone = true
 	selected, err := p.view.Select(candidates, opts.NoInteractive)
 	if err != nil {
 		return vllmdiscovery.Candidate{}, candidates, err

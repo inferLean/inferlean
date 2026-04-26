@@ -13,7 +13,7 @@ import (
 
 const (
 	defaultCollectFor  = 30 * time.Second
-	defaultScrapeEvery = 5 * time.Second
+	defaultScrapeEvery = time.Second
 )
 
 type runCommandOptions struct {

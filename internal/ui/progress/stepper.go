@@ -48,6 +48,8 @@ type doneMsg struct {
 	summary string
 }
 
+type abortMsg struct{}
+
 type stepperModel struct {
 	component string
 	useColor  bool
@@ -97,6 +99,8 @@ func (m stepperModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case doneMsg:
 		m.markActiveDone()
 		m.summary = strings.TrimSpace(typed.summary)
+		return m, tea.Quit
+	case abortMsg:
 		return m, tea.Quit
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -282,6 +286,22 @@ func (s *Stepper) Done(summary string) {
 		}
 		return
 	}
+	s.close(doneMsg{summary: summary})
+	if strings.TrimSpace(summary) != "" {
+		header := colorize(s.useColor, ansiGreen, fmt.Sprintf("[%s]", s.component))
+		message := colorize(s.useColor, ansiGreen, summary)
+		fmt.Fprintf(s.out, "%s %s\n", header, message)
+	}
+}
+
+func (s *Stepper) Abort() {
+	if !s.enabled {
+		return
+	}
+	s.close(abortMsg{})
+}
+
+func (s *Stepper) close(msg tea.Msg) {
 	s.mu.Lock()
 	program := s.program
 	doneCh := s.doneCh
@@ -291,13 +311,8 @@ func (s *Stepper) Done(summary string) {
 	}
 	s.closed = true
 	s.mu.Unlock()
-	program.Send(doneMsg{summary: summary})
+	program.Send(msg)
 	<-doneCh
-	if strings.TrimSpace(summary) != "" {
-		header := colorize(s.useColor, ansiGreen, fmt.Sprintf("[%s]", s.component))
-		message := colorize(s.useColor, ansiGreen, summary)
-		fmt.Fprintf(s.out, "%s %s\n", header, message)
-	}
 }
 
 func colorize(enabled bool, colorCode, text string) string {

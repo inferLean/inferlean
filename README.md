@@ -105,7 +105,7 @@ Default output path:
 Collection flags:
 
 - `--collect-for`: metrics collection duration, default `30s`
-- `--scrape-every`: metrics scrape interval, default `5s`
+- `--scrape-every`: metrics scrape interval, default `1s`
 - `--output`: artifact output path
 - `--workload-mode`: declared workload mode
 - `--workload-target`: declared optimization target

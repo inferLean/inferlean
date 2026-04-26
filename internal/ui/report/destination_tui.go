@@ -118,7 +118,7 @@ func buildDestinationList(width, height int) list.Model {
 		destinationItem{
 			option: destinationOption{
 				title:       "terminal",
-				description: "Show the current report in the CLI viewer.",
+				description: "Print the current report in the terminal.",
 				value:       destinationTerminal,
 			},
 		},
