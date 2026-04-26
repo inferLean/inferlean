@@ -1,6 +1,8 @@
 package vllmdiscovery
 
 import (
+	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -97,6 +99,17 @@ func TestBuildPlan(t *testing.T) {
 				t.Fatalf("buildPlan() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestDiscoverReturnsCanceledContext(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := NewService().Discover(ctx, DiscoverOptions{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Discover() error = %v, want context.Canceled", err)
 	}
 }
 

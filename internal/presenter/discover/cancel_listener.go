@@ -9,27 +9,28 @@ import (
 	"golang.org/x/term"
 )
 
-func startCancelCurrentListener(noInteractive bool) (<-chan struct{}, func()) {
+func startCancelCurrentListener(noInteractive bool) (<-chan struct{}, <-chan struct{}, func()) {
 	if noInteractive {
-		return nil, func() {}
+		return nil, nil, func() {}
 	}
 	stdinFD := int(os.Stdin.Fd())
 	if !term.IsTerminal(stdinFD) || !term.IsTerminal(int(os.Stdout.Fd())) {
-		return nil, func() {}
+		return nil, nil, func() {}
 	}
 	state, err := term.MakeRaw(stdinFD)
 	if err != nil {
-		return nil, func() {}
+		return nil, nil, func() {}
 	}
 	if err := syscall.SetNonblock(stdinFD, true); err != nil {
 		_ = term.Restore(stdinFD, state)
-		return nil, func() {}
+		return nil, nil, func() {}
 	}
 	cancelCurrent := make(chan struct{}, 1)
+	interrupt := make(chan struct{}, 1)
 	stop := make(chan struct{})
 	done := make(chan struct{})
-	go readCancelKey(stdinFD, stop, done, cancelCurrent)
-	return cancelCurrent, func() {
+	go readCancelKey(stdinFD, stop, done, cancelCurrent, interrupt)
+	return cancelCurrent, interrupt, func() {
 		close(stop)
 		<-done
 		_ = syscall.SetNonblock(stdinFD, false)
@@ -37,7 +38,7 @@ func startCancelCurrentListener(noInteractive bool) (<-chan struct{}, func()) {
 	}
 }
 
-func readCancelKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, cancelCurrent chan<- struct{}) {
+func readCancelKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, cancelCurrent chan<- struct{}, interrupt chan<- struct{}) {
 	defer close(done)
 	buffer := make([]byte, 1)
 	for {
@@ -65,9 +66,9 @@ func readCancelKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, canc
 			default:
 			}
 		case 3:
-			process, err := os.FindProcess(os.Getpid())
-			if err == nil {
-				_ = process.Signal(os.Interrupt)
+			select {
+			case interrupt <- struct{}{}:
+			default:
 			}
 		}
 	}
