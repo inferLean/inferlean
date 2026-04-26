@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/inferLean/inferlean-main/cli/internal/ui/progress"
 )
 
@@ -12,7 +13,28 @@ type View struct {
 	noInteractive bool
 }
 
-const interactiveCollectionHint = " | m:+1m M:-1m s:+15s S:-15s c:stop now | longer collection improves report quality"
+type Hint struct {
+	Key   string
+	Value string
+}
+
+var hintStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#777777", Dark: "#777777"})
+var hintButtonStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#eeeeee", Dark: "#eeeeee"})
+var keyDescription = []Hint{
+	{"M:        ", "increase collection time by 1 minute"},
+	{"SHIFT + M:", "decrease collection time by 1 minute"},
+	{"S:        ", "increase collection time by 15 seconds"},
+	{"SHIFT + S:", "decrease collection time by 15 seconds"},
+	{"C:        ", "stop now and analyze"},
+}
+
+func interactiveCollectionHint() string {
+	var hint = hintStyle.Render("\n\n\t\tlonger collection improves report quality\n")
+	for _, item := range keyDescription {
+		hint = hint + "\n\t\t" + hintButtonStyle.Render(item.Key) + " " + hintStyle.Render(item.Value)
+	}
+	return hint
+}
 
 func NewView() View {
 	return View{
@@ -82,5 +104,9 @@ func renderMetricsCollectionCountdown(remaining time.Duration, interactive bool)
 	if !interactive {
 		return line
 	}
-	return line + interactiveCollectionHint
+	hint := interactiveCollectionHint()
+	if seconds < 2 {
+		hint = ""
+	}
+	return line + hint
 }
