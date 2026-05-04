@@ -17,6 +17,7 @@ type Input struct {
 
 type Output struct {
 	Args              map[string]string
+	ArgSources        map[string]string
 	SelectedTag       string
 	SelectedProfile   string
 	SelectedModel     string
@@ -92,10 +93,11 @@ func ResolveWithDir(defaultsDir string, input Input) (Output, error) {
 	}
 
 	resolved := copyStringMap(explicit)
-	applied := applyDefaults(resolved, tagDefaults.Profiles[selectedProfile], model)
+	sources, applied := applyDefaultsWithSources(resolved, explicitArgSources(explicit), tagDefaults.Profiles[selectedProfile], model)
 
 	return Output{
 		Args:             resolved,
+		ArgSources:       sources,
 		SelectedTag:      selectedTag,
 		SelectedProfile:  selectedProfile,
 		SelectedModel:    model,

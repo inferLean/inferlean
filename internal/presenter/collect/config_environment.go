@@ -137,6 +137,7 @@ func applyVLLMDefaults(
 		return
 	}
 	cfg.ParsedArgs = resolved.Args
+	cfg.ParsedArgSources = resolved.ArgSources
 	hints := cfg.EnvironmentHints
 	hints = withHint(hints, "vllm_defaults_applied", strconv.Itoa(resolved.AppliedDefaults))
 	hints = withHint(hints, "vllm_defaults_source", resolved.RuntimeSource)

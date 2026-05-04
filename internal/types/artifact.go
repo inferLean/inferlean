@@ -2,6 +2,7 @@ package types
 
 type Configurations struct {
 	ParsedArgs          map[string]string `json:"parsed_args,omitempty"`
+	ParsedArgSources    map[string]string `json:"parsed_arg_sources,omitempty"`
 	EnvironmentHints    map[string]string `json:"environment_hints,omitempty"`
 	OS                  string            `json:"os,omitempty"`
 	Kernel              string            `json:"kernel,omitempty"`

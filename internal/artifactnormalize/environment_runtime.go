@@ -24,6 +24,7 @@ func normalizeEnvironment(input Input) contracts.Environment {
 
 func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 	args := input.Configurations.ParsedArgs
+	argSources := input.Configurations.ParsedArgSources
 	hints := input.Configurations.EnvironmentHints
 	host, port := parseHostPort(input.Target.MetricsEndpoint)
 	prefixCaching := resolvePrefixCaching(args, input.Observations.Prometheus["vllm"])
@@ -62,6 +63,7 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 		FlashinferPresent:     flashInfer,
 		FlashAttentionPresent: flashAttention,
 		ImageProcessor:        firstNonEmpty(args["image-processor"], "unknown"),
+		ValueSources:          runtimeValueSources(argSources),
 	}
 	runtime.Coverage = runtimeCoverage(runtime)
 	return runtime
@@ -109,6 +111,27 @@ func runtimeRequiredFields() []string {
 		"flash_attention_presence",
 		"image_processor",
 	}
+}
+
+func runtimeValueSources(argSources map[string]string) map[string]string {
+	sources := map[string]string{}
+	copyIfPresent := func(contractKey, argKey string) {
+		value := strings.TrimSpace(argSources[argKey])
+		if value == "" {
+			return
+		}
+		sources[contractKey] = value
+	}
+	copyIfPresent("max_model_len", "max-model-len")
+	copyIfPresent("max_num_batched_tokens", "max-num-batched-tokens")
+	copyIfPresent("max_num_seqs", "max-num-seqs")
+	copyIfPresent("gpu_memory_utilization", "gpu-memory-utilization")
+	copyIfPresent("prefix_caching", "enable-prefix-caching")
+	copyIfPresent("chunked_prefill", "enable-chunked-prefill")
+	if len(sources) == 0 {
+		return nil
+	}
+	return sources
 }
 
 func resolvePrefixCaching(args map[string]string, samples []promcollector.Sample) *bool {
