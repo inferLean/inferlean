@@ -62,6 +62,15 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 	if out.Args["attention-backend"] != "default" {
 		t.Fatalf("attention-backend = %q", out.Args["attention-backend"])
 	}
+	if out.ArgSources["max-num-seqs"] != "explicit" {
+		t.Fatalf("max-num-seqs source = %q, want explicit", out.ArgSources["max-num-seqs"])
+	}
+	if out.ArgSources["max-model-len"] != "x" {
+		t.Fatalf("max-model-len source = %q, want x", out.ArgSources["max-model-len"])
+	}
+	if out.ArgSources["enable-prefix-caching"] == "" {
+		t.Fatal("enable-prefix-caching source is empty")
+	}
 	if out.AppliedDefaults != 11 {
 		t.Fatalf("AppliedDefaults = %d, want 11", out.AppliedDefaults)
 	}

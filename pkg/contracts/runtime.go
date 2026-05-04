@@ -33,6 +33,7 @@ type RuntimeConfig struct {
 	ImageProcessor        string            `json:"image_processor,omitempty"`
 	ProbeWarnings         []string          `json:"probe_warnings,omitempty"`
 	ProbeEvidenceRef      string            `json:"probe_evidence_ref,omitempty"`
+	ValueSources          map[string]string `json:"value_sources,omitempty"`
 	Coverage              SourceCoverage    `json:"coverage,omitempty"`
 }
 

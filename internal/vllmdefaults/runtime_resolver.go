@@ -172,18 +172,21 @@ func resolveFromDump(input Input, dump runtimeDumpFile) (Output, error) {
 	requestedVersion := inferRequestedVersion(input, explicit)
 
 	resolved := copyStringMap(explicit)
-	applied := applyEffectiveDefaults(resolved, dump.EffectiveServeParameters, model)
+	sources := explicitArgSources(explicit)
+	applied := applyEffectiveDefaults(resolved, sources, dump.EffectiveServeParameters, model)
 
 	return Output{
 		Args:             resolved,
+		ArgSources:       sources,
 		SelectedModel:    model,
 		RequestedVersion: requestedVersion,
 		AppliedDefaults:  applied,
 	}, nil
 }
 
-func applyEffectiveDefaults(target map[string]string, effective map[string]any, model string) int {
+func applyEffectiveDefaults(target, sources map[string]string, effective map[string]any, model string) int {
 	applied := 0
+	effectiveSources := normalizeEffectiveSources(effective["_sources"])
 	for rawKey, rawValue := range effective {
 		if strings.HasPrefix(strings.TrimSpace(rawKey), "_") {
 			continue
@@ -206,9 +209,37 @@ func applyEffectiveDefaults(target map[string]string, effective map[string]any, 
 			continue
 		}
 		target[key] = value
+		if sources == nil {
+			sources = map[string]string{}
+		}
+		sources[key] = sourceLabel(effectiveSources[key])
 		applied++
 	}
 	return applied
+}
+
+func normalizeEffectiveSources(raw any) map[string]string {
+	input, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	sources := make(map[string]string, len(input))
+	for key, value := range input {
+		normalizedKey := normalizeKey(strings.ReplaceAll(key, "_", "-"))
+		if normalizedKey == "" {
+			continue
+		}
+		sources[normalizedKey] = stringifyValue(value)
+	}
+	return sources
+}
+
+func sourceLabel(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "effective_default"
+	}
+	return trimmed
 }
 
 func flattenStatusMap(values map[string]string) string {

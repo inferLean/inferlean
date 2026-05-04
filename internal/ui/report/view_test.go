@@ -58,7 +58,7 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 					"actions": []map[string]any{{
 						"id":             "action:reduce-max-model-len",
 						"title":          "Reduce `--max-model-len`",
-						"current_value":  "8192",
+						"current_value":  "8192 (default)",
 						"proposed_value": "4096",
 						"value_kind":     "number",
 					}},
@@ -93,7 +93,7 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 	if !strings.Contains(content, "Expected Gain Range: Likely improvement: +5% to +15% throughput under the observed workload.") {
 		t.Fatalf("formatted report missing gain range: %s", content)
 	}
-	if !strings.Contains(content, "Current: 8192") || !strings.Contains(content, "Proposed: 4096") {
+	if !strings.Contains(content, "Current: 8192 (default)") || !strings.Contains(content, "Proposed: 4096") {
 		t.Fatalf("formatted report missing action delta: %s", content)
 	}
 	if !strings.Contains(summary, "run=run_123") {

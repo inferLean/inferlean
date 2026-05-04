@@ -171,6 +171,11 @@ func shouldUseHighMemoryProfile(input Input) bool {
 }
 
 func applyDefaults(target map[string]string, profile profileDefaults, model string) int {
+	_, applied := applyDefaultsWithSources(target, explicitArgSources(target), profile, model)
+	return applied
+}
+
+func applyDefaultsWithSources(target, sources map[string]string, profile profileDefaults, model string) (map[string]string, int) {
 	merged := map[string]any{}
 	for key, value := range profile.Resolved {
 		merged[key] = value
@@ -197,9 +202,21 @@ func applyDefaults(target map[string]string, profile profileDefaults, model stri
 			continue
 		}
 		target[key] = value
+		if sources == nil {
+			sources = map[string]string{}
+		}
+		sources[key] = "profile_default"
 		applied++
 	}
-	return applied
+	return sources, applied
+}
+
+func explicitArgSources(args map[string]string) map[string]string {
+	sources := make(map[string]string, len(args))
+	for key := range args {
+		sources[key] = "explicit"
+	}
+	return sources
 }
 
 func stringifyValue(raw any) string {
