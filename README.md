@@ -213,7 +213,7 @@ The collector can use local Prometheus-compatible tooling when available:
 - `dcgm-exporter`
 - `nvidia-smi`
 
-The CLI resolves tools from `~/.inferlean/tools` first, then `PATH`. Set `INFERLEAN_TOOLS_DIR` to point at a different tool directory.
+The CLI resolves tools from `~/.inferlean/tools`, bundled release tools next to the installed `inferlean` binary, and then `PATH`. Set `INFERLEAN_TOOLS_DIR` to point at a different tool directory.
 
 Package Prometheus and Node Exporter into the tool directory from a source checkout:
 

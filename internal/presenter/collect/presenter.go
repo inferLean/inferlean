@@ -128,6 +128,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		Target:           opts.Target,
 		Intent:           intent,
 		PromResult:       evidence.promResult,
+		Sources:          evidence.sources,
 		StaticNvidiaSMI:  evidence.staticSMI,
 		ProcessIODir:     paths.ProcessIO,
 	})
@@ -144,6 +145,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 
 type evidence struct {
 	promResult promcollector.Result
+	sources    collectionSources
 	staticSMI  string
 }
 
@@ -217,6 +219,7 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	stopAllSources()
 	return evidence{
 		promResult: promRes,
+		sources:    sources,
 		staticSMI:  staticSMI,
 	}, nil
 }

@@ -21,6 +21,7 @@ type buildInput struct {
 	Target           vllmdiscovery.Candidate
 	Intent           types.UserIntent
 	PromResult       promcollector.Result
+	Sources          collectionSources
 	StaticNvidiaSMI  string
 	ProcessIODir     string
 }
@@ -54,17 +55,19 @@ func buildArtifact(ctx context.Context, in buildInput) (contracts.RunArtifact, e
 }
 
 func buildQuality(in buildInput) types.CollectionQuality {
-	sourceStatus, mode := sourceStates(in.PromResult)
+	sourceStatus, mode := sourceStates(in.PromResult, in.Sources)
 	return types.CollectionQuality{
 		SourceStatus:  sourceStatus,
 		TelemetryMode: mode,
 	}
 }
 
-func sourceStates(promRes promcollector.Result) (map[string]string, string) {
+func sourceStates(promRes promcollector.Result, sources collectionSources) (map[string]string, string) {
 	hostState := stateFor(promRes.SourceStatus, "node_exporter")
 	if hostState == "missing" {
-		hostState = "degraded"
+		hostState = degradedHostReason(sources)
+	} else if hostState == "degraded" {
+		hostState = "degraded: node_exporter scrape returned no parseable metrics"
 	}
 	gpuState := stateFor(promRes.SourceStatus, "dcgm_exporter")
 	if gpuState != "ok" {
@@ -83,6 +86,16 @@ func sourceStates(promRes promcollector.Result) (map[string]string, string) {
 		mode = "rich"
 	}
 	return states, mode
+}
+
+func degradedHostReason(sources collectionSources) string {
+	if !sources.node.Available {
+		if reason := strings.TrimSpace(sources.node.Reason); reason != "" {
+			return "degraded: node_exporter unavailable: " + reason
+		}
+		return "degraded: node_exporter unavailable"
+	}
+	return "degraded: node_exporter did not produce scrape samples"
 }
 
 func stateFor(status map[string]string, key string) string {
