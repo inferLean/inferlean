@@ -67,6 +67,29 @@ func validFinalReport() FinalReport {
 			ReportedAt:            reportedAt,
 		},
 		Entitlement: ReportEntitlement{Tier: "free"},
+		DiagnosticLenses: DiagnosticLenses{
+			Quantization: &QuantizationLens{
+				ID: "lens:quantization",
+				CurrentPosture: QuantizationCurrentPosture{
+					ModelID:      "Qwen/Qwen3-32B",
+					DType:        "bfloat16",
+					Quantization: "none",
+					KVCacheDType: "auto",
+					GPUFamily:    "hopper",
+				},
+				SelectedCandidate: QuantizationCandidate{
+					Family:     "fp8",
+					Repo:       "Qwen/Qwen3-32B-FP8",
+					Source:     "verified_allowlist",
+					Confidence: "medium",
+				},
+				ScenarioOverlays: QuantizationScenarioOverlays{
+					Latency:    QuantizationScenarioOverlay{Target: "latency"},
+					Balanced:   QuantizationScenarioOverlay{Target: "balanced"},
+					Throughput: QuantizationScenarioOverlay{Target: "throughput"},
+				},
+			},
+		},
 		Diagnosis: DiagnosisSection{
 			BaseDiagnosis: BaseDiagnosis{
 				ID: "base",

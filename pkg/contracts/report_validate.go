@@ -26,6 +26,7 @@ func (r FinalReport) Validate() error {
 	errs = append(errs, validateOverlay(r.Diagnosis.ScenarioOverlays.Latency, "latency")...)
 	errs = append(errs, validateOverlay(r.Diagnosis.ScenarioOverlays.Balanced, "balanced")...)
 	errs = append(errs, validateOverlay(r.Diagnosis.ScenarioOverlays.Throughput, "throughput")...)
+	errs = append(errs, validateQuantizationLens(r.DiagnosticLenses.Quantization)...)
 	errs = append(errs, validateIssues(r.Issues)...)
 	errs = append(errs, validateReportCoverage(r.DiagnosticCoverage)...)
 
@@ -37,6 +38,27 @@ func validateOverlay(overlay ScenarioOverlay, want string) []error {
 		return nil
 	}
 	return []error{fmt.Errorf("diagnosis.scenario_overlays.%s.target must be %s", want, want)}
+}
+
+func validateQuantizationLens(lens *QuantizationLens) []error {
+	if lens == nil {
+		return []error{errors.New("diagnostic_lenses.quantization is required")}
+	}
+	var errs []error
+	if strings.TrimSpace(lens.SelectedCandidate.Family) == "" {
+		errs = append(errs, errors.New("diagnostic_lenses.quantization.selected_candidate.family is required"))
+	}
+	errs = append(errs, validateQuantizationOverlay(lens.ScenarioOverlays.Latency, "latency")...)
+	errs = append(errs, validateQuantizationOverlay(lens.ScenarioOverlays.Balanced, "balanced")...)
+	errs = append(errs, validateQuantizationOverlay(lens.ScenarioOverlays.Throughput, "throughput")...)
+	return errs
+}
+
+func validateQuantizationOverlay(overlay QuantizationScenarioOverlay, want string) []error {
+	if overlay.Target == "" || overlay.Target == want {
+		return nil
+	}
+	return []error{fmt.Errorf("diagnostic_lenses.quantization.scenario_overlays.%s.target must be %s", want, want)}
 }
 
 func validateIssues(issues []Issue) []error {

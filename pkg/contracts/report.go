@@ -11,7 +11,7 @@ type FinalReport struct {
 	Environment        ReportEnvironment       `json:"environment"`
 	Diagnosis          DiagnosisSection        `json:"diagnosis"`
 	DiagnosticCoverage DiagnosticCoverage      `json:"diagnostic_coverage"`
-	DiagnosticLenses   map[string]any          `json:"diagnostic_lenses,omitempty"`
+	DiagnosticLenses   DiagnosticLenses        `json:"diagnostic_lenses,omitempty"`
 	Issues             []Issue                 `json:"issues,omitempty"`
 	Evidence           Evidence                `json:"evidence,omitempty"`
 	CollectionQuality  ReportCollectionQuality `json:"collection_quality"`

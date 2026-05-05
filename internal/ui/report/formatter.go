@@ -141,6 +141,11 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 		writeKeyValue(&b, "Reason", fallback(base.NoSafeRecommendationReason, "-"), useColor)
 	}
 
+	if lens := report.DiagnosticLenses.Quantization; lens != nil {
+		writeSection(&b, "Quantization Opportunity", useColor)
+		renderQuantizationLens(&b, *lens, useColor)
+	}
+
 	writeSection(&b, "Issues", useColor)
 	if len(report.Issues) == 0 {
 		writeKeyValue(&b, "Top Issues", "-", useColor)

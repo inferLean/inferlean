@@ -75,6 +75,7 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 				"required_total": 1,
 			},
 		},
+		"diagnostic_lenses":  quantizationLensFixture(),
 		"collection_quality": map[string]any{},
 		"ui_hints":           map[string]any{},
 	}, false)
@@ -95,6 +96,9 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 	}
 	if !strings.Contains(content, "Current: 8192 (default)") || !strings.Contains(content, "Proposed: 4096") {
 		t.Fatalf("formatted report missing action delta: %s", content)
+	}
+	if !strings.Contains(content, "Quantization Opportunity") || !strings.Contains(content, "Qwen/Qwen3-32B-FP8") {
+		t.Fatalf("formatted report missing quantization lens: %s", content)
 	}
 	if !strings.Contains(summary, "run=run_123") {
 		t.Fatalf("summary missing run id: %s", summary)
@@ -133,6 +137,7 @@ func TestRenderNoInteractivePrintsPlainReport(t *testing.T) {
 			},
 		},
 		"diagnostic_coverage": map[string]any{},
+		"diagnostic_lenses":   quantizationLensFixture(),
 		"collection_quality":  map[string]any{},
 	}
 
@@ -148,6 +153,62 @@ func TestRenderNoInteractivePrintsPlainReport(t *testing.T) {
 	}
 	if strings.Contains(output, "\x1b[?1049h") || strings.Contains(output, "\x1b[?1049l") {
 		t.Fatalf("non-interactive output must not use the alternate screen: %q", output)
+	}
+}
+
+func quantizationLensFixture() map[string]any {
+	return map[string]any{
+		"quantization": map[string]any{
+			"id": "lens:quantization",
+			"current_posture": map[string]any{
+				"model_id":       "Qwen/Qwen3-32B",
+				"dtype":          "bfloat16",
+				"quantization":   "none",
+				"kv_cache_dtype": "auto",
+				"gpu_family":     "hopper",
+			},
+			"selected_candidate": map[string]any{
+				"family":     "fp8",
+				"repo":       "Qwen/Qwen3-32B-FP8",
+				"source":     "verified_allowlist",
+				"confidence": "medium",
+			},
+			"recommendation": map[string]any{
+				"decision":   "evaluate_quantized_model_path",
+				"title":      "Evaluate Qwen/Qwen3-32B-FP8",
+				"rationale":  "Treat quantization as a validation-first opportunity.",
+				"confidence": "medium",
+				"actions": []map[string]any{{
+					"id":             "action:evaluate-quantized-candidate",
+					"title":          "Run a side-by-side quantized checkpoint validation",
+					"current_value":  "Qwen/Qwen3-32B dtype=bfloat16 quantization=none",
+					"proposed_value": "Qwen/Qwen3-32B-FP8",
+				}},
+			},
+			"scenario_overlays": map[string]any{
+				"latency": map[string]any{
+					"target": "latency",
+					"gain_range": map[string]any{
+						"percent_low":  5,
+						"percent_high": 15,
+					},
+				},
+				"balanced": map[string]any{
+					"target": "balanced",
+					"gain_range": map[string]any{
+						"percent_low":  8,
+						"percent_high": 18,
+					},
+				},
+				"throughput": map[string]any{
+					"target": "throughput",
+					"gain_range": map[string]any{
+						"percent_low":  8,
+						"percent_high": 20,
+					},
+				},
+			},
+		},
 	}
 }
 
