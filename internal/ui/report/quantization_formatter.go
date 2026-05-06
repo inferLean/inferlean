@@ -16,7 +16,8 @@ func renderQuantizationLens(b *strings.Builder, lens contracts.QuantizationLens,
 	if lens.Recommendation != nil {
 		writeKeyValue(b, "Recommendation", fallback(lens.Recommendation.Title, lens.Recommendation.Decision), useColor)
 		writeKeyValue(b, "Why", fallback(lens.Recommendation.Rationale, "-"), useColor)
-		renderQuantizationActions(b, lens.Recommendation.Actions, useColor)
+		renderRecommendationActions(b, lens.Recommendation.Actions, useColor)
+		renderFollowUpSteps(b, lens.Recommendation.FollowUpSteps, useColor)
 	}
 	b.WriteString(colorize(useColor, reportCyan, "Scenario Estimates:") + "\n")
 	renderQuantizationOverlay(b, lens.ScenarioOverlays.Latency, useColor)
@@ -24,24 +25,6 @@ func renderQuantizationLens(b *strings.Builder, lens contracts.QuantizationLens,
 	renderQuantizationOverlay(b, lens.ScenarioOverlays.Throughput, useColor)
 	if len(lens.Caveats) > 0 {
 		writeKeyValue(b, "Caveats", strings.Join(lens.Caveats, " "), useColor)
-	}
-}
-
-func renderQuantizationActions(b *strings.Builder, actions []contracts.Action, useColor bool) {
-	if len(actions) == 0 {
-		return
-	}
-	b.WriteString(colorize(useColor, reportCyan, "Validation Actions:") + "\n")
-	for i, action := range actions {
-		item := fmt.Sprintf("  %d. %s", i+1, fallback(action.Title, action.ID))
-		b.WriteString(colorize(useColor, reportGreen, item) + "\n")
-		if current, proposed := actionChange(action); current != "" || proposed != "" {
-			b.WriteString(colorize(useColor, reportDim, "     Current: ") + fallback(current, "-") + "\n")
-			b.WriteString(colorize(useColor, reportDim, "     Proposed: ") + fallback(proposed, "-") + "\n")
-		}
-		if how := strings.TrimSpace(action.How); how != "" {
-			b.WriteString(colorize(useColor, reportDim, "     How: ") + how + "\n")
-		}
 	}
 }
 

@@ -25,6 +25,32 @@ func TestFinalReportValidateAcceptsCanonicalShape(t *testing.T) {
 	}
 }
 
+func TestFinalReportValidateRejectsIncompleteActionDelta(t *testing.T) {
+	report := validFinalReport()
+	report.Diagnosis.BaseDiagnosis.Recommendation.Actions = []Action{{
+		ID:           "action:set-max-num-batched-tokens",
+		Title:        "Raise `--max-num-batched-tokens`",
+		CurrentValue: "2048",
+	}}
+
+	if err := report.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want incomplete action delta failure")
+	}
+}
+
+func TestFinalReportValidateAcceptsFollowUpStepsWithoutDelta(t *testing.T) {
+	report := validFinalReport()
+	report.Diagnosis.BaseDiagnosis.Recommendation.FollowUpSteps = []FollowUpStep{{
+		ID:    "action:rerun-under-same-load",
+		Title: "Rerun at the same offered load",
+		How:   "Keep prompt/output mix and client concurrency stable for the comparison run.",
+	}}
+
+	if err := report.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestFinalReportValidateRequiresRankOneIssue(t *testing.T) {
 	report := validFinalReport()
 	report.Issues[0].Rank = 2

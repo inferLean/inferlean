@@ -187,6 +187,7 @@ type Recommendation struct {
 	Reversibility  string                 `json:"reversibility,omitempty"`
 	Confidence     string                 `json:"confidence,omitempty"`
 	Actions        []Action               `json:"actions,omitempty"`
+	FollowUpSteps  []FollowUpStep         `json:"follow_up_steps,omitempty"`
 }
 
 type RecommendationEffect struct {
@@ -207,6 +208,16 @@ type Action struct {
 	CurrentValue         string `json:"current_value,omitempty"`
 	ProposedValue        string `json:"proposed_value,omitempty"`
 	ValueKind            string `json:"value_kind,omitempty"`
+	ExpectedSignalChange string `json:"expected_signal_change,omitempty"`
+	Risk                 string `json:"risk,omitempty"`
+	Confidence           string `json:"confidence,omitempty"`
+}
+
+type FollowUpStep struct {
+	ID                   string `json:"id"`
+	Title                string `json:"title"`
+	Why                  string `json:"why,omitempty"`
+	How                  string `json:"how,omitempty"`
 	ExpectedSignalChange string `json:"expected_signal_change,omitempty"`
 	Risk                 string `json:"risk,omitempty"`
 	Confidence           string `json:"confidence,omitempty"`

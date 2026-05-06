@@ -23,6 +23,8 @@ func (r FinalReport) Validate() error {
 		errs = append(errs, errors.New("entitlement.tier must be free or paid"))
 	}
 
+	errs = append(errs, validateRecommendation(r.Diagnosis.BaseDiagnosis.Recommendation, "diagnosis.base_diagnosis.recommendation")...)
+
 	errs = append(errs, validateOverlay(r.Diagnosis.ScenarioOverlays.Latency, "latency")...)
 	errs = append(errs, validateOverlay(r.Diagnosis.ScenarioOverlays.Balanced, "balanced")...)
 	errs = append(errs, validateOverlay(r.Diagnosis.ScenarioOverlays.Throughput, "throughput")...)
@@ -34,10 +36,12 @@ func (r FinalReport) Validate() error {
 }
 
 func validateOverlay(overlay ScenarioOverlay, want string) []error {
-	if overlay.Target == "" || overlay.Target == want {
-		return nil
+	var errs []error
+	if overlay.Target != "" && overlay.Target != want {
+		errs = append(errs, fmt.Errorf("diagnosis.scenario_overlays.%s.target must be %s", want, want))
 	}
-	return []error{fmt.Errorf("diagnosis.scenario_overlays.%s.target must be %s", want, want)}
+	errs = append(errs, validateRecommendation(overlay.Recommendation, "diagnosis.scenario_overlays."+want+".recommendation")...)
+	return errs
 }
 
 func validateQuantizationLens(lens *QuantizationLens) []error {
@@ -48,6 +52,7 @@ func validateQuantizationLens(lens *QuantizationLens) []error {
 	if strings.TrimSpace(lens.SelectedCandidate.Family) == "" {
 		errs = append(errs, errors.New("diagnostic_lenses.quantization.selected_candidate.family is required"))
 	}
+	errs = append(errs, validateRecommendation(lens.Recommendation, "diagnostic_lenses.quantization.recommendation")...)
 	errs = append(errs, validateQuantizationOverlay(lens.ScenarioOverlays.Latency, "latency")...)
 	errs = append(errs, validateQuantizationOverlay(lens.ScenarioOverlays.Balanced, "balanced")...)
 	errs = append(errs, validateQuantizationOverlay(lens.ScenarioOverlays.Throughput, "throughput")...)
@@ -113,6 +118,20 @@ func validateReportCoverage(coverage DiagnosticCoverage) []error {
 			errs = append(errs, fmt.Errorf("diagnostic_coverage.detector_results[%d].detector_id must be unique", idx))
 		}
 		seen[result.DetectorID] = struct{}{}
+	}
+	return errs
+}
+
+func validateRecommendation(recommendation *Recommendation, field string) []error {
+	if recommendation == nil {
+		return nil
+	}
+
+	var errs []error
+	for idx, action := range recommendation.Actions {
+		if strings.TrimSpace(action.CurrentValue) == "" || strings.TrimSpace(action.ProposedValue) == "" {
+			errs = append(errs, fmt.Errorf("%s.actions[%d] must include current_value and proposed_value", field, idx))
+		}
 	}
 	return errs
 }

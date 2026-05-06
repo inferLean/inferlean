@@ -116,24 +116,11 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 		writeKeyValue(&b, "Risk", fallback(base.Recommendation.Risk, "-"), useColor)
 		writeKeyValue(&b, "Confidence", fallback(base.Recommendation.Confidence, "-"), useColor)
 		writeKeyValue(&b, "Tradeoff", fallback(base.Recommendation.Tradeoff.Summary, "-"), useColor)
-		if len(base.Recommendation.Actions) == 0 {
+		if len(base.Recommendation.Actions) == 0 && len(base.Recommendation.FollowUpSteps) == 0 {
 			writeKeyValue(&b, "Actions", "-", useColor)
 		} else {
-			b.WriteString(colorize(useColor, reportCyan, "Actions:") + "\n")
-			for i, action := range base.Recommendation.Actions {
-				item := fmt.Sprintf("  %d. %s", i+1, fallback(action.Title, action.ID))
-				b.WriteString(colorize(useColor, reportGreen, item) + "\n")
-				if why := strings.TrimSpace(action.Why); why != "" {
-					b.WriteString(colorize(useColor, reportDim, "     Why: ") + why + "\n")
-				}
-				if current, proposed := actionChange(action); current != "" || proposed != "" {
-					b.WriteString(colorize(useColor, reportDim, "     Current: ") + fallback(current, "-") + "\n")
-					b.WriteString(colorize(useColor, reportDim, "     Proposed: ") + fallback(proposed, "-") + "\n")
-				}
-				if how := strings.TrimSpace(action.How); how != "" {
-					b.WriteString(colorize(useColor, reportDim, "     How: ") + how + "\n")
-				}
-			}
+			renderRecommendationActions(&b, base.Recommendation.Actions, useColor)
+			renderFollowUpSteps(&b, base.Recommendation.FollowUpSteps, useColor)
 		}
 	} else {
 		writeSection(&b, "Primary Recommendation", useColor)
@@ -365,6 +352,43 @@ func renderOverlay(b *strings.Builder, overlay contracts.ScenarioOverlay, useCol
 
 func actionChange(action contracts.Action) (string, string) {
 	return strings.TrimSpace(action.CurrentValue), strings.TrimSpace(action.ProposedValue)
+}
+
+func renderRecommendationActions(b *strings.Builder, actions []contracts.Action, useColor bool) {
+	if len(actions) == 0 {
+		return
+	}
+	b.WriteString(colorize(useColor, reportCyan, "Actions:") + "\n")
+	for i, action := range actions {
+		item := fmt.Sprintf("  %d. %s", i+1, fallback(action.Title, action.ID))
+		b.WriteString(colorize(useColor, reportGreen, item) + "\n")
+		if why := strings.TrimSpace(action.Why); why != "" {
+			b.WriteString(colorize(useColor, reportDim, "     Why: ") + why + "\n")
+		}
+		current, proposed := actionChange(action)
+		b.WriteString(colorize(useColor, reportDim, "     Current: ") + fallback(current, "-") + "\n")
+		b.WriteString(colorize(useColor, reportDim, "     Proposed: ") + fallback(proposed, "-") + "\n")
+		if how := strings.TrimSpace(action.How); how != "" {
+			b.WriteString(colorize(useColor, reportDim, "     How: ") + how + "\n")
+		}
+	}
+}
+
+func renderFollowUpSteps(b *strings.Builder, steps []contracts.FollowUpStep, useColor bool) {
+	if len(steps) == 0 {
+		return
+	}
+	b.WriteString(colorize(useColor, reportCyan, "Follow-up Steps:") + "\n")
+	for i, step := range steps {
+		item := fmt.Sprintf("  %d. %s", i+1, fallback(step.Title, step.ID))
+		b.WriteString(colorize(useColor, reportGreen, item) + "\n")
+		if why := strings.TrimSpace(step.Why); why != "" {
+			b.WriteString(colorize(useColor, reportDim, "     Why: ") + why + "\n")
+		}
+		if how := strings.TrimSpace(step.How); how != "" {
+			b.WriteString(colorize(useColor, reportDim, "     How: ") + how + "\n")
+		}
+	}
 }
 
 func colorize(useColor bool, colorCode, text string) string {

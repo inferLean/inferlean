@@ -64,6 +64,11 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 						"proposed_value": "4096",
 						"value_kind":     "number",
 					}},
+					"follow_up_steps": []map[string]any{{
+						"id":    "action:rerun-under-same-load",
+						"title": "Rerun at the same offered load",
+						"how":   "Keep prompt/output mix and client concurrency stable for the comparison run.",
+					}},
 				},
 			},
 			"scenario_overlays": map[string]any{
@@ -98,6 +103,9 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 	}
 	if !strings.Contains(content, "Current: 8192 (default)") || !strings.Contains(content, "Proposed: 4096") {
 		t.Fatalf("formatted report missing action delta: %s", content)
+	}
+	if !strings.Contains(content, "Follow-up Steps") || !strings.Contains(content, "Rerun at the same offered load") {
+		t.Fatalf("formatted report missing follow-up steps: %s", content)
 	}
 	if !strings.Contains(content, "Quantization Opportunity") || !strings.Contains(content, "Qwen/Qwen3-32B-FP8") {
 		t.Fatalf("formatted report missing quantization lens: %s", content)
@@ -185,6 +193,11 @@ func quantizationLensFixture() map[string]any {
 					"title":          "Run a side-by-side quantized checkpoint validation",
 					"current_value":  "Qwen/Qwen3-32B dtype=bfloat16 quantization=none",
 					"proposed_value": "Qwen/Qwen3-32B-FP8",
+				}},
+				"follow_up_steps": []map[string]any{{
+					"id":    "action:validate-quality",
+					"title": "Validate answer quality before rollout",
+					"how":   "Compare representative prompts against the current checkpoint and keep acceptance criteria explicit.",
 				}},
 			},
 			"scenario_overlays": map[string]any{
