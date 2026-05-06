@@ -23,6 +23,12 @@ type CollectFlags struct {
 	RepeatedMultimodalMedia string
 }
 
+type collectIntentFlags struct {
+	PrefixHeavy             *bool
+	Multimodal              *bool
+	RepeatedMultimodalMedia *bool
+}
+
 type UploadFlags struct {
 	RequireReport bool
 	RunID         string

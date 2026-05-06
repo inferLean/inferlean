@@ -31,15 +31,7 @@ func newCollectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			prefixValue, err := parseOptionalBool(opts.PrefixHeavy)
-			if err != nil {
-				return err
-			}
-			multimodalValue, err := parseOptionalBool(opts.Multimodal)
-			if err != nil {
-				return err
-			}
-			repeatedMultimodalMediaValue, err := parseOptionalBool(opts.RepeatedMultimodalMedia)
+			intent, err := parseCollectIntentFlags(*opts)
 			if err != nil {
 				return err
 			}
@@ -51,9 +43,9 @@ func newCollectCommand() *cobra.Command {
 				CollectorVersion:        version,
 				DeclaredWorkloadMode:    opts.DeclaredWorkloadMode,
 				DeclaredWorkloadTarget:  opts.DeclaredWorkloadTarget,
-				PrefixHeavy:             prefixValue,
-				Multimodal:              multimodalValue,
-				RepeatedMultimodalMedia: repeatedMultimodalMediaValue,
+				PrefixHeavy:             intent.PrefixHeavy,
+				Multimodal:              intent.Multimodal,
+				RepeatedMultimodalMedia: intent.RepeatedMultimodalMedia,
 				NonInteractive:          application.nonInteractive,
 			})
 			if err != nil {
@@ -77,4 +69,24 @@ func bindCollectFlags(cmd *cobra.Command, opts *CollectFlags) {
 	cmd.Flags().StringVar(&opts.PrefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
 	cmd.Flags().StringVar(&opts.Multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
 	cmd.Flags().StringVar(&opts.RepeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto)")
+}
+
+func parseCollectIntentFlags(opts CollectFlags) (collectIntentFlags, error) {
+	prefixValue, err := parseOptionalBool(opts.PrefixHeavy)
+	if err != nil {
+		return collectIntentFlags{}, err
+	}
+	multimodalValue, err := parseOptionalBool(opts.Multimodal)
+	if err != nil {
+		return collectIntentFlags{}, err
+	}
+	repeatedMultimodalMediaValue, err := parseOptionalBool(opts.RepeatedMultimodalMedia)
+	if err != nil {
+		return collectIntentFlags{}, err
+	}
+	return collectIntentFlags{
+		PrefixHeavy:             prefixValue,
+		Multimodal:              multimodalValue,
+		RepeatedMultimodalMedia: repeatedMultimodalMediaValue,
+	}, nil
 }

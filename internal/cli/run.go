@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -58,19 +56,11 @@ func runWithDefaultOptions(cmd *cobra.Command) error {
 
 func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 	application := appFromContext(cmd.Context())
-	prefixValue, err := parseOptionalBool(opts.collect.PrefixHeavy)
+	intent, err := parseCollectIntentFlags(opts.collect)
 	if err != nil {
 		return err
 	}
-	multimodalValue, err := parseOptionalBool(opts.collect.Multimodal)
-	if err != nil {
-		return err
-	}
-	repeatedMultimodalMediaValue, err := parseOptionalBool(opts.collect.RepeatedMultimodalMedia)
-	if err != nil {
-		return err
-	}
-	result, err := application.run.Run(cmd.Context(), runpresenter.Options{
+	_, err = application.run.Run(cmd.Context(), runpresenter.Options{
 		Discover: discoverpresenter.Options{
 			PID:               opts.target.PID,
 			ContainerName:     opts.target.ContainerName,
@@ -87,28 +77,12 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 		Version:                 version,
 		DeclaredWorkloadMode:    opts.collect.DeclaredWorkloadMode,
 		DeclaredWorkloadTarget:  opts.collect.DeclaredWorkloadTarget,
-		PrefixHeavy:             prefixValue,
-		Multimodal:              multimodalValue,
-		RepeatedMultimodalMedia: repeatedMultimodalMediaValue,
+		PrefixHeavy:             intent.PrefixHeavy,
+		Multimodal:              intent.Multimodal,
+		RepeatedMultimodalMedia: intent.RepeatedMultimodalMedia,
 		NonInteractive:          application.nonInteractive,
 		BackendURL:              application.appURL,
 		RequireUpload:           opts.requireUpload,
 	})
-	if err != nil {
-		return err
-	}
-	if result.Failed {
-		fmt.Println("status: fail")
-		if strings.TrimSpace(result.FailureReason) != "" {
-			fmt.Printf("reason: %s\n", result.FailureReason)
-		}
-		if strings.TrimSpace(result.FailureHint) != "" {
-			fmt.Printf("hint: %s\n", result.FailureHint)
-		}
-		return fmt.Errorf("run failed: %s", strings.TrimSpace(result.FailureReason))
-	}
-	if result.UploadErr != nil {
-		fmt.Printf("run upload warning: %v\n", result.UploadErr)
-	}
-	return nil
+	return err
 }

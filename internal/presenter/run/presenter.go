@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/inferLean/inferlean-main/cli/internal/evidencegate"
@@ -78,7 +79,11 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 	result := Result{ArtifactPath: collectRes.ArtifactPath, RunID: collectRes.Artifact.Job.RunID}
-	return p.handleUpload(ctx, opts, result, collectRes.Artifact)
+	result, err = p.handleUpload(ctx, opts, result, collectRes.Artifact)
+	if err != nil {
+		return result, err
+	}
+	return result, finish(result)
 }
 
 func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result, artifact contracts.RunArtifact) (Result, error) {
@@ -99,7 +104,6 @@ func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result
 			return result, err
 		}
 		result.UploadErr = err
-		fmt.Printf("[run] upload/report skipped with error: %v\n", err)
 		return result, nil
 	}
 	result.Uploaded = uploadRes.Uploaded
@@ -117,4 +121,21 @@ func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result
 		NonInteractive: opts.NonInteractive,
 	})
 	return result, nil
+}
+
+func finish(result Result) error {
+	if result.Failed {
+		fmt.Println("status: fail")
+		if strings.TrimSpace(result.FailureReason) != "" {
+			fmt.Printf("reason: %s\n", result.FailureReason)
+		}
+		if strings.TrimSpace(result.FailureHint) != "" {
+			fmt.Printf("hint: %s\n", result.FailureHint)
+		}
+		return fmt.Errorf("run failed: %s", strings.TrimSpace(result.FailureReason))
+	}
+	if result.UploadErr != nil {
+		fmt.Printf("run upload warning: %v\n", result.UploadErr)
+	}
+	return nil
 }
