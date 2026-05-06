@@ -12,7 +12,7 @@ func TestBuildQuestionList_ShowsAllTargetOptionsOnOnePage(t *testing.T) {
 	l := buildQuestionList(targetQuestion(), 48, 9)
 	visible := l.VisibleItems()
 
-	if got, want := len(visible), 3; got != want {
+	if got, want := len(visible), 2; got != want {
 		t.Fatalf("len(VisibleItems())=%d, want %d", got, want)
 	}
 	if !l.ShowPagination() {
@@ -39,7 +39,7 @@ func TestQuestionnaireTransition_KeepsTargetOptionsOnOnePage(t *testing.T) {
 	if updated.list.Title != "Declared optimization target" {
 		t.Fatalf("title=%q, want %q", updated.list.Title, "Declared optimization target")
 	}
-	if got, want := len(updated.list.VisibleItems()), 3; got != want {
+	if got, want := len(updated.list.VisibleItems()), 2; got != want {
 		t.Fatalf("len(VisibleItems())=%d, want %d", got, want)
 	}
 }

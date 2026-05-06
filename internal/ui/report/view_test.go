@@ -71,11 +71,7 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 					}},
 				},
 			},
-			"scenario_overlays": map[string]any{
-				"latency":    map[string]any{"target": "latency"},
-				"balanced":   map[string]any{"target": "balanced"},
-				"throughput": map[string]any{"target": "throughput"},
-			},
+			"target_overlay": map[string]any{"target": "throughput"},
 		},
 		"diagnostic_coverage": map[string]any{
 			"summary": map[string]any{
@@ -200,27 +196,11 @@ func quantizationLensFixture() map[string]any {
 					"how":   "Compare representative prompts against the current checkpoint and keep acceptance criteria explicit.",
 				}},
 			},
-			"scenario_overlays": map[string]any{
-				"latency": map[string]any{
-					"target": "latency",
-					"gain_range": map[string]any{
-						"percent_low":  5,
-						"percent_high": 15,
-					},
-				},
-				"balanced": map[string]any{
-					"target": "balanced",
-					"gain_range": map[string]any{
-						"percent_low":  8,
-						"percent_high": 18,
-					},
-				},
-				"throughput": map[string]any{
-					"target": "throughput",
-					"gain_range": map[string]any{
-						"percent_low":  8,
-						"percent_high": 20,
-					},
+			"target_overlay": map[string]any{
+				"target": "throughput",
+				"gain_range": map[string]any{
+					"percent_low":  8,
+					"percent_high": 20,
 				},
 			},
 		},

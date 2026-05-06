@@ -12,6 +12,19 @@ func TestRunArtifactValidate(t *testing.T) {
 	}
 }
 
+func TestRunArtifactValidateRejectsBalancedTarget(t *testing.T) {
+	artifact := validArtifact()
+	artifact.WorkloadObservations.DeclaredWorkloadTarget = "balanced"
+
+	err := artifact.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want invalid target failure")
+	}
+	if !strings.Contains(err.Error(), "workload_observations.declared_workload_target must be one of latency, throughput, unknown") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestRunArtifactValidateRejectsMissingCanonicalMetricWithoutCoverage(t *testing.T) {
 	artifact := validArtifact()
 	artifact.Metrics.Host.CPULoad = MetricWindow{}

@@ -19,10 +19,8 @@ func renderQuantizationLens(b *strings.Builder, lens contracts.QuantizationLens,
 		renderRecommendationActions(b, lens.Recommendation.Actions, useColor)
 		renderFollowUpSteps(b, lens.Recommendation.FollowUpSteps, useColor)
 	}
-	b.WriteString(colorize(useColor, reportCyan, "Scenario Estimates:") + "\n")
-	renderQuantizationOverlay(b, lens.ScenarioOverlays.Latency, useColor)
-	renderQuantizationOverlay(b, lens.ScenarioOverlays.Balanced, useColor)
-	renderQuantizationOverlay(b, lens.ScenarioOverlays.Throughput, useColor)
+	b.WriteString(colorize(useColor, reportCyan, "Target Estimate:") + "\n")
+	renderQuantizationOverlay(b, lens.TargetOverlay, useColor)
 	if len(lens.Caveats) > 0 {
 		writeKeyValue(b, "Caveats", strings.Join(lens.Caveats, " "), useColor)
 	}

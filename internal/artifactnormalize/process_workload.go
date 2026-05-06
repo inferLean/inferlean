@@ -59,7 +59,7 @@ func canonicalDeclaredWorkloadMode(value string) string {
 
 func canonicalDeclaredWorkloadTarget(value string) string {
 	switch strings.TrimSpace(value) {
-	case "latency", "throughput", "balanced":
+	case "latency", "throughput":
 		return strings.TrimSpace(value)
 	default:
 		return "unknown"

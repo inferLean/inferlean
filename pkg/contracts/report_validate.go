@@ -25,9 +25,7 @@ func (r FinalReport) Validate() error {
 
 	errs = append(errs, validateRecommendation(r.Diagnosis.BaseDiagnosis.Recommendation, "diagnosis.base_diagnosis.recommendation")...)
 
-	errs = append(errs, validateOverlay(r.Diagnosis.ScenarioOverlays.Latency, "latency")...)
-	errs = append(errs, validateOverlay(r.Diagnosis.ScenarioOverlays.Balanced, "balanced")...)
-	errs = append(errs, validateOverlay(r.Diagnosis.ScenarioOverlays.Throughput, "throughput")...)
+	errs = append(errs, validateOverlay(r.Diagnosis.TargetOverlay, "diagnosis.target_overlay")...)
 	errs = append(errs, validateQuantizationLens(r.DiagnosticLenses.Quantization)...)
 	errs = append(errs, validateIssues(r.Issues)...)
 	errs = append(errs, validateReportCoverage(r.DiagnosticCoverage)...)
@@ -35,12 +33,16 @@ func (r FinalReport) Validate() error {
 	return errors.Join(errs...)
 }
 
-func validateOverlay(overlay ScenarioOverlay, want string) []error {
+func validateOverlay(overlay ScenarioOverlay, field string) []error {
 	var errs []error
-	if overlay.Target != "" && overlay.Target != want {
-		errs = append(errs, fmt.Errorf("diagnosis.scenario_overlays.%s.target must be %s", want, want))
+	switch overlay.Target {
+	case "latency", "throughput":
+	case "":
+		errs = append(errs, fmt.Errorf("%s.target is required", field))
+	default:
+		errs = append(errs, fmt.Errorf("%s.target must be latency or throughput", field))
 	}
-	errs = append(errs, validateRecommendation(overlay.Recommendation, "diagnosis.scenario_overlays."+want+".recommendation")...)
+	errs = append(errs, validateRecommendation(overlay.Recommendation, field+".recommendation")...)
 	return errs
 }
 
@@ -53,17 +55,19 @@ func validateQuantizationLens(lens *QuantizationLens) []error {
 		errs = append(errs, errors.New("diagnostic_lenses.quantization.selected_candidate.family is required"))
 	}
 	errs = append(errs, validateRecommendation(lens.Recommendation, "diagnostic_lenses.quantization.recommendation")...)
-	errs = append(errs, validateQuantizationOverlay(lens.ScenarioOverlays.Latency, "latency")...)
-	errs = append(errs, validateQuantizationOverlay(lens.ScenarioOverlays.Balanced, "balanced")...)
-	errs = append(errs, validateQuantizationOverlay(lens.ScenarioOverlays.Throughput, "throughput")...)
+	errs = append(errs, validateQuantizationOverlay(lens.TargetOverlay)...)
 	return errs
 }
 
-func validateQuantizationOverlay(overlay QuantizationScenarioOverlay, want string) []error {
-	if overlay.Target == "" || overlay.Target == want {
+func validateQuantizationOverlay(overlay QuantizationScenarioOverlay) []error {
+	switch overlay.Target {
+	case "latency", "throughput":
 		return nil
+	case "":
+		return []error{errors.New("diagnostic_lenses.quantization.target_overlay.target is required")}
+	default:
+		return []error{errors.New("diagnostic_lenses.quantization.target_overlay.target must be latency or throughput")}
 	}
-	return []error{fmt.Errorf("diagnostic_lenses.quantization.scenario_overlays.%s.target must be %s", want, want)}
 }
 
 func validateIssues(issues []Issue) []error {

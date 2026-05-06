@@ -186,10 +186,8 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 		}
 	}
 
-	writeSection(&b, "Scenario Overlays", useColor)
-	renderOverlay(&b, report.Diagnosis.ScenarioOverlays.Latency, useColor)
-	renderOverlay(&b, report.Diagnosis.ScenarioOverlays.Balanced, useColor)
-	renderOverlay(&b, report.Diagnosis.ScenarioOverlays.Throughput, useColor)
+	writeSection(&b, "Target Estimate", useColor)
+	renderOverlay(&b, report.Diagnosis.TargetOverlay, useColor)
 
 	return strings.TrimSpace(b.String())
 }

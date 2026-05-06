@@ -109,11 +109,7 @@ func validFinalReport() FinalReport {
 					Source:     "verified_allowlist",
 					Confidence: "medium",
 				},
-				ScenarioOverlays: QuantizationScenarioOverlays{
-					Latency:    QuantizationScenarioOverlay{Target: "latency"},
-					Balanced:   QuantizationScenarioOverlay{Target: "balanced"},
-					Throughput: QuantizationScenarioOverlay{Target: "throughput"},
-				},
+				TargetOverlay: QuantizationScenarioOverlay{Target: "throughput"},
 			},
 		},
 		Diagnosis: DiagnosisSection{
@@ -124,11 +120,7 @@ func validFinalReport() FinalReport {
 					Title:    "Widen scheduler posture",
 				},
 			},
-			ScenarioOverlays: ScenarioOverlays{
-				Latency:    ScenarioOverlay{Target: "latency"},
-				Balanced:   ScenarioOverlay{Target: "balanced"},
-				Throughput: ScenarioOverlay{Target: "throughput"},
-			},
+			TargetOverlay: ScenarioOverlay{Target: "throughput"},
 		},
 		DiagnosticCoverage: DiagnosticCoverage{
 			EligibleForRequiredDetectors: true,

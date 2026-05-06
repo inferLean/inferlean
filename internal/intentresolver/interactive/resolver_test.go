@@ -71,6 +71,24 @@ func TestApplyAnswer(t *testing.T) {
 	}
 }
 
+func TestTargetQuestionUsesTwoTargetsWithThroughputDefault(t *testing.T) {
+	t.Parallel()
+	q := targetQuestion()
+
+	if len(q.options) != 2 {
+		t.Fatalf("len(target options)=%d, want 2", len(q.options))
+	}
+	if got, want := q.options[0].value, "latency"; got != want {
+		t.Fatalf("first target=%q, want %q", got, want)
+	}
+	if got, want := q.options[1].value, "throughput"; got != want {
+		t.Fatalf("second target=%q, want %q", got, want)
+	}
+	if q.defaultIndex != 1 {
+		t.Fatalf("default index=%d, want throughput index 1", q.defaultIndex)
+	}
+}
+
 func TestYesNoDefaultIndex(t *testing.T) {
 	t.Parallel()
 	yesDefault := yesNoQuestion(keyPrefixHeavy, "Prefix-heavy traffic?", true, "desc")

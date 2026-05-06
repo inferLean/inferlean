@@ -5,13 +5,13 @@ type DiagnosticLenses struct {
 }
 
 type QuantizationLens struct {
-	ID                string                       `json:"id,omitempty"`
-	CurrentPosture    QuantizationCurrentPosture   `json:"current_posture"`
-	SelectedCandidate QuantizationCandidate        `json:"selected_candidate"`
-	Recommendation    *Recommendation              `json:"recommendation,omitempty"`
-	ScenarioOverlays  QuantizationScenarioOverlays `json:"scenario_overlays"`
-	Confidence        string                       `json:"confidence,omitempty"`
-	Caveats           []string                     `json:"caveats,omitempty"`
+	ID                string                      `json:"id,omitempty"`
+	CurrentPosture    QuantizationCurrentPosture  `json:"current_posture"`
+	SelectedCandidate QuantizationCandidate       `json:"selected_candidate"`
+	Recommendation    *Recommendation             `json:"recommendation,omitempty"`
+	TargetOverlay     QuantizationScenarioOverlay `json:"target_overlay"`
+	Confidence        string                      `json:"confidence,omitempty"`
+	Caveats           []string                    `json:"caveats,omitempty"`
 }
 
 type QuantizationCurrentPosture struct {
@@ -31,12 +31,6 @@ type QuantizationCandidate struct {
 	HardwareFamily string   `json:"hardware_family,omitempty"`
 	Confidence     string   `json:"confidence,omitempty"`
 	Caveats        []string `json:"caveats,omitempty"`
-}
-
-type QuantizationScenarioOverlays struct {
-	Latency    QuantizationScenarioOverlay `json:"latency"`
-	Balanced   QuantizationScenarioOverlay `json:"balanced"`
-	Throughput QuantizationScenarioOverlay `json:"throughput"`
 }
 
 type QuantizationScenarioOverlay struct {

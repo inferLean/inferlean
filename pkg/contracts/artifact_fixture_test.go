@@ -13,7 +13,7 @@ func validArtifact() RunArtifact {
 		ProcessInspection: validProcessInspection(now),
 		WorkloadObservations: WorkloadObservations{
 			DeclaredWorkloadMode:    "mixed",
-			DeclaredWorkloadTarget:  "balanced",
+			DeclaredWorkloadTarget:  "throughput",
 			PrefixReuse:             "high",
 			Multimodal:              "present",
 			RepeatedMultimodalMedia: "high",

@@ -97,7 +97,6 @@ func targetQuestion() question {
 		prompt: "Declared optimization target",
 		options: []questionOption{
 			{title: "latency", description: "Prioritize response and tail latency.", value: "latency"},
-			{title: "balanced", description: "Balance responsiveness and throughput.", value: "balanced"},
 			{title: "throughput", description: "Prioritize tokens/sec and total volume.", value: "throughput"},
 		},
 		defaultIndex: 1,

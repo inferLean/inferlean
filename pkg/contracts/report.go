@@ -53,8 +53,8 @@ type ReportEnvironment struct {
 }
 
 type DiagnosisSection struct {
-	BaseDiagnosis    BaseDiagnosis    `json:"base_diagnosis"`
-	ScenarioOverlays ScenarioOverlays `json:"scenario_overlays"`
+	BaseDiagnosis BaseDiagnosis   `json:"base_diagnosis"`
+	TargetOverlay ScenarioOverlay `json:"target_overlay"`
 }
 
 type BaseDiagnosis struct {
@@ -223,12 +223,6 @@ type FollowUpStep struct {
 	Confidence           string `json:"confidence,omitempty"`
 }
 
-type ScenarioOverlays struct {
-	Latency    ScenarioOverlay `json:"latency"`
-	Balanced   ScenarioOverlay `json:"balanced"`
-	Throughput ScenarioOverlay `json:"throughput"`
-}
-
 type ScenarioOverlay struct {
 	Target         string                 `json:"target,omitempty"`
 	Summary        string                 `json:"summary,omitempty"`
@@ -310,7 +304,6 @@ type ReportCollectionQuality struct {
 type UIHints struct {
 	AvailableModes    []string `json:"available_modes,omitempty"`
 	DefaultMode       string   `json:"default_mode,omitempty"`
-	DefaultTarget     string   `json:"default_target,omitempty"`
 	HighlightIssueIDs []string `json:"highlight_issue_ids,omitempty"`
 }
 
