@@ -164,6 +164,17 @@ type EstimateValue struct {
 	RangeHigh *float64 `json:"range_high,omitempty"`
 }
 
+type CrossMetricValues struct {
+	LatencyE2ESeconds         *float64 `json:"latency_e2e_seconds,omitempty"`
+	GenerationTokensPerSecond *float64 `json:"generation_tokens_per_second,omitempty"`
+	RequestThroughput         *float64 `json:"request_throughput,omitempty"`
+}
+
+type CrossMetricProjection struct {
+	Current   CrossMetricValues `json:"current,omitempty"`
+	Projected CrossMetricValues `json:"projected,omitempty"`
+}
+
 type Recommendation struct {
 	Decision       string                 `json:"decision"`
 	Title          string                 `json:"title"`
@@ -211,6 +222,7 @@ type ScenarioOverlay struct {
 	Target         string                 `json:"target,omitempty"`
 	Summary        string                 `json:"summary,omitempty"`
 	Frontier       FrontierBundle         `json:"frontier"`
+	CrossMetric    CrossMetricProjection  `json:"cross_metric,omitempty"`
 	Recommendation *Recommendation        `json:"recommendation,omitempty"`
 	Tradeoff       RecommendationTradeoff `json:"tradeoff,omitempty"`
 	Confidence     string                 `json:"confidence,omitempty"`
