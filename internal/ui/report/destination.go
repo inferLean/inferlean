@@ -2,6 +2,7 @@ package report
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/inferLean/inferlean-main/cli/internal/browser"
 )
@@ -24,8 +25,13 @@ func chooseDestination(identity reportIdentity, nonInteractive, tty bool) report
 	return destination
 }
 
-func inferleanReportURL(backendURL string, identity reportIdentity) string {
-	return fmt.Sprintf("%s/%s/%s", backendURL, identity.installationID, identity.runID)
+func ReportURL(backendURL, installationID, runID string) (string, bool) {
+	trimmedInstallationID := strings.TrimSpace(installationID)
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedInstallationID == "" || trimmedRunID == "" {
+		return "", false
+	}
+	return fmt.Sprintf("%s/%s/%s", backendURL, trimmedInstallationID, trimmedRunID), true
 }
 
 func isIdentityComplete(identity reportIdentity) bool {

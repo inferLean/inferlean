@@ -29,12 +29,12 @@ func TestChooseDestinationSkipsSelectorWhenNonInteractive(t *testing.T) {
 	}
 }
 
-func TestInferleanReportURL(t *testing.T) {
+func TestReportURL(t *testing.T) {
 	t.Parallel()
-	url := inferleanReportURL(defaults.AppBaseURL, reportIdentity{
-		runID:          "run_123",
-		installationID: "inst_456",
-	})
+	url, ok := ReportURL(defaults.AppBaseURL, "inst_456", "run_123")
+	if !ok {
+		t.Fatal("expected report URL")
+	}
 	if url != "https://app.inferlean.com/inst_456/run_123" {
 		t.Fatalf("unexpected report URL: %s", url)
 	}

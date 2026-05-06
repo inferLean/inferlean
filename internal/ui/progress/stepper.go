@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/inferLean/inferlean-main/cli/internal/terminal"
 	"github.com/inferLean/inferlean-main/cli/internal/ui/chrome"
 	"golang.org/x/term"
 )
@@ -217,7 +218,7 @@ func newStepper(component string, enabled bool, out io.Writer) *Stepper {
 }
 
 func InteractiveTTY() bool {
-	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	return terminal.InteractiveTTY()
 }
 
 func (s *Stepper) Begin(title string) {

@@ -2,10 +2,9 @@ package report
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
-	"golang.org/x/term"
+	"github.com/inferLean/inferlean-main/cli/internal/terminal"
 )
 
 type View struct{}
@@ -22,7 +21,7 @@ func NewView() View {
 }
 
 func (View) Render(report map[string]any, opts RenderOptions) {
-	tty := interactiveTTY()
+	tty := terminal.InteractiveTTY()
 	identity := resolveIdentity(report, opts)
 	content, _, err := formatReportForDisplay(report, tty)
 	if err != nil {
@@ -39,7 +38,7 @@ func (View) Render(report map[string]any, opts RenderOptions) {
 		if !isIdentityComplete(identity) {
 			fmt.Println("[report] browser view unavailable (missing run_id or installation_id), showing terminal report")
 		} else {
-			reportURL := inferleanReportURL(opts.BackendURL, identity)
+			reportURL, _ := ReportURL(opts.BackendURL, identity.installationID, identity.runID)
 			if err := openBrowser(reportURL); err == nil {
 				fmt.Printf("[report] opened in browser: %s\n", reportURL)
 				return
@@ -54,10 +53,6 @@ func (View) Render(report map[string]any, opts RenderOptions) {
 func printReport(content string) {
 	fmt.Println("[report] parsed report")
 	fmt.Println(content)
-}
-
-func interactiveTTY() bool {
-	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 type reportIdentity struct {

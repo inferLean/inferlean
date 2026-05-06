@@ -2,11 +2,10 @@ package report
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/inferLean/inferlean-main/cli/internal/terminal"
 	"github.com/inferLean/inferlean-main/cli/internal/ui/report"
-	"golang.org/x/term"
 )
 
 type Presenter struct {
@@ -44,26 +43,13 @@ func (p Presenter) showRunAccess(opts Options) {
 	}
 	fmt.Printf("run_id: %s\n", runID)
 	if shouldEmitBrowserURL(opts.NonInteractive) {
-		if url, ok := browserReportURL(opts.BackendURL, opts.InstallationID, runID); ok {
+		if url, ok := report.ReportURL(opts.BackendURL, opts.InstallationID, runID); ok {
 			fmt.Printf("browser_url: %s\n", url)
 		}
 	}
-	fmt.Printf("view again: inferlean upload --run-id %s\n", runID)
-}
-
-func browserReportURL(backendURL, installationID, runID string) (string, bool) {
-	trimmedInstallationID := strings.TrimSpace(installationID)
-	trimmedRunID := strings.TrimSpace(runID)
-	if trimmedInstallationID == "" || trimmedRunID == "" {
-		return "", false
-	}
-	return fmt.Sprintf("%s/%s/%s", backendURL, trimmedInstallationID, trimmedRunID), true
+	fmt.Printf("re-upload: inferlean upload --run-id %s\n", runID)
 }
 
 func shouldEmitBrowserURL(nonInteractive bool) bool {
-	return nonInteractive || !interactiveTTY()
-}
-
-func interactiveTTY() bool {
-	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	return nonInteractive || !terminal.InteractiveTTY()
 }

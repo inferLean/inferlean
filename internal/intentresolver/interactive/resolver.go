@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/inferLean/inferlean-main/cli/internal/terminal"
 	"github.com/inferLean/inferlean-main/cli/internal/types"
-	"golang.org/x/term"
 )
 
 type questionKey string
@@ -46,7 +46,7 @@ func Resolve(seed types.UserIntent) (types.UserIntent, error) {
 }
 
 func isInteractiveTTY() bool {
-	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	return terminal.InteractiveTTY()
 }
 
 func buildQuestions(seed types.UserIntent) []question {

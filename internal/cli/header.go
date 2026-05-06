@@ -2,11 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
+	"github.com/inferLean/inferlean-main/cli/internal/terminal"
 	"github.com/inferLean/inferlean-main/cli/internal/ui/chrome"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 const (
@@ -28,11 +27,7 @@ func shouldPrintHeader(cmd *cobra.Command, nonInteractive bool) bool {
 	if nonInteractive {
 		return false
 	}
-	return interactiveTTY()
-}
-
-func interactiveTTY() bool {
-	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	return terminal.InteractiveTTY()
 }
 
 func useColor() bool {

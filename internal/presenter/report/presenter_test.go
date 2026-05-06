@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"github.com/inferLean/inferlean-main/cli/internal/defaults"
+	reportui "github.com/inferLean/inferlean-main/cli/internal/ui/report"
 )
 
 func TestBrowserReportURL(t *testing.T) {
 	t.Parallel()
-	url, ok := browserReportURL(defaults.AppBaseURL, "inst_123", "run_456")
+	url, ok := reportui.ReportURL(defaults.AppBaseURL, "inst_123", "run_456")
 	if !ok {
 		t.Fatal("expected browser report URL to be present")
 	}
@@ -19,10 +20,10 @@ func TestBrowserReportURL(t *testing.T) {
 
 func TestBrowserReportURLMissingIdentity(t *testing.T) {
 	t.Parallel()
-	if _, ok := browserReportURL(defaults.AppBaseURL, "", "run_456"); ok {
+	if _, ok := reportui.ReportURL(defaults.AppBaseURL, "", "run_456"); ok {
 		t.Fatal("expected no URL when installation id is missing")
 	}
-	if _, ok := browserReportURL(defaults.AppBaseURL, "inst_123", ""); ok {
+	if _, ok := reportui.ReportURL(defaults.AppBaseURL, "inst_123", ""); ok {
 		t.Fatal("expected no URL when run id is missing")
 	}
 }
