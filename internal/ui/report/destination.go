@@ -13,8 +13,8 @@ const (
 	destinationTerminal reportDestination = "terminal"
 )
 
-func chooseDestination(identity reportIdentity, noInteractive, tty bool) reportDestination {
-	if noInteractive || !tty {
+func chooseDestination(identity reportIdentity, nonInteractive, tty bool) reportDestination {
+	if nonInteractive || !tty {
 		return destinationTerminal
 	}
 	destination, err := chooseDestinationWithTUI()

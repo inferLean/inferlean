@@ -124,7 +124,7 @@ func TestFormatReportForDisplayFallback(t *testing.T) {
 	}
 }
 
-func TestRenderNoInteractivePrintsPlainReport(t *testing.T) {
+func TestRenderNonInteractivePrintsPlainReport(t *testing.T) {
 	payload := map[string]any{
 		"schema_version": "report-v2",
 		"job": map[string]any{
@@ -144,7 +144,7 @@ func TestRenderNoInteractivePrintsPlainReport(t *testing.T) {
 	}
 
 	output := captureStdout(t, func() {
-		NewView().Render(payload, RenderOptions{NoInteractive: true, BackendURL: defaults.AppBaseURL})
+		NewView().Render(payload, RenderOptions{NonInteractive: true, BackendURL: defaults.AppBaseURL})
 	})
 
 	if !strings.Contains(output, "[report] parsed report") {

@@ -35,7 +35,7 @@ type Options struct {
 	PrefixHeavy             *bool
 	Multimodal              *bool
 	RepeatedMultimodalMedia *bool
-	NoInteractive           bool
+	NonInteractive          bool
 }
 
 type Result struct {
@@ -89,7 +89,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 			p.collectView.Abort()
 		}
 	}()
-	p.collectView.SetNoInteractive(opts.NoInteractive)
+	p.collectView.SetNonInteractive(opts.NonInteractive)
 	if err := validateDurations(opts.CollectFor, opts.ScrapeEvery); err != nil {
 		return Result{}, err
 	}
@@ -150,7 +150,7 @@ type evidence struct {
 }
 
 func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runstore.Paths) (evidence, error) {
-	interactive := interactiveCollectionEnabled(opts.NoInteractive)
+	interactive := interactiveCollectionEnabled(opts.NonInteractive)
 	collectCtx, cancelCollect := context.WithCancel(ctx)
 	defer cancelCollect()
 
@@ -273,8 +273,8 @@ func (p Presenter) startCollectionCountdown(
 	return stop
 }
 
-func interactiveCollectionEnabled(noInteractive bool) bool {
-	return progress.InteractiveTTY() && !noInteractive
+func interactiveCollectionEnabled(nonInteractive bool) bool {
+	return progress.InteractiveTTY() && !nonInteractive
 }
 
 func collectorDurationWindow(collectFor time.Duration, interactive bool) time.Duration {
@@ -329,7 +329,7 @@ func (p Presenter) resolveIntent(opts Options) (types.UserIntent, error) {
 		Multimodal:              opts.Multimodal,
 		RepeatedMultimodalMedia: opts.RepeatedMultimodalMedia,
 	})
-	if opts.NoInteractive || hasCompleteIntent(opts, intentSeed) {
+	if opts.NonInteractive || hasCompleteIntent(opts, intentSeed) {
 		p.intentView.ShowResolved(intentSeed)
 		return intentSeed, nil
 	}

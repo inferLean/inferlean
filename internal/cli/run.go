@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
 	runpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/run"
 )
 
@@ -16,105 +17,85 @@ const (
 )
 
 type runCommandOptions struct {
-	target                  targetFlags
-	collectFor              time.Duration
-	scrapeEvery             time.Duration
-	outputPath              string
-	declaredWorkloadMode    string
-	declaredWorkloadTarget  string
-	prefixHeavy             string
-	multimodal              string
-	repeatedMultimodalMedia string
-	requireUpload           bool
+	target        DiscoverFlags
+	collect       CollectFlags
+	requireUpload bool
 }
 
 func newRunCommand() *cobra.Command {
-	target := &targetFlags{}
-	var collectFor time.Duration
-	var scrapeEvery time.Duration
-	var outputPath string
-	var declaredWorkloadMode string
-	var declaredWorkloadTarget string
-	var prefixHeavy string
-	var multimodal string
-	var repeatedMultimodalMedia string
+	target := &DiscoverFlags{}
+	collect := &CollectFlags{}
 	var requireUpload bool
 
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Run discover -> collect -> optional upload -> optional report",
+		Short: "Run discover -> collect -> upload -> report",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runWithOptions(cmd, runCommandOptions{
-				target:                  *target,
-				collectFor:              collectFor,
-				scrapeEvery:             scrapeEvery,
-				outputPath:              outputPath,
-				declaredWorkloadMode:    declaredWorkloadMode,
-				declaredWorkloadTarget:  declaredWorkloadTarget,
-				prefixHeavy:             prefixHeavy,
-				multimodal:              multimodal,
-				repeatedMultimodalMedia: repeatedMultimodalMedia,
-				requireUpload:           requireUpload,
+				target:        *target,
+				collect:       *collect,
+				requireUpload: requireUpload,
 			})
 		},
 	}
-	bindTargetFlags(cmd, target)
-	cmd.Flags().DurationVar(&collectFor, "collect-for", defaultCollectFor, "collection duration")
-	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", defaultScrapeEvery, "scrape interval")
-	cmd.Flags().StringVar(&outputPath, "output", "", "artifact output path")
-	cmd.Flags().StringVar(&declaredWorkloadMode, "workload-mode", "", "declared workload mode")
-	cmd.Flags().StringVar(&declaredWorkloadTarget, "workload-target", "", "declared optimization target")
-	cmd.Flags().StringVar(&prefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
-	cmd.Flags().StringVar(&multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
-	cmd.Flags().StringVar(&repeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto)")
+	bindDiscoverFlags(cmd, target)
+	bindCollectFlags(cmd, collect)
 	cmd.Flags().BoolVar(&requireUpload, "require-upload", false, "fail run when upload/report fails")
 	return cmd
 }
 
 func runWithDefaultOptions(cmd *cobra.Command) error {
 	return runWithOptions(cmd, runCommandOptions{
-		collectFor:              defaultCollectFor,
-		scrapeEvery:             defaultScrapeEvery,
-		prefixHeavy:             "auto",
-		multimodal:              "auto",
-		repeatedMultimodalMedia: "auto",
+		collect: CollectFlags{
+			CollectFor:              defaultCollectFor,
+			ScrapeEvery:             defaultScrapeEvery,
+			PrefixHeavy:             "auto",
+			Multimodal:              "auto",
+			RepeatedMultimodalMedia: "auto",
+		},
 	})
 }
 
 func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 	application := appFromContext(cmd.Context())
-	prefixValue, err := parseOptionalBool(opts.prefixHeavy)
+	prefixValue, err := parseOptionalBool(opts.collect.PrefixHeavy)
 	if err != nil {
 		return err
 	}
-	multimodalValue, err := parseOptionalBool(opts.multimodal)
+	multimodalValue, err := parseOptionalBool(opts.collect.Multimodal)
 	if err != nil {
 		return err
 	}
-	repeatedMultimodalMediaValue, err := parseOptionalBool(opts.repeatedMultimodalMedia)
+	repeatedMultimodalMediaValue, err := parseOptionalBool(opts.collect.RepeatedMultimodalMedia)
 	if err != nil {
 		return err
 	}
 	result, err := application.run.Run(cmd.Context(), runpresenter.Options{
-		Discover:                opts.target.toDiscoverOptions(),
-		CollectFor:              opts.collectFor,
-		ScrapeEvery:             opts.scrapeEvery,
-		OutputPath:              opts.outputPath,
+		Discover: discoverpresenter.Options{
+			PID:               opts.target.PID,
+			ContainerName:     opts.target.ContainerName,
+			PodName:           opts.target.PodName,
+			Namespace:         opts.target.Namespace,
+			ExcludeProcesses:  opts.target.ExcludeProcesses,
+			ExcludeDocker:     opts.target.ExcludeDocker,
+			ExcludeKubernetes: opts.target.ExcludeKubernetes,
+			NonInteractive:    application.nonInteractive,
+		},
+		CollectFor:              opts.collect.CollectFor,
+		ScrapeEvery:             opts.collect.ScrapeEvery,
+		OutputPath:              opts.collect.OutputPath,
 		Version:                 version,
-		DeclaredWorkloadMode:    opts.declaredWorkloadMode,
-		DeclaredWorkloadTarget:  opts.declaredWorkloadTarget,
+		DeclaredWorkloadMode:    opts.collect.DeclaredWorkloadMode,
+		DeclaredWorkloadTarget:  opts.collect.DeclaredWorkloadTarget,
 		PrefixHeavy:             prefixValue,
 		Multimodal:              multimodalValue,
 		RepeatedMultimodalMedia: repeatedMultimodalMediaValue,
-		NoInteractive:           opts.target.noInteractive,
+		NonInteractive:          application.nonInteractive,
 		BackendURL:              application.appURL,
 		RequireUpload:           opts.requireUpload,
 	})
 	if err != nil {
 		return err
-	}
-	if strings.TrimSpace(result.RunID) != "" {
-		fmt.Printf("run_id: %s\n", result.RunID)
 	}
 	if result.Failed {
 		fmt.Println("status: fail")
@@ -125,14 +106,6 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 			fmt.Printf("hint: %s\n", result.FailureHint)
 		}
 		return fmt.Errorf("run failed: %s", strings.TrimSpace(result.FailureReason))
-	}
-	if strings.TrimSpace(result.RunID) != "" && result.Uploaded {
-		if shouldEmitBrowserURL(opts.target.noInteractive) {
-			if url, ok := browserReportURL(application.appURL, result.InstallationID, result.RunID); ok {
-				fmt.Printf("browser_url: %s\n", url)
-			}
-		}
-		fmt.Printf("view again: inferlean upload --run-id %s\n", result.RunID)
 	}
 	if result.UploadErr != nil {
 		fmt.Printf("run upload warning: %v\n", result.UploadErr)

@@ -14,26 +14,21 @@ const (
 	headerTag   = chrome.HeaderTag
 )
 
-func maybePrintHeader(cmd *cobra.Command) {
-	if !shouldPrintHeader(cmd) {
+func maybePrintHeader(cmd *cobra.Command, nonInteractive bool) {
+	if !shouldPrintHeader(cmd, nonInteractive) {
 		return
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), renderHeader(useColor()))
 }
 
-func shouldPrintHeader(cmd *cobra.Command) bool {
+func shouldPrintHeader(cmd *cobra.Command, nonInteractive bool) bool {
 	if cmd.Name() == "version" {
 		return false
 	}
-	if noInteractiveFlagEnabled(cmd) {
+	if nonInteractive {
 		return false
 	}
 	return interactiveTTY()
-}
-
-func noInteractiveFlagEnabled(cmd *cobra.Command) bool {
-	flag := cmd.Flags().Lookup("non-interactive")
-	return flag != nil && flag.Value.String() == "true"
 }
 
 func interactiveTTY() bool {

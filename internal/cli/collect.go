@@ -2,57 +2,59 @@ package cli
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
+	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
 )
 
 func newCollectCommand() *cobra.Command {
-	target := &targetFlags{}
-	var collectFor time.Duration
-	var scrapeEvery time.Duration
-	var outputPath string
-	var declaredWorkloadMode string
-	var declaredWorkloadTarget string
-	var prefixHeavy string
-	var multimodal string
-	var repeatedMultimodalMedia string
+	target := &DiscoverFlags{}
+	opts := &CollectFlags{}
 
 	cmd := &cobra.Command{
 		Use:   "collect",
 		Short: "Collect local evidence and build artifact.json",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			application := appFromContext(cmd.Context())
-			selected, _, err := application.discover.Run(cmd.Context(), target.toDiscoverOptions())
+			selected, _, err := application.discover.Run(cmd.Context(), discoverpresenter.Options{
+				PID:               target.PID,
+				ContainerName:     target.ContainerName,
+				PodName:           target.PodName,
+				Namespace:         target.Namespace,
+				ExcludeProcesses:  target.ExcludeProcesses,
+				ExcludeDocker:     target.ExcludeDocker,
+				ExcludeKubernetes: target.ExcludeKubernetes,
+				NonInteractive:    application.nonInteractive,
+			})
 			if err != nil {
 				return err
 			}
-			prefixValue, err := parseOptionalBool(prefixHeavy)
+			prefixValue, err := parseOptionalBool(opts.PrefixHeavy)
 			if err != nil {
 				return err
 			}
-			multimodalValue, err := parseOptionalBool(multimodal)
+			multimodalValue, err := parseOptionalBool(opts.Multimodal)
 			if err != nil {
 				return err
 			}
-			repeatedMultimodalMediaValue, err := parseOptionalBool(repeatedMultimodalMedia)
+			repeatedMultimodalMediaValue, err := parseOptionalBool(opts.RepeatedMultimodalMedia)
 			if err != nil {
 				return err
 			}
 			res, err := application.collect.Run(cmd.Context(), collectpresenter.Options{
 				Target:                  selected,
-				CollectFor:              collectFor,
-				ScrapeEvery:             scrapeEvery,
-				OutputPath:              outputPath,
+				CollectFor:              opts.CollectFor,
+				ScrapeEvery:             opts.ScrapeEvery,
+				OutputPath:              opts.OutputPath,
 				CollectorVersion:        version,
-				DeclaredWorkloadMode:    declaredWorkloadMode,
-				DeclaredWorkloadTarget:  declaredWorkloadTarget,
+				DeclaredWorkloadMode:    opts.DeclaredWorkloadMode,
+				DeclaredWorkloadTarget:  opts.DeclaredWorkloadTarget,
 				PrefixHeavy:             prefixValue,
 				Multimodal:              multimodalValue,
 				RepeatedMultimodalMedia: repeatedMultimodalMediaValue,
-				NoInteractive:           target.noInteractive,
+				NonInteractive:          application.nonInteractive,
 			})
 			if err != nil {
 				return err
@@ -61,14 +63,18 @@ func newCollectCommand() *cobra.Command {
 			return nil
 		},
 	}
-	bindTargetFlags(cmd, target)
-	cmd.Flags().DurationVar(&collectFor, "collect-for", 30*time.Second, "collection duration")
-	cmd.Flags().DurationVar(&scrapeEvery, "scrape-every", defaultScrapeEvery, "scrape interval")
-	cmd.Flags().StringVar(&outputPath, "output", "", "artifact output path")
-	cmd.Flags().StringVar(&declaredWorkloadMode, "workload-mode", "", "declared workload mode")
-	cmd.Flags().StringVar(&declaredWorkloadTarget, "workload-target", "", "declared optimization target")
-	cmd.Flags().StringVar(&prefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
-	cmd.Flags().StringVar(&multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
-	cmd.Flags().StringVar(&repeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto)")
+	bindDiscoverFlags(cmd, target)
+	bindCollectFlags(cmd, opts)
 	return cmd
+}
+
+func bindCollectFlags(cmd *cobra.Command, opts *CollectFlags) {
+	cmd.Flags().DurationVar(&opts.CollectFor, "collect-for", defaultCollectFor, "collection duration")
+	cmd.Flags().DurationVar(&opts.ScrapeEvery, "scrape-every", defaultScrapeEvery, "scrape interval")
+	cmd.Flags().StringVar(&opts.OutputPath, "output", "", "artifact output path")
+	cmd.Flags().StringVar(&opts.DeclaredWorkloadMode, "workload-mode", "", "declared workload mode")
+	cmd.Flags().StringVar(&opts.DeclaredWorkloadTarget, "workload-target", "", "declared optimization target")
+	cmd.Flags().StringVar(&opts.PrefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
+	cmd.Flags().StringVar(&opts.Multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
+	cmd.Flags().StringVar(&opts.RepeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto)")
 }

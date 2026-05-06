@@ -8,8 +8,8 @@ import (
 )
 
 type View struct {
-	steps         *progress.Stepper
-	noInteractive bool
+	steps          *progress.Stepper
+	nonInteractive bool
 }
 
 func NewView() View {
@@ -18,12 +18,12 @@ func NewView() View {
 	}
 }
 
-func (v *View) SetNoInteractive(noInteractive bool) {
-	if v.noInteractive == noInteractive && v.steps != nil {
+func (v *View) SetNonInteractive(nonInteractive bool) {
+	if v.nonInteractive == nonInteractive && v.steps != nil {
 		return
 	}
-	v.noInteractive = noInteractive
-	v.steps = progress.New("discovery", stepperEnabled(noInteractive))
+	v.nonInteractive = nonInteractive
+	v.steps = progress.New("discovery", stepperEnabled(nonInteractive))
 }
 
 func (v *View) ShowStart() {
@@ -37,7 +37,7 @@ func startMessage() string {
 
 func (v *View) ShowSourceStart(source string) {
 	label := "checking " + sourceLabel(source)
-	if stepperEnabled(v.noInteractive) {
+	if stepperEnabled(v.nonInteractive) {
 		label += " (press c to cancel current source)"
 	}
 	v.getStepper().Step(label)
@@ -55,11 +55,11 @@ func (v *View) Abort() {
 	v.getStepper().Abort()
 }
 
-func (v *View) Select(candidates []vllmdiscovery.Candidate, noInteractive bool) (vllmdiscovery.Candidate, error) {
+func (v *View) Select(candidates []vllmdiscovery.Candidate, nonInteractive bool) (vllmdiscovery.Candidate, error) {
 	if len(candidates) == 0 {
 		return vllmdiscovery.Candidate{}, fmt.Errorf("no vLLM targets discovered")
 	}
-	if !shouldUseTUI(noInteractive, candidates) {
+	if !shouldUseTUI(nonInteractive, candidates) {
 		return candidates[0], nil
 	}
 	return selectCandidateTUI(candidates)
@@ -71,13 +71,13 @@ func (v *View) ShowSelected(item vllmdiscovery.Candidate) {
 
 func (v *View) getStepper() *progress.Stepper {
 	if v.steps == nil {
-		v.steps = progress.New("discovery", stepperEnabled(v.noInteractive))
+		v.steps = progress.New("discovery", stepperEnabled(v.nonInteractive))
 	}
 	return v.steps
 }
 
-func stepperEnabled(noInteractive bool) bool {
-	return progress.InteractiveTTY() && !noInteractive
+func stepperEnabled(nonInteractive bool) bool {
+	return progress.InteractiveTTY() && !nonInteractive
 }
 
 func sourceLabel(source string) string {

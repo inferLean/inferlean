@@ -132,8 +132,8 @@ func selectCandidateTUI(candidates []vllmdiscovery.Candidate) (vllmdiscovery.Can
 	return *finalModel.selected, nil
 }
 
-func shouldUseTUI(noInteractive bool, candidates []vllmdiscovery.Candidate) bool {
-	if noInteractive || len(candidates) <= 1 {
+func shouldUseTUI(nonInteractive bool, candidates []vllmdiscovery.Candidate) bool {
+	if nonInteractive || len(candidates) <= 1 {
 		return false
 	}
 	return term.IsTerminal(int(os.Stdin.Fd()))

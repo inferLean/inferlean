@@ -11,14 +11,12 @@ import (
 )
 
 func newUploadCommand() *cobra.Command {
-	var requireReport bool
-	var runID string
-	var noInteractive bool
+	opts := &UploadFlags{}
 	cmd := &cobra.Command{
 		Use:   "upload [artifact-path]",
 		Short: "Upload an artifact or load a report by run id",
 		Args: func(_ *cobra.Command, args []string) error {
-			if strings.TrimSpace(runID) != "" {
+			if strings.TrimSpace(opts.RunID) != "" {
 				if len(args) > 0 {
 					return fmt.Errorf("artifact-path cannot be used with --run-id")
 				}
@@ -38,35 +36,27 @@ func newUploadCommand() *cobra.Command {
 			result, err := application.upload.Run(cmd.Context(), uploadpresenter.Options{
 				BackendURL:    application.appURL,
 				ArtifactPath:  artifactPath,
-				RunID:         strings.TrimSpace(runID),
-				RequireReport: requireReport,
+				RunID:         strings.TrimSpace(opts.RunID),
+				RequireReport: opts.RequireReport,
 			})
 			if err != nil {
 				return err
 			}
-			if len(result.Report) > 0 {
-				application.report.Run(reportpresenter.Options{
-					BackendURL:     application.appURL,
-					Payload:        result.Report,
-					RunID:          result.RunID,
-					InstallationID: result.InstallationID,
-					NoInteractive:  noInteractive,
-				})
-			}
-			if strings.TrimSpace(result.RunID) != "" {
-				fmt.Printf("run_id: %s\n", result.RunID)
-				if shouldEmitBrowserURL(noInteractive) {
-					if url, ok := browserReportURL(application.appURL, result.InstallationID, result.RunID); ok {
-						fmt.Printf("browser_url: %s\n", url)
-					}
-				}
-				fmt.Printf("view again: inferlean upload --run-id %s\n", result.RunID)
-			}
+			application.report.Run(reportpresenter.Options{
+				BackendURL:     application.appURL,
+				Payload:        result.Report,
+				RunID:          result.RunID,
+				InstallationID: result.InstallationID,
+				NonInteractive: application.nonInteractive,
+			})
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&requireReport, "require-report", false, "require report retrieval after upload")
-	cmd.Flags().StringVar(&runID, "run-id", "", "load and render report for an existing run id")
-	cmd.Flags().BoolVar(&noInteractive, "non-interactive", false, "disable interactive report prompts and viewer")
+	bindUploadFlags(cmd, opts)
 	return cmd
+}
+
+func bindUploadFlags(cmd *cobra.Command, opts *UploadFlags) {
+	cmd.Flags().BoolVar(&opts.RequireReport, "require-report", false, "require report retrieval after upload")
+	cmd.Flags().StringVar(&opts.RunID, "run-id", "", "load and render report for an existing run id")
 }

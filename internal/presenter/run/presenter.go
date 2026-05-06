@@ -10,12 +10,11 @@ import (
 	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
 	reportpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/report"
 	uploadpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/upload"
-	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 type Options struct {
-	Discover                vllmdiscovery.DiscoverOptions
+	Discover                discoverpresenter.Options
 	CollectFor              time.Duration
 	ScrapeEvery             time.Duration
 	OutputPath              string
@@ -25,7 +24,7 @@ type Options struct {
 	PrefixHeavy             *bool
 	Multimodal              *bool
 	RepeatedMultimodalMedia *bool
-	NoInteractive           bool
+	NonInteractive          bool
 	BackendURL              string
 	RequireUpload           bool
 }
@@ -73,7 +72,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		PrefixHeavy:             opts.PrefixHeavy,
 		Multimodal:              opts.Multimodal,
 		RepeatedMultimodalMedia: opts.RepeatedMultimodalMedia,
-		NoInteractive:           opts.NoInteractive,
+		NonInteractive:          opts.NonInteractive,
 	})
 	if err != nil {
 		return Result{}, err
@@ -110,14 +109,12 @@ func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result
 	if uploadRes.InstallationID != "" {
 		result.InstallationID = uploadRes.InstallationID
 	}
-	if len(uploadRes.Report) > 0 {
-		p.report.Run(reportpresenter.Options{
-			BackendURL:     opts.BackendURL,
-			Payload:        uploadRes.Report,
-			RunID:          result.RunID,
-			InstallationID: result.InstallationID,
-			NoInteractive:  opts.NoInteractive,
-		})
-	}
+	p.report.Run(reportpresenter.Options{
+		BackendURL:     opts.BackendURL,
+		Payload:        uploadRes.Report,
+		RunID:          result.RunID,
+		InstallationID: result.InstallationID,
+		NonInteractive: opts.NonInteractive,
+	})
 	return result, nil
 }

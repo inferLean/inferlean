@@ -1,4 +1,4 @@
-package cli
+package report
 
 import (
 	"testing"
@@ -27,7 +27,7 @@ func TestBrowserReportURLMissingIdentity(t *testing.T) {
 	}
 }
 
-func TestShouldEmitBrowserURLRespectsNoInteractiveFlag(t *testing.T) {
+func TestShouldEmitBrowserURLRespectsNonInteractiveFlag(t *testing.T) {
 	t.Parallel()
 	if !shouldEmitBrowserURL(true) {
 		t.Fatal("expected browser URL emission when non-interactive is enabled")

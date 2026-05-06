@@ -19,7 +19,6 @@ type DiscoverOptions struct {
 	ContainerName     string
 	PodName           string
 	Namespace         string
-	NoInteractive     bool
 	ExcludeProcesses  bool
 	ExcludeDocker     bool
 	ExcludeKubernetes bool

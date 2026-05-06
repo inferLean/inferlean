@@ -9,8 +9,8 @@ import (
 	"golang.org/x/term"
 )
 
-func startCancelCurrentListener(noInteractive bool) (<-chan struct{}, <-chan struct{}, func()) {
-	if noInteractive {
+func startCancelCurrentListener(nonInteractive bool) (<-chan struct{}, <-chan struct{}, func()) {
+	if nonInteractive {
 		return nil, nil, func() {}
 	}
 	stdinFD := int(os.Stdin.Fd())

@@ -14,12 +14,23 @@ type Presenter struct {
 	view    discovery.View
 }
 
+type Options struct {
+	PID               int32
+	ContainerName     string
+	PodName           string
+	Namespace         string
+	ExcludeProcesses  bool
+	ExcludeDocker     bool
+	ExcludeKubernetes bool
+	NonInteractive    bool
+}
+
 func NewPresenter(service vllmdiscovery.Service, view discovery.View) Presenter {
 	return Presenter{service: service, view: view}
 }
 
-func (p Presenter) Run(ctx context.Context, opts vllmdiscovery.DiscoverOptions) (vllmdiscovery.Candidate, []vllmdiscovery.Candidate, error) {
-	p.view.SetNoInteractive(opts.NoInteractive)
+func (p Presenter) Run(ctx context.Context, opts Options) (vllmdiscovery.Candidate, []vllmdiscovery.Candidate, error) {
+	p.view.SetNonInteractive(opts.NonInteractive)
 	progressDone := false
 	defer func() {
 		if !progressDone {
@@ -29,7 +40,7 @@ func (p Presenter) Run(ctx context.Context, opts vllmdiscovery.DiscoverOptions) 
 	p.view.ShowStart()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	defer cancelRun()
-	cancelCurrent, interrupt, stopListening := startCancelCurrentListener(opts.NoInteractive)
+	cancelCurrent, interrupt, stopListening := startCancelCurrentListener(opts.NonInteractive)
 	stopped := false
 	stop := func() {
 		if stopped {
@@ -54,10 +65,19 @@ func (p Presenter) Run(ctx context.Context, opts vllmdiscovery.DiscoverOptions) 
 		cancelRun()
 		<-doneInterrupt
 	}()
-	opts.CancelCurrent = cancelCurrent
-	opts.OnSourceStart = p.view.ShowSourceStart
-	opts.OnSourceCancelled = p.view.ShowSourceCancelled
-	candidates, err := p.service.Discover(runCtx, opts)
+	discoverOpts := vllmdiscovery.DiscoverOptions{
+		PID:               opts.PID,
+		ContainerName:     opts.ContainerName,
+		PodName:           opts.PodName,
+		Namespace:         opts.Namespace,
+		ExcludeProcesses:  opts.ExcludeProcesses,
+		ExcludeDocker:     opts.ExcludeDocker,
+		ExcludeKubernetes: opts.ExcludeKubernetes,
+		CancelCurrent:     cancelCurrent,
+		OnSourceStart:     p.view.ShowSourceStart,
+		OnSourceCancelled: p.view.ShowSourceCancelled,
+	}
+	candidates, err := p.service.Discover(runCtx, discoverOpts)
 	stop()
 	if interrupted.Load() {
 		return vllmdiscovery.Candidate{}, nil, fmt.Errorf("discovery interrupted")
@@ -67,7 +87,7 @@ func (p Presenter) Run(ctx context.Context, opts vllmdiscovery.DiscoverOptions) 
 	}
 	p.view.ShowCandidates(candidates)
 	progressDone = true
-	selected, err := p.view.Select(candidates, opts.NoInteractive)
+	selected, err := p.view.Select(candidates, opts.NonInteractive)
 	if err != nil {
 		return vllmdiscovery.Candidate{}, candidates, err
 	}

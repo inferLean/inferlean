@@ -9,8 +9,8 @@ import (
 )
 
 type View struct {
-	steps         *progress.Stepper
-	noInteractive bool
+	steps          *progress.Stepper
+	nonInteractive bool
 }
 
 type Hint struct {
@@ -42,12 +42,12 @@ func NewView() View {
 	}
 }
 
-func (v *View) SetNoInteractive(noInteractive bool) {
-	if v.noInteractive == noInteractive && v.steps != nil {
+func (v *View) SetNonInteractive(nonInteractive bool) {
+	if v.nonInteractive == nonInteractive && v.steps != nil {
 		return
 	}
-	v.noInteractive = noInteractive
-	v.steps = progress.New("collect", stepperEnabled(noInteractive))
+	v.nonInteractive = nonInteractive
+	v.steps = progress.New("collect", stepperEnabled(nonInteractive))
 }
 
 func (v *View) ShowStart(seconds float64) {
@@ -83,17 +83,17 @@ func (v *View) Abort() {
 
 func (v *View) getStepper() *progress.Stepper {
 	if v.steps == nil {
-		v.steps = progress.New("collect", stepperEnabled(v.noInteractive))
+		v.steps = progress.New("collect", stepperEnabled(v.nonInteractive))
 	}
 	return v.steps
 }
 
-func stepperEnabled(noInteractive bool) bool {
-	return progress.InteractiveTTY() && !noInteractive
+func stepperEnabled(nonInteractive bool) bool {
+	return progress.InteractiveTTY() && !nonInteractive
 }
 
 func (v *View) interactive() bool {
-	return stepperEnabled(v.noInteractive)
+	return stepperEnabled(v.nonInteractive)
 }
 
 func renderMetricsCollectionCountdown(remaining time.Duration, interactive bool) string {

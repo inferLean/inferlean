@@ -26,23 +26,25 @@ import (
 var version = "dev"
 
 type rootOptions struct {
-	appURL    string
-	debug     bool
-	debugFile string
+	appURL         string
+	debug          bool
+	debugFile      string
+	nonInteractive bool
 }
 
 type app struct {
-	appURL        string
-	cfgStore      *configstore.Store
-	discoverySvc  vllmdiscovery.Service
-	discover      discoverpresenter.Presenter
-	collect       collectpresenter.Presenter
-	upload        uploadpresenter.Presenter
-	report        reportpresenter.Presenter
-	run           runpresenter.Presenter
-	auth          api.AuthManager
-	logger        *logging.Logger
-	closeLoggerFn func() error
+	appURL         string
+	nonInteractive bool
+	cfgStore       *configstore.Store
+	discoverySvc   vllmdiscovery.Service
+	discover       discoverpresenter.Presenter
+	collect        collectpresenter.Presenter
+	upload         uploadpresenter.Presenter
+	report         reportpresenter.Presenter
+	run            runpresenter.Presenter
+	auth           api.AuthManager
+	logger         *logging.Logger
+	closeLoggerFn  func() error
 }
 
 func Execute() error {
@@ -65,8 +67,9 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&opts.appURL, "app-url", defaults.AppBaseURL, "app base URL")
 	cmd.PersistentFlags().BoolVar(&opts.debug, "debug", false, "show debug output")
 	cmd.PersistentFlags().StringVar(&opts.debugFile, "debug-file", "", "write debug output to a file")
+	cmd.PersistentFlags().BoolVar(&opts.nonInteractive, "non-interactive", false, "disable interactive prompts and viewers")
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
-		maybePrintHeader(cmd)
+		maybePrintHeader(cmd, opts.nonInteractive)
 		application, err := newApp(opts)
 		if err != nil {
 			return err
@@ -108,17 +111,18 @@ func newApp(opts *rootOptions) (app, error) {
 	reportPresenter := reportpresenter.NewPresenter(reportui.NewView())
 	runPresenter := runpresenter.NewPresenter(discoverPresenter, collectPresenter, uploadPresenter, reportPresenter)
 	return app{
-		appURL:        opts.appURL,
-		cfgStore:      cfgStore,
-		discoverySvc:  discoverySvc,
-		discover:      discoverPresenter,
-		collect:       collectPresenter,
-		upload:        uploadPresenter,
-		report:        reportPresenter,
-		run:           runPresenter,
-		auth:          api.NewAuthManager(),
-		logger:        logger,
-		closeLoggerFn: closeFn,
+		appURL:         opts.appURL,
+		nonInteractive: opts.nonInteractive,
+		cfgStore:       cfgStore,
+		discoverySvc:   discoverySvc,
+		discover:       discoverPresenter,
+		collect:        collectPresenter,
+		upload:         uploadPresenter,
+		report:         reportPresenter,
+		run:            runPresenter,
+		auth:           api.NewAuthManager(),
+		logger:         logger,
+		closeLoggerFn:  closeFn,
 	}, nil
 }
 

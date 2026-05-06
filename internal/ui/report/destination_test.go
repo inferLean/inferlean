@@ -21,7 +21,7 @@ func TestChooseDestinationSkipsSelectorWhenNotTTY(t *testing.T) {
 	}
 }
 
-func TestChooseDestinationSkipsSelectorWhenNoInteractive(t *testing.T) {
+func TestChooseDestinationSkipsSelectorWhenNonInteractive(t *testing.T) {
 	t.Parallel()
 	destination := chooseDestination(reportIdentity{runID: "run_1", installationID: "inst_1"}, true, true)
 	if destination != destinationTerminal {
