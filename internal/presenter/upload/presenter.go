@@ -48,18 +48,11 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 	if opts.RunID != "" {
-		p.uploadView.ShowReportFetchStart(opts.RunID)
-		report, err := p.apiClient.GetRunReport(ctx, opts.BackendURL, opts.RunID, cfg.Auth)
+		artifactPath, err := p.runStore.ArtifactPath(opts.RunID)
 		if err != nil {
-			p.uploadView.ShowFailure(err)
 			return Result{}, err
 		}
-		p.uploadView.ShowReportFetchSuccess(opts.RunID)
-		return Result{
-			Report:         report,
-			RunID:          opts.RunID,
-			InstallationID: installationIDFromReport(report),
-		}, nil
+		opts.ArtifactPath = artifactPath
 	}
 	artifact, err := readArtifact(opts.ArtifactPath)
 	if err != nil {
@@ -122,13 +115,4 @@ func readArtifact(path string) (contracts.RunArtifact, error) {
 
 func artifactRunDir(path string) string {
 	return filepath.Dir(path)
-}
-
-func installationIDFromReport(report map[string]any) string {
-	job, ok := report["job"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	installationID, _ := job["installation_id"].(string)
-	return installationID
 }

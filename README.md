@@ -123,7 +123,7 @@ Upload an existing artifact and render the returned report:
 inferlean upload ~/.inferlean/runs/<run_id>/artifact.json
 ```
 
-Render a previously uploaded report by run ID:
+Re-upload the local artifact for an existing run ID:
 
 ```sh
 inferlean upload --run-id <run_id>
@@ -133,7 +133,7 @@ Upload flags:
 
 - `--backend-url`: backend base URL, default `https://app.inferlean.com`
 - `--require-report`: fail if report retrieval after upload fails
-- `--run-id`: load and render an existing report
+- `--run-id`: re-upload the local artifact for an existing run ID
 - `--non-interactive`: disable interactive report prompts and viewer
 
 ### `inferlean run`

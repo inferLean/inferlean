@@ -14,7 +14,7 @@ func newUploadCommand() *cobra.Command {
 	opts := &UploadFlags{}
 	cmd := &cobra.Command{
 		Use:   "upload [artifact-path]",
-		Short: "Upload an artifact or load a report by run id",
+		Short: "Upload an artifact or re-upload a local run artifact",
 		Args: func(_ *cobra.Command, args []string) error {
 			if strings.TrimSpace(opts.RunID) != "" {
 				if len(args) > 0 {
@@ -58,5 +58,5 @@ func newUploadCommand() *cobra.Command {
 
 func bindUploadFlags(cmd *cobra.Command, opts *UploadFlags) {
 	cmd.Flags().BoolVar(&opts.RequireReport, "require-report", false, "require report retrieval after upload")
-	cmd.Flags().StringVar(&opts.RunID, "run-id", "", "load and render report for an existing run id")
+	cmd.Flags().StringVar(&opts.RunID, "run-id", "", "re-upload the local artifact for an existing run id")
 }

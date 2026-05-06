@@ -28,6 +28,10 @@ func NewStore() Store {
 	return Store{}
 }
 
+func (Store) ArtifactPath(runID string) (string, error) {
+	return resolveArtifactPath(runID, "")
+}
+
 func (Store) Prepare(runID string, outputPath string) (Paths, error) {
 	artifactPath, err := resolveArtifactPath(runID, outputPath)
 	if err != nil {
