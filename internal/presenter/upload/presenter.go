@@ -9,6 +9,7 @@ import (
 
 	"github.com/inferLean/inferlean-main/cli/internal/api"
 	"github.com/inferLean/inferlean-main/cli/internal/defaults"
+	"github.com/inferLean/inferlean-main/cli/internal/evidencegate"
 	configstore "github.com/inferLean/inferlean-main/cli/internal/storage/configuration"
 	runstore "github.com/inferLean/inferlean-main/cli/internal/storage/run"
 	"github.com/inferLean/inferlean-main/cli/internal/types"
@@ -73,6 +74,11 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	}
 	artifact, err := readArtifact(opts.ArtifactPath)
 	if err != nil {
+		return Result{}, err
+	}
+	if failure, ok := evidencegate.Check(artifact); !ok {
+		err := fmt.Errorf("%s", failure.String())
+		p.uploadView.ShowFailure(err)
 		return Result{}, err
 	}
 	p.uploadView.ShowUploadStart()

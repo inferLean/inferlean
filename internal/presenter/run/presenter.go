@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/inferLean/inferlean-main/cli/internal/defaults"
+	"github.com/inferLean/inferlean-main/cli/internal/evidencegate"
 	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
 	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
 	reportpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/report"
 	uploadpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/upload"
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
+	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 type Options struct {
@@ -34,6 +36,9 @@ type Result struct {
 	RunID          string
 	InstallationID string
 	Uploaded       bool
+	Failed         bool
+	FailureReason  string
+	FailureHint    string
 	UploadErr      error
 }
 
@@ -78,10 +83,17 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	if opts.BackendURL == "" {
 		opts.BackendURL = defaults.BackendURL
 	}
-	return p.handleUpload(ctx, opts, result)
+	return p.handleUpload(ctx, opts, result, collectRes.Artifact)
 }
 
-func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result) (Result, error) {
+func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result, artifact contracts.RunArtifact) (Result, error) {
+	failure, ok := evidencegate.Check(artifact)
+	if !ok {
+		result.Failed = true
+		result.FailureReason = failure.Reason
+		result.FailureHint = failure.Hint
+		return result, nil
+	}
 	uploadRes, err := p.upload.Run(ctx, uploadpresenter.Options{
 		BackendURL:    opts.BackendURL,
 		ArtifactPath:  result.ArtifactPath,

@@ -121,14 +121,24 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 	}
 	if strings.TrimSpace(result.RunID) != "" {
 		fmt.Printf("run_id: %s\n", result.RunID)
+	}
+	if result.Failed {
+		fmt.Println("status: fail")
+		if strings.TrimSpace(result.FailureReason) != "" {
+			fmt.Printf("reason: %s\n", result.FailureReason)
+		}
+		if strings.TrimSpace(result.FailureHint) != "" {
+			fmt.Printf("hint: %s\n", result.FailureHint)
+		}
+		return fmt.Errorf("run failed: %s", strings.TrimSpace(result.FailureReason))
+	}
+	if strings.TrimSpace(result.RunID) != "" && result.Uploaded {
 		if shouldEmitBrowserURL(opts.target.noInteractive) {
 			if url, ok := browserReportURL(result.InstallationID, result.RunID); ok {
 				fmt.Printf("browser_url: %s\n", url)
 			}
 		}
-		if result.Uploaded {
-			fmt.Printf("view again: inferlean upload --run-id %s\n", result.RunID)
-		}
+		fmt.Printf("view again: inferlean upload --run-id %s\n", result.RunID)
 	}
 	if result.UploadErr != nil {
 		fmt.Printf("run upload warning: %v\n", result.UploadErr)
