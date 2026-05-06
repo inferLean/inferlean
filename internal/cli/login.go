@@ -4,22 +4,19 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 )
 
 func newLoginCommand() *cobra.Command {
-	backendURL := defaults.BackendURL
 	cmd := &cobra.Command{
 		Use:   "login",
-		Short: "Login via browser OIDC flow",
+		Short: "Login via browser",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			application := appFromContext(cmd.Context())
 			cfg, err := application.cfgStore.Ensure()
 			if err != nil {
 				return err
 			}
-			authState, err := application.auth.Login(cmd.Context(), backendURL)
+			authState, err := application.auth.Login(cmd.Context(), application.appURL)
 			if err != nil {
 				return err
 			}
@@ -31,6 +28,5 @@ func newLoginCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&backendURL, "backend-url", defaults.BackendURL, "backend base URL")
 	return cmd
 }

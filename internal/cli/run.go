@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 	runpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/run"
 )
 
@@ -26,7 +25,6 @@ type runCommandOptions struct {
 	prefixHeavy             string
 	multimodal              string
 	repeatedMultimodalMedia string
-	backendURL              string
 	requireUpload           bool
 }
 
@@ -40,7 +38,6 @@ func newRunCommand() *cobra.Command {
 	var prefixHeavy string
 	var multimodal string
 	var repeatedMultimodalMedia string
-	backendURL := defaults.BackendURL
 	var requireUpload bool
 
 	cmd := &cobra.Command{
@@ -57,7 +54,6 @@ func newRunCommand() *cobra.Command {
 				prefixHeavy:             prefixHeavy,
 				multimodal:              multimodal,
 				repeatedMultimodalMedia: repeatedMultimodalMedia,
-				backendURL:              backendURL,
 				requireUpload:           requireUpload,
 			})
 		},
@@ -71,7 +67,6 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&prefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
 	cmd.Flags().StringVar(&multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
 	cmd.Flags().StringVar(&repeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto)")
-	cmd.Flags().StringVar(&backendURL, "backend-url", defaults.BackendURL, "backend base URL")
 	cmd.Flags().BoolVar(&requireUpload, "require-upload", false, "fail run when upload/report fails")
 	return cmd
 }
@@ -83,7 +78,6 @@ func runWithDefaultOptions(cmd *cobra.Command) error {
 		prefixHeavy:             "auto",
 		multimodal:              "auto",
 		repeatedMultimodalMedia: "auto",
-		backendURL:              defaults.BackendURL,
 	})
 }
 
@@ -113,7 +107,7 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 		Multimodal:              multimodalValue,
 		RepeatedMultimodalMedia: repeatedMultimodalMediaValue,
 		NoInteractive:           opts.target.noInteractive,
-		BackendURL:              opts.backendURL,
+		BackendURL:              application.appURL,
 		RequireUpload:           opts.requireUpload,
 	})
 	if err != nil {
@@ -134,7 +128,7 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 	}
 	if strings.TrimSpace(result.RunID) != "" && result.Uploaded {
 		if shouldEmitBrowserURL(opts.target.noInteractive) {
-			if url, ok := browserReportURL(result.InstallationID, result.RunID); ok {
+			if url, ok := browserReportURL(application.appURL, result.InstallationID, result.RunID); ok {
 				fmt.Printf("browser_url: %s\n", url)
 			}
 		}

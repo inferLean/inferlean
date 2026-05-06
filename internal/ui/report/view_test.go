@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 )
 
 func TestFormatReportForDisplayStructured(t *testing.T) {
@@ -142,7 +144,7 @@ func TestRenderNoInteractivePrintsPlainReport(t *testing.T) {
 	}
 
 	output := captureStdout(t, func() {
-		NewView().Render(payload, RenderOptions{NoInteractive: true})
+		NewView().Render(payload, RenderOptions{NoInteractive: true, BackendURL: defaults.AppBaseURL})
 	})
 
 	if !strings.Contains(output, "[report] parsed report") {

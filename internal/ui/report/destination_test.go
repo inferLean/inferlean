@@ -1,6 +1,10 @@
 package report
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/inferLean/inferlean-main/cli/internal/defaults"
+)
 
 func TestIsIdentityCompleteFalseWhenMissingFields(t *testing.T) {
 	t.Parallel()
@@ -27,7 +31,7 @@ func TestChooseDestinationSkipsSelectorWhenNoInteractive(t *testing.T) {
 
 func TestInferleanReportURL(t *testing.T) {
 	t.Parallel()
-	url := inferleanReportURL(reportIdentity{
+	url := inferleanReportURL(defaults.AppBaseURL, reportIdentity{
 		runID:          "run_123",
 		installationID: "inst_456",
 	})

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 	"github.com/inferLean/inferlean-main/cli/internal/evidencegate"
 	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
 	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
@@ -80,9 +79,6 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 	result := Result{ArtifactPath: collectRes.ArtifactPath, RunID: collectRes.Artifact.Job.RunID}
-	if opts.BackendURL == "" {
-		opts.BackendURL = defaults.BackendURL
-	}
 	return p.handleUpload(ctx, opts, result, collectRes.Artifact)
 }
 
@@ -116,6 +112,7 @@ func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result
 	}
 	if len(uploadRes.Report) > 0 {
 		p.report.Run(reportpresenter.Options{
+			BackendURL:     opts.BackendURL,
 			Payload:        uploadRes.Report,
 			RunID:          result.RunID,
 			InstallationID: result.InstallationID,

@@ -16,7 +16,6 @@ func newLogoutCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cfg.Auth = cfg.Auth
 			cfg.Auth.AccessToken = ""
 			cfg.Auth.IDToken = ""
 			cfg.Auth.RefreshToken = ""

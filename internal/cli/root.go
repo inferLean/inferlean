@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/inferLean/inferlean-main/cli/internal/api"
+	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 	"github.com/inferLean/inferlean-main/cli/internal/logging"
 	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
 	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
@@ -25,11 +26,13 @@ import (
 var version = "dev"
 
 type rootOptions struct {
+	appURL    string
 	debug     bool
 	debugFile string
 }
 
 type app struct {
+	appURL        string
 	cfgStore      *configstore.Store
 	discoverySvc  vllmdiscovery.Service
 	discover      discoverpresenter.Presenter
@@ -59,6 +62,7 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 		},
 	}
 	cmd.SetContext(ctx)
+	cmd.PersistentFlags().StringVar(&opts.appURL, "app-url", defaults.AppBaseURL, "app base URL")
 	cmd.PersistentFlags().BoolVar(&opts.debug, "debug", false, "show debug output")
 	cmd.PersistentFlags().StringVar(&opts.debugFile, "debug-file", "", "write debug output to a file")
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
@@ -104,6 +108,7 @@ func newApp(opts *rootOptions) (app, error) {
 	reportPresenter := reportpresenter.NewPresenter(reportui.NewView())
 	runPresenter := runpresenter.NewPresenter(discoverPresenter, collectPresenter, uploadPresenter, reportPresenter)
 	return app{
+		appURL:        opts.appURL,
 		cfgStore:      cfgStore,
 		discoverySvc:  discoverySvc,
 		discover:      discoverPresenter,

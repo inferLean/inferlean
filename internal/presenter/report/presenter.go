@@ -7,6 +7,7 @@ type Presenter struct {
 }
 
 type Options struct {
+	BackendURL     string
 	Payload        map[string]any
 	RunID          string
 	InstallationID string
@@ -19,6 +20,7 @@ func NewPresenter(view report.View) Presenter {
 
 func (p Presenter) Run(opts Options) {
 	p.view.Render(opts.Payload, report.RenderOptions{
+		BackendURL:     opts.BackendURL,
 		RunID:          opts.RunID,
 		InstallationID: opts.InstallationID,
 		NoInteractive:  opts.NoInteractive,

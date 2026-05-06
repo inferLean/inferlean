@@ -32,10 +32,6 @@ func NewStore() (*Store, error) {
 	return &Store{path: filepath.Join(home, ".inferlean", "config")}, nil
 }
 
-func (s *Store) Path() string {
-	return s.path
-}
-
 func (s *Store) Load() (Config, error) {
 	var cfg Config
 	data, err := os.ReadFile(s.path)

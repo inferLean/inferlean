@@ -11,6 +11,7 @@ import (
 type View struct{}
 
 type RenderOptions struct {
+	BackendURL     string
 	RunID          string
 	InstallationID string
 	NoInteractive  bool
@@ -38,7 +39,7 @@ func (View) Render(report map[string]any, opts RenderOptions) {
 		if !isIdentityComplete(identity) {
 			fmt.Println("[report] browser view unavailable (missing run_id or installation_id), showing terminal report")
 		} else {
-			reportURL := inferleanReportURL(identity)
+			reportURL := inferleanReportURL(opts.BackendURL, identity)
 			if err := openBrowser(reportURL); err == nil {
 				fmt.Printf("[report] opened in browser: %s\n", reportURL)
 				return

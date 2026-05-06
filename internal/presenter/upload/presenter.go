@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/inferLean/inferlean-main/cli/internal/api"
-	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 	"github.com/inferLean/inferlean-main/cli/internal/evidencegate"
 	configstore "github.com/inferLean/inferlean-main/cli/internal/storage/configuration"
 	runstore "github.com/inferLean/inferlean-main/cli/internal/storage/run"
@@ -48,19 +47,9 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	backend := opts.BackendURL
-	if backend == "" {
-		backend = cfg.Auth.BackendURL
-	}
-	if backend == "" {
-		backend = defaults.BackendURL
-	}
-	if backend == "" {
-		return Result{}, fmt.Errorf("backend URL is required")
-	}
 	if opts.RunID != "" {
 		p.uploadView.ShowReportFetchStart(opts.RunID)
-		report, err := p.apiClient.GetRunReport(ctx, backend, opts.RunID, cfg.Auth)
+		report, err := p.apiClient.GetRunReport(ctx, opts.BackendURL, opts.RunID, cfg.Auth)
 		if err != nil {
 			p.uploadView.ShowFailure(err)
 			return Result{}, err
@@ -82,7 +71,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 	p.uploadView.ShowUploadStart()
-	ack, err := p.apiClient.UploadArtifact(ctx, backend, artifact, cfg.Auth)
+	ack, err := p.apiClient.UploadArtifact(ctx, opts.BackendURL, artifact, cfg.Auth)
 	if err != nil {
 		p.uploadView.ShowFailure(err)
 		return Result{}, err

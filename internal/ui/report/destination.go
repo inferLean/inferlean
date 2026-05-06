@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/inferLean/inferlean-main/cli/internal/browser"
-	"github.com/inferLean/inferlean-main/cli/internal/defaults"
 )
 
 type reportDestination string
@@ -25,8 +24,8 @@ func chooseDestination(identity reportIdentity, noInteractive, tty bool) reportD
 	return destination
 }
 
-func inferleanReportURL(identity reportIdentity) string {
-	return fmt.Sprintf("%s/%s/%s", defaults.AppBaseURL, identity.installationID, identity.runID)
+func inferleanReportURL(backendURL string, identity reportIdentity) string {
+	return fmt.Sprintf("%s/%s/%s", backendURL, identity.installationID, identity.runID)
 }
 
 func isIdentityComplete(identity reportIdentity) bool {
