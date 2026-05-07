@@ -3,7 +3,6 @@ package upload
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -56,7 +55,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 	if failure, ok := evidencegate.Check(artifact); !ok {
-		err := errors.New(failure.String())
+		err := evidencegate.Error{Failure: failure}
 		p.uploadView.ShowFailure(err)
 		return Result{}, err
 	}

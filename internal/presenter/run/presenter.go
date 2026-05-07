@@ -2,32 +2,22 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/inferLean/inferlean-main/cli/internal/evidencegate"
 	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
 	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
 	reportpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/report"
 	uploadpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/upload"
-	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 type Options struct {
-	Discover                discoverpresenter.Options
-	CollectFor              time.Duration
-	ScrapeEvery             time.Duration
-	OutputPath              string
-	Version                 string
-	DeclaredWorkloadMode    string
-	DeclaredWorkloadTarget  string
-	PrefixHeavy             *bool
-	Multimodal              *bool
-	RepeatedMultimodalMedia *bool
-	NonInteractive          bool
-	BackendURL              string
-	RequireUpload           bool
+	Discover discoverpresenter.Options
+	Collect  collectpresenter.Options
+	Upload   uploadpresenter.Options
+	Report   reportpresenter.Options
 }
 
 type Result struct {
@@ -62,41 +52,22 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	collectRes, err := p.collect.Run(ctx, collectpresenter.Options{
-		Target:                  target,
-		CollectFor:              opts.CollectFor,
-		ScrapeEvery:             opts.ScrapeEvery,
-		OutputPath:              opts.OutputPath,
-		CollectorVersion:        opts.Version,
-		DeclaredWorkloadMode:    opts.DeclaredWorkloadMode,
-		DeclaredWorkloadTarget:  opts.DeclaredWorkloadTarget,
-		PrefixHeavy:             opts.PrefixHeavy,
-		Multimodal:              opts.Multimodal,
-		RepeatedMultimodalMedia: opts.RepeatedMultimodalMedia,
-		NonInteractive:          opts.NonInteractive,
-	})
+	collectOpts := opts.Collect
+	collectOpts.Target = target
+	collectRes, err := p.collect.Run(ctx, collectOpts)
 	if err != nil {
 		return Result{}, err
 	}
 	result := Result{ArtifactPath: collectRes.ArtifactPath, RunID: collectRes.Artifact.Job.RunID}
-	return p.uploadAndFinish(ctx, opts, result, collectRes.Artifact)
-}
 
-func (p Presenter) uploadAndFinish(ctx context.Context, opts Options, result Result, artifact contracts.RunArtifact) (Result, error) {
-	failure, ok := evidencegate.Check(artifact)
-	if !ok {
-		result.Failed = true
-		result.FailureReason = failure.Reason
-		result.FailureHint = failure.Hint
-		return result, finish(result)
-	}
-	uploadRes, err := p.upload.Run(ctx, uploadpresenter.Options{
-		BackendURL:    opts.BackendURL,
-		ArtifactPath:  result.ArtifactPath,
-		RequireReport: opts.RequireUpload,
-	})
+	uploadOpts := opts.Upload
+	uploadOpts.ArtifactPath = result.ArtifactPath
+	uploadRes, err := p.upload.Run(ctx, uploadOpts)
 	if err != nil {
-		if opts.RequireUpload {
+		if failedResult, ok := evidenceFailureResult(result, err); ok {
+			return failedResult, finish(failedResult)
+		}
+		if opts.Upload.RequireReport {
 			return result, err
 		}
 		result.UploadErr = err
@@ -109,14 +80,23 @@ func (p Presenter) uploadAndFinish(ctx context.Context, opts Options, result Res
 	if uploadRes.InstallationID != "" {
 		result.InstallationID = uploadRes.InstallationID
 	}
-	p.report.Run(reportpresenter.Options{
-		BackendURL:     opts.BackendURL,
-		Payload:        uploadRes.Report,
-		RunID:          result.RunID,
-		InstallationID: result.InstallationID,
-		NonInteractive: opts.NonInteractive,
-	})
+	reportOpts := opts.Report
+	reportOpts.Payload = uploadRes.Report
+	reportOpts.RunID = result.RunID
+	reportOpts.InstallationID = result.InstallationID
+	p.report.Run(reportOpts)
 	return result, finish(result)
+}
+
+func evidenceFailureResult(result Result, err error) (Result, bool) {
+	var evidenceErr evidencegate.Error
+	if !errors.As(err, &evidenceErr) {
+		return result, false
+	}
+	result.Failed = true
+	result.FailureReason = evidenceErr.Failure.Reason
+	result.FailureHint = evidenceErr.Failure.Hint
+	return result, true
 }
 
 func finish(result Result) error {

@@ -3,6 +3,7 @@ package pod
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -15,7 +16,8 @@ type podList struct {
 
 type podItem struct {
 	Metadata struct {
-		Name string `json:"name"`
+		Name      string `json:"name"`
+		Namespace string `json:"namespace"`
 	} `json:"metadata"`
 	Spec struct {
 		Containers []podContainer `json:"containers"`
@@ -24,6 +26,7 @@ type podItem struct {
 
 type podContainer struct {
 	Name    string   `json:"name"`
+	Image   string   `json:"image"`
 	Command []string `json:"command"`
 	Args    []string `json:"args"`
 	Env     []struct {
@@ -33,41 +36,39 @@ type podContainer struct {
 }
 
 func Discover(ctx context.Context, podName, namespace string) ([]shared.Candidate, error) {
-	if strings.TrimSpace(namespace) == "" {
-		namespace = "default"
-	}
-	args := []string{"get", "pods", "-n", namespace, "-o", "json"}
-	if strings.TrimSpace(podName) != "" {
-		args = []string{"get", "pod", podName, "-n", namespace, "-o", "json"}
-	}
-	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	out, err := cmd.Output()
+	podName = strings.TrimSpace(podName)
+	namespace = strings.TrimSpace(namespace)
+	args := kubectlGetArgs(podName, namespace)
+	out, err := exec.CommandContext(ctx, "kubectl", args...).CombinedOutput()
 	if err != nil {
+		if podName != "" {
+			return nil, commandError("get kubernetes pod "+podName, err, out)
+		}
 		return nil, nil
 	}
 	items := make([]shared.Candidate, 0)
-	if strings.TrimSpace(podName) == "" {
+	if podName == "" {
 		var list podList
 		if err := json.Unmarshal(out, &list); err != nil {
 			return nil, nil
 		}
 		for _, item := range list.Items {
-			appendPod(&items, namespace, item.Metadata.Name, item.Spec.Containers)
+			appendPod(&items, podNamespace(namespace, item.Metadata.Namespace), item.Metadata.Name, item.Spec.Containers)
 		}
 		return items, nil
 	}
 	var one podItem
 	if err := json.Unmarshal(out, &one); err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("parse kubernetes pod %s: %w", podName, err)
 	}
-	appendPod(&items, namespace, one.Metadata.Name, one.Spec.Containers)
+	appendPod(&items, podNamespace(namespace, one.Metadata.Namespace), one.Metadata.Name, one.Spec.Containers)
 	return items, nil
 }
 
 func appendPod(items *[]shared.Candidate, namespace, podName string, containers []podContainer) {
 	for _, container := range containers {
 		cmd := strings.Join(append(container.Command, container.Args...), " ")
-		if !shared.IsServeCommand(cmd) {
+		if !shared.IsServeCommand(cmd) && !shared.IsVLLMImage(container.Image) {
 			continue
 		}
 		port := shared.InferMetricsPort(cmd, podEnv(container))
@@ -80,6 +81,37 @@ func appendPod(items *[]shared.Candidate, namespace, podName string, containers 
 			MetricsEndpoint: shared.MetricsEndpoint("127.0.0.1", port),
 		})
 	}
+}
+
+func kubectlGetArgs(podName, namespace string) []string {
+	args := []string{"get"}
+	if podName == "" {
+		args = append(args, "pods")
+	} else {
+		args = append(args, "pod", podName)
+	}
+	if namespace != "" {
+		args = append(args, "-n", namespace)
+	}
+	return append(args, "-o", "json")
+}
+
+func podNamespace(requested, observed string) string {
+	if namespace := strings.TrimSpace(observed); namespace != "" {
+		return namespace
+	}
+	if namespace := strings.TrimSpace(requested); namespace != "" {
+		return namespace
+	}
+	return "default"
+}
+
+func commandError(action string, err error, output []byte) error {
+	message := strings.TrimSpace(string(output))
+	if message == "" {
+		return fmt.Errorf("%s: %w", action, err)
+	}
+	return fmt.Errorf("%s: %w: %s", action, err, message)
 }
 
 func podEnv(container podContainer) []string {

@@ -16,9 +16,6 @@ func IsServeCommand(command string) bool {
 	serveMarkers := []string{
 		"vllm serve",
 		"entrypoints.openai.api_server",
-		"openai.api_server",
-		"api_server.py",
-		"api_server",
 	}
 	for _, marker := range serveMarkers {
 		if strings.Contains(low, marker) {
@@ -26,6 +23,14 @@ func IsServeCommand(command string) bool {
 		}
 	}
 	return false
+}
+
+func IsVLLMImage(image string) bool {
+	low := strings.ToLower(strings.TrimSpace(image))
+	if low == "" {
+		return false
+	}
+	return strings.Contains(low, "vllm")
 }
 
 func SplitCommandLine(raw string) []string {

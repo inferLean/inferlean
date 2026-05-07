@@ -5,8 +5,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
 	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
+	reportpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/report"
 	runpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/run"
+	uploadpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/upload"
 )
 
 const (
@@ -71,18 +74,26 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 			ExcludeKubernetes: opts.target.ExcludeKubernetes,
 			NonInteractive:    application.nonInteractive,
 		},
-		CollectFor:              opts.collect.CollectFor,
-		ScrapeEvery:             opts.collect.ScrapeEvery,
-		OutputPath:              opts.collect.OutputPath,
-		Version:                 version,
-		DeclaredWorkloadMode:    opts.collect.DeclaredWorkloadMode,
-		DeclaredWorkloadTarget:  opts.collect.DeclaredWorkloadTarget,
-		PrefixHeavy:             intent.PrefixHeavy,
-		Multimodal:              intent.Multimodal,
-		RepeatedMultimodalMedia: intent.RepeatedMultimodalMedia,
-		NonInteractive:          application.nonInteractive,
-		BackendURL:              application.appURL,
-		RequireUpload:           opts.requireUpload,
+		Collect: collectpresenter.Options{
+			CollectFor:              opts.collect.CollectFor,
+			ScrapeEvery:             opts.collect.ScrapeEvery,
+			OutputPath:              opts.collect.OutputPath,
+			CollectorVersion:        version,
+			DeclaredWorkloadMode:    opts.collect.DeclaredWorkloadMode,
+			DeclaredWorkloadTarget:  opts.collect.DeclaredWorkloadTarget,
+			PrefixHeavy:             intent.PrefixHeavy,
+			Multimodal:              intent.Multimodal,
+			RepeatedMultimodalMedia: intent.RepeatedMultimodalMedia,
+			NonInteractive:          application.nonInteractive,
+		},
+		Upload: uploadpresenter.Options{
+			BackendURL:    application.appURL,
+			RequireReport: opts.requireUpload,
+		},
+		Report: reportpresenter.Options{
+			BackendURL:     application.appURL,
+			NonInteractive: application.nonInteractive,
+		},
 	})
 	return err
 }

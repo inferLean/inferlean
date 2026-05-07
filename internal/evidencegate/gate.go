@@ -14,6 +14,14 @@ type Failure struct {
 	Hint           string
 }
 
+type Error struct {
+	Failure Failure
+}
+
+func (e Error) Error() string {
+	return e.Failure.String()
+}
+
 func Check(artifact contracts.RunArtifact) (Failure, bool) {
 	blocked := make([]string, 0, 4)
 	addIfBlocked := func(source string) {

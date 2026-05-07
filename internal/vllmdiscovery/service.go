@@ -50,10 +50,7 @@ func (Service) Discover(ctx context.Context, opts DiscoverOptions) ([]Candidate,
 	}
 	for i := range all {
 		if all[i].MetricsEndpoint == "" {
-			all[i].MetricsEndpoint = shared.MetricsEndpoint(
-				"127.0.0.1",
-				shared.InferMetricsPort(all[i].RawCommandLine, nil),
-			)
+			all[i].MetricsEndpoint = shared.InferMetricsEndpoint(all[i].RawCommandLine, nil)
 		}
 	}
 	return dedupe(all), nil

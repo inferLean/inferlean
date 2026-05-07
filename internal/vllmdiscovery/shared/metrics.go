@@ -34,6 +34,58 @@ func InferMetricsPort(rawCommandLine string, env []string) int {
 	return DefaultMetricsPort
 }
 
+func InferMetricsHost(rawCommandLine string, env []string) string {
+	if host := hostFromCommand(rawCommandLine); host != "" {
+		return normalizeMetricsHost(host)
+	}
+	if host := hostFromEnv(env); host != "" {
+		return normalizeMetricsHost(host)
+	}
+	return "127.0.0.1"
+}
+
+func InferMetricsEndpoint(rawCommandLine string, env []string) string {
+	return MetricsEndpoint(
+		InferMetricsHost(rawCommandLine, env),
+		InferMetricsPort(rawCommandLine, env),
+	)
+}
+
+func hostFromCommand(rawCommandLine string) string {
+	tokens := SplitCommandLine(rawCommandLine)
+	for idx := 0; idx < len(tokens); idx++ {
+		token := strings.TrimSpace(tokens[idx])
+		if strings.HasPrefix(token, "--host=") {
+			return strings.TrimSpace(strings.TrimPrefix(token, "--host="))
+		}
+		if token == "--host" && idx+1 < len(tokens) {
+			return strings.TrimSpace(tokens[idx+1])
+		}
+	}
+	return ""
+}
+
+func hostFromEnv(env []string) string {
+	for _, key := range []string{"VLLM_HOST", "HOST"} {
+		if value, ok := envValue(env, key); ok {
+			return value
+		}
+	}
+	return ""
+}
+
+func normalizeMetricsHost(raw string) string {
+	host := strings.Trim(strings.TrimSpace(raw), "[]")
+	switch host {
+	case "", "0.0.0.0":
+		return "127.0.0.1"
+	case "::":
+		return "::1"
+	default:
+		return host
+	}
+}
+
 func portFromCommand(rawCommandLine string) int {
 	tokens := SplitCommandLine(rawCommandLine)
 	for idx := 0; idx < len(tokens); idx++ {

@@ -37,7 +37,7 @@ func startVLLMMetrics(ctx context.Context, target vllmdiscovery.Candidate) (stri
 	default:
 		endpoint := strings.TrimSpace(target.MetricsEndpoint)
 		if endpoint == "" {
-			endpoint = shared.MetricsEndpoint("127.0.0.1", shared.InferMetricsPort(target.RawCommandLine, nil))
+			endpoint = shared.InferMetricsEndpoint(target.RawCommandLine, nil)
 		}
 		return endpoint, nil, nil
 	}

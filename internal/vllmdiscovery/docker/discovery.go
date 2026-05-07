@@ -14,21 +14,20 @@ import (
 )
 
 func Discover(ctx context.Context, name string) ([]shared.Candidate, error) {
+	trimmedName := strings.TrimSpace(name)
 	args := []string{"ps", "--format", "{{.ID}}|{{.Names}}"}
-	if strings.TrimSpace(name) != "" {
-		args = append(args, "--filter", "name="+name)
+	if trimmedName != "" {
+		args = append(args, "--filter", "name="+trimmedName)
 	}
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	out, err := cmd.Output()
 	if err != nil {
+		if trimmedName != "" {
+			return nil, fmt.Errorf("list docker containers: %w", err)
+		}
 		return nil, nil
 	}
-	trimmedName := strings.TrimSpace(name)
-	type namedCandidate struct {
-		name      string
-		candidate shared.Candidate
-	}
-	items := make([]namedCandidate, 0)
+	records := make([]containerRecord, 0)
 	scan := bufio.NewScanner(bytes.NewReader(out))
 	for scan.Scan() {
 		parts := strings.SplitN(scan.Text(), "|", 2)
@@ -38,46 +37,53 @@ func Discover(ctx context.Context, name string) ([]shared.Candidate, error) {
 		containerID := strings.TrimSpace(parts[0])
 		containerName := strings.TrimSpace(parts[1])
 		inspected, err := inspectContainer(ctx, containerID)
-		if err != nil || strings.TrimSpace(inspected.RawCommandLine) == "" {
+		if err != nil {
+			if trimmedName != "" && strings.EqualFold(containerName, trimmedName) {
+				return nil, fmt.Errorf("inspect docker container %s: %w", containerName, err)
+			}
+			continue
+		}
+		if strings.TrimSpace(inspected.RawCommandLine) == "" {
 			continue
 		}
 		if !shared.IsServeCommand(inspected.RawCommandLine) {
 			continue
 		}
-		port := shared.InferMetricsPort(inspected.RawCommandLine, inspected.Env)
-		endpoint, ok := publishedMetricsEndpoint(inspected.Ports, port)
-		if !ok {
-			return nil, shared.MissingPublishedPortError(containerName, port)
-		}
-		items = append(items, namedCandidate{
-			name: containerName,
-			candidate: shared.Candidate{
-				Source:          "docker",
-				PID:             inspected.PID,
-				ContainerID:     containerID,
-				RawCommandLine:  inspected.RawCommandLine,
-				MetricsEndpoint: endpoint,
-				Executable:      "docker-container:" + containerName,
-			},
+		records = append(records, containerRecord{
+			id:        containerID,
+			name:      containerName,
+			inspected: inspected,
 		})
 	}
-	if len(items) == 0 {
+	if err := scan.Err(); err != nil {
+		return nil, fmt.Errorf("parse docker ps output: %w", err)
+	}
+	if len(records) == 0 {
 		return nil, nil
 	}
-	exact := make([]shared.Candidate, 0)
-	for _, item := range items {
-		if trimmedName != "" && strings.EqualFold(item.name, trimmedName) {
-			exact = append(exact, item.candidate)
+	return candidatesFromRecords(preferredRecords(records, trimmedName))
+}
+
+func preferredRecords(records []containerRecord, name string) []containerRecord {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName != "" {
+		exact := make([]containerRecord, 0)
+		for _, record := range records {
+			if strings.EqualFold(record.name, trimmedName) {
+				exact = append(exact, record)
+			}
+		}
+		if len(exact) > 0 {
+			return exact
 		}
 	}
-	if len(exact) > 0 {
-		return exact, nil
-	}
-	outItems := make([]shared.Candidate, 0, len(items))
-	for _, item := range items {
-		outItems = append(outItems, item.candidate)
-	}
-	return outItems, nil
+	return records
+}
+
+type containerRecord struct {
+	id        string
+	name      string
+	inspected inspectedContainer
 }
 
 type inspectOutput []struct {
@@ -89,24 +95,23 @@ type inspectOutput []struct {
 	Path            string `json:"Path"`
 	Args            []string
 	NetworkSettings struct {
-		Ports map[string][]struct {
-			HostIP   string `json:"HostIp"`
-			HostPort string `json:"HostPort"`
-		} `json:"Ports"`
+		Ports map[string][]portBinding `json:"Ports"`
 	} `json:"NetworkSettings"`
 	State struct {
 		PID int `json:"Pid"`
 	} `json:"State"`
 }
 
+type portBinding struct {
+	HostIP   string `json:"HostIp"`
+	HostPort string `json:"HostPort"`
+}
+
 type inspectedContainer struct {
 	RawCommandLine string
 	PID            int32
 	Env            []string
-	Ports          map[string][]struct {
-		HostIP   string `json:"HostIp"`
-		HostPort string `json:"HostPort"`
-	}
+	Ports          map[string][]portBinding
 }
 
 func inspectContainer(ctx context.Context, containerID string) (inspectedContainer, error) {
@@ -139,22 +144,43 @@ func parseInspectContainer(payload []byte) (inspectedContainer, error) {
 	return result, nil
 }
 
-func publishedMetricsEndpoint(ports map[string][]struct {
-	HostIP   string `json:"HostIp"`
-	HostPort string `json:"HostPort"`
-}, port int) (string, bool) {
+func candidatesFromRecords(records []containerRecord) ([]shared.Candidate, error) {
+	items := make([]shared.Candidate, 0, len(records))
+	for _, record := range records {
+		port := shared.InferMetricsPort(record.inspected.RawCommandLine, record.inspected.Env)
+		endpoint, ok := publishedMetricsEndpoint(record.inspected.Ports, port)
+		if !ok {
+			return nil, shared.MissingPublishedPortError(record.name, port)
+		}
+		items = append(items, shared.Candidate{
+			Source:          "docker",
+			PID:             record.inspected.PID,
+			ContainerID:     record.id,
+			RawCommandLine:  record.inspected.RawCommandLine,
+			MetricsEndpoint: endpoint,
+			Executable:      "docker-container:" + record.name,
+		})
+	}
+	return items, nil
+}
+
+func publishedMetricsEndpoint(ports map[string][]portBinding, port int) (string, bool) {
 	for _, binding := range ports[fmt.Sprintf("%d/tcp", port)] {
 		hostPort, err := strconv.Atoi(strings.TrimSpace(binding.HostPort))
 		if err != nil || hostPort <= 0 {
 			continue
 		}
-		host := strings.TrimSpace(binding.HostIP)
-		if host == "" || host == "0.0.0.0" || host == "::" {
-			host = "127.0.0.1"
-		}
-		return shared.MetricsEndpoint(host, hostPort), true
+		return shared.MetricsEndpoint(publishedHost(binding.HostIP), hostPort), true
 	}
 	return "", false
+}
+
+func publishedHost(hostIP string) string {
+	host := strings.TrimSpace(hostIP)
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		return "127.0.0.1"
+	}
+	return host
 }
 
 func parseInspectOutput(payload []byte) (inspectOutput, error) {
