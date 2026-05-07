@@ -3,8 +3,11 @@ package report
 import (
 	"fmt"
 	"strings"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inferLean/inferlean-main/cli/internal/terminal"
+	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 type View struct{}
@@ -23,7 +26,7 @@ func NewView() View {
 func (View) Render(report map[string]any, opts RenderOptions) {
 	tty := terminal.InteractiveTTY()
 	identity := resolveIdentity(report, opts)
-	content, _, err := formatReportForDisplay(report, tty)
+	content, _, err := formatReportForDisplay(report, tty && !opts.NonInteractive)
 	if err != nil {
 		fmt.Printf("[report] failed to render report: %v\n", err)
 		return
@@ -47,7 +50,15 @@ func (View) Render(report map[string]any, opts RenderOptions) {
 		}
 	}
 
-	printReport(content)
+	decoded, err := decodeFinalReport(report)
+	if err != nil {
+		printReport(content)
+		return
+	}
+	if err := runReportTUI(decoded, identity, opts); err != nil {
+		fmt.Printf("[report] interactive viewer unavailable: %v\n", err)
+		printReport(content)
+	}
 }
 
 func printReport(content string) {
@@ -76,6 +87,13 @@ func resolveIdentity(report map[string]any, opts RenderOptions) reportIdentity {
 		identity.installationID = strings.TrimSpace(stringField(job, "installation_id"))
 	}
 	return identity
+}
+
+func runReportTUI(report contracts.FinalReport, identity reportIdentity, opts RenderOptions) error {
+	vm := buildReportViewModel(report, identity, opts.BackendURL, time.Now().UTC())
+	program := tea.NewProgram(newReportModel(vm), tea.WithAltScreen())
+	_, err := program.Run()
+	return err
 }
 
 func stringField(values map[string]any, key string) string {
