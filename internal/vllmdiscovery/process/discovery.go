@@ -48,6 +48,18 @@ func fromProcess(ctx context.Context, proc *gopsprocess.Process) shared.Candidat
 		PID:            proc.Pid,
 		Executable:     exe,
 		RawCommandLine: raw,
-		StartedAt:      started,
+		MetricsEndpoint: shared.MetricsEndpoint(
+			"127.0.0.1",
+			shared.InferMetricsPort(raw, processEnv(ctx, proc)),
+		),
+		StartedAt: started,
 	}
+}
+
+func processEnv(ctx context.Context, proc *gopsprocess.Process) []string {
+	env, err := proc.EnvironWithContext(ctx)
+	if err != nil {
+		return nil
+	}
+	return env
 }

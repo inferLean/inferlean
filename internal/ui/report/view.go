@@ -34,7 +34,7 @@ func (View) Render(report map[string]any, opts RenderOptions) {
 		return
 	}
 
-	if destination := chooseDestination(identity, opts.NonInteractive, tty); destination == destinationBrowser {
+	if destination := chooseDestination(opts.NonInteractive, tty); destination == destinationBrowser {
 		if !isIdentityComplete(identity) {
 			fmt.Println("[report] browser view unavailable (missing run_id or installation_id), showing terminal report")
 		} else {

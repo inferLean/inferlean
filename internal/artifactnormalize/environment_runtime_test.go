@@ -71,3 +71,26 @@ func TestNormalizeRuntimeConfigCapturesQuantizationPosture(t *testing.T) {
 		t.Fatalf("kv_cache_dtype = %q, want %q", got, want)
 	}
 }
+
+func TestNormalizeRuntimeConfigPrefersExplicitRuntimeHostPort(t *testing.T) {
+	input := Input{
+		Target: TargetInput{
+			MetricsEndpoint: "http://127.0.0.1:19000/metrics",
+		},
+		Configurations: types.Configurations{
+			ParsedArgs: map[string]string{
+				"host": "0.0.0.0",
+				"port": "9000",
+			},
+		},
+	}
+
+	runtime := normalizeRuntimeConfig(input)
+
+	if got, want := runtime.Host, "0.0.0.0"; got != want {
+		t.Fatalf("host = %q, want %q", got, want)
+	}
+	if got, want := runtime.Port, 9000; got != want {
+		t.Fatalf("port = %d, want %d", got, want)
+	}
+}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
@@ -52,7 +51,7 @@ type Presenter struct {
 	obsStore    observation.Store
 	pioStore    processio.Store
 	cfgStore    *configstore.Store
-	interrupts  interrupt.Controller
+	interrupts  interrupt.Publisher
 }
 
 const (
@@ -73,7 +72,7 @@ const (
 	collectionActionStopAndAnalyze
 )
 
-func NewPresenter(collectView collectionui.View, intentView intentui.View, cfgStore *configstore.Store, interrupts interrupt.Controller) Presenter {
+func NewPresenter(collectView collectionui.View, intentView intentui.View, cfgStore *configstore.Store, interrupts interrupt.Publisher) Presenter {
 	return Presenter{
 		collectView: collectView,
 		intentView:  intentView,
@@ -128,7 +127,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		CollectorVersion: opts.CollectorVersion,
 		StartedAt:        start,
 		FinishedAt:       time.Now().UTC(),
-		Target:           opts.Target,
+		Target:           evidence.target,
 		Intent:           intent,
 		PromResult:       evidence.promResult,
 		Sources:          evidence.sources,
@@ -150,6 +149,7 @@ type evidence struct {
 	promResult promcollector.Result
 	sources    collectionSources
 	staticSMI  string
+	target     vllmdiscovery.Candidate
 }
 
 func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runstore.Paths) (evidence, error) {
@@ -158,28 +158,14 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	defer cancelCollect()
 
 	p.collectView.ShowStart(opts.CollectFor.Seconds())
-	interruptCh, stopInterrupts := interrupt.Subscribe(p.interrupts)
-	defer stopInterrupts()
 	actions, stopListening := startCollectionDurationListener(interactive, p.interrupts)
 	defer stopListening()
-	var interrupted atomic.Bool
-	doneInterrupt := make(chan struct{})
-	go func() {
-		defer close(doneInterrupt)
-		select {
-		case <-interruptCh:
-			interrupted.Store(true)
-			cancelCollect()
-		case <-collectCtx.Done():
-		}
-	}()
-	defer func() {
-		cancelCollect()
-		<-doneInterrupt
-	}()
 
 	p.collectView.ShowStep("starting exporters and local bridges")
-	sources := startSources(collectCtx)
+	sources, err := startSources(collectCtx, opts)
+	if err != nil {
+		return evidence{}, err
+	}
 	stoppedSources := false
 	stopAllSources := func() {
 		if stoppedSources {
@@ -192,12 +178,12 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 		}
 	}
 	defer stopAllSources()
-	if interrupted.Load() {
+	if ctx.Err() != nil {
 		return evidence{}, fmt.Errorf("collection interrupted")
 	}
 	p.collectView.ShowMetricsCollectionStart(opts.CollectFor)
 
-	targets := buildPromTargets(opts, sources)
+	targets := buildPromTargets(sources)
 	stopCountdown := p.startCollectionCountdown(
 		collectCtx,
 		opts.CollectFor,
@@ -212,8 +198,9 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 		opts.ScrapeEvery,
 	)
 	close(stopCountdown)
+	stopListening()
 	savePrometheusObservations(p, paths, promRes)
-	if interrupted.Load() {
+	if ctx.Err() != nil {
 		return evidence{}, fmt.Errorf("collection interrupted")
 	}
 	p.collectView.ShowStep("collecting nvidia-smi process output")
@@ -226,6 +213,7 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 		promResult: promRes,
 		sources:    sources,
 		staticSMI:  staticSMI,
+		target:     opts.Target,
 	}, nil
 }
 

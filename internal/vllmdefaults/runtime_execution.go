@@ -74,11 +74,8 @@ func detectDockerPID(ctx context.Context, containerID string) int32 {
 }
 
 func runPythonInDocker(ctx context.Context, containerID string, pid int32) error {
-	var lastErr error
-	for _, py := range []string{"python3", "python"} {
-		_, err := runCommand(
-			ctx,
-			"docker",
+	return runPythonCandidates(ctx, "in container", func(py string) (string, []string) {
+		return "docker", []string{
 			"exec",
 			containerID,
 			py,
@@ -87,13 +84,8 @@ func runPythonInDocker(ctx context.Context, containerID string, pid int32) error
 			strconv.Itoa(int(pid)),
 			"--out",
 			remoteDumpPath,
-		)
-		if err == nil {
-			return nil
 		}
-		lastErr = err
-	}
-	return fmt.Errorf("execute defaults script in container: %w", lastErr)
+	})
 }
 
 func runDumpInPod(ctx context.Context, target shared.Candidate, scriptPath, dumpPath string) (runtimeExecution, error) {
@@ -146,9 +138,8 @@ func detectPodPID(ctx context.Context, namespace, podName, container string) int
 }
 
 func runPythonInPod(ctx context.Context, namespace, podName, container string, pid int32) error {
-	var lastErr error
-	for _, py := range []string{"python3", "python"} {
-		args := kubectlExecArgs(
+	return runPythonCandidates(ctx, "in pod", func(py string) (string, []string) {
+		return "kubectl", kubectlExecArgs(
 			namespace,
 			podName,
 			container,
@@ -159,13 +150,7 @@ func runPythonInPod(ctx context.Context, namespace, podName, container string, p
 			"--out",
 			remoteDumpPath,
 		)
-		_, err := runCommand(ctx, "kubectl", args...)
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-	}
-	return fmt.Errorf("execute defaults script in pod: %w", lastErr)
+	})
 }
 
 func kubectlCopyToArgs(namespace, podName, container, localPath, remotePath string) []string {
@@ -197,23 +182,28 @@ func kubectlExecArgs(namespace, podName, container string, command ...string) []
 }
 
 func runPythonLocal(ctx context.Context, scriptPath string, pid int32, dumpPath string) error {
-	var lastErr error
-	for _, py := range []string{"python3", "python"} {
-		_, err := runCommand(
-			ctx,
-			py,
+	return runPythonCandidates(ctx, "on host", func(py string) (string, []string) {
+		return py, []string{
 			scriptPath,
 			"--pid",
 			strconv.Itoa(int(pid)),
 			"--out",
 			dumpPath,
-		)
+		}
+	})
+}
+
+func runPythonCandidates(ctx context.Context, label string, command func(py string) (string, []string)) error {
+	var lastErr error
+	for _, py := range []string{"python3", "python"} {
+		name, args := command(py)
+		_, err := runCommand(ctx, name, args...)
 		if err == nil {
 			return nil
 		}
 		lastErr = err
 	}
-	return fmt.Errorf("execute defaults script on host: %w", lastErr)
+	return fmt.Errorf("execute defaults script %s: %w", label, lastErr)
 }
 
 func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {

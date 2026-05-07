@@ -7,7 +7,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
+
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/shared"
 )
 
 var (
@@ -44,7 +45,7 @@ func inferModel(explicit map[string]string, rawCommandLine string) string {
 	if model := strings.TrimSpace(explicit["model"]); model != "" {
 		return model
 	}
-	tokens := splitCommandLine(rawCommandLine)
+	tokens := shared.SplitCommandLine(rawCommandLine)
 	for idx := 0; idx < len(tokens); idx++ {
 		if tokens[idx] != "serve" {
 			continue
@@ -247,51 +248,4 @@ func copyStringMap(src map[string]string) map[string]string {
 		dst[key] = value
 	}
 	return dst
-}
-
-func splitCommandLine(raw string) []string {
-	out := []string{}
-	var token strings.Builder
-	quote := rune(0)
-	escaped := false
-	flush := func() {
-		if token.Len() == 0 {
-			return
-		}
-		out = append(out, token.String())
-		token.Reset()
-	}
-	for _, r := range raw {
-		if escaped {
-			token.WriteRune(r)
-			escaped = false
-			continue
-		}
-		if r == '\\' && quote != '\'' {
-			escaped = true
-			continue
-		}
-		if quote != 0 {
-			if r == quote {
-				quote = 0
-				continue
-			}
-			token.WriteRune(r)
-			continue
-		}
-		if r == '"' || r == '\'' {
-			quote = r
-			continue
-		}
-		if unicode.IsSpace(r) {
-			flush()
-			continue
-		}
-		token.WriteRune(r)
-	}
-	if escaped {
-		token.WriteRune('\\')
-	}
-	flush()
-	return out
 }

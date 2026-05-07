@@ -46,3 +46,42 @@ func TestIsServeCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestInferMetricsPort(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		command string
+		env     []string
+		want    int
+	}{
+		{
+			name:    "port flag with space",
+			command: "vllm serve model-a --port 9000",
+			want:    9000,
+		},
+		{
+			name:    "port flag with equals",
+			command: "python -m vllm.entrypoints.openai.api_server --port=9100",
+			want:    9100,
+		},
+		{
+			name: "vllm port env",
+			env:  []string{"VLLM_PORT=9200"},
+			want: 9200,
+		},
+		{
+			name: "default",
+			want: DefaultMetricsPort,
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := InferMetricsPort(tc.command, tc.env); got != tc.want {
+				t.Fatalf("InferMetricsPort() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}

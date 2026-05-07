@@ -27,3 +27,31 @@ func TestParseInspectContainerIncludesPID(t *testing.T) {
 		t.Fatalf("expected vllm serve prefix, got %q", got.RawCommandLine)
 	}
 }
+
+func TestPublishedMetricsEndpointUsesPublishedPort(t *testing.T) {
+	t.Parallel()
+	payload := []byte(`[{
+		"Config": {
+			"Entrypoint": ["vllm"],
+			"Cmd": ["serve", "--port", "9000"],
+			"Env": ["IGNORED=1"]
+		},
+		"NetworkSettings": {
+			"Ports": {
+				"9000/tcp": [{"HostIp": "0.0.0.0", "HostPort": "19000"}]
+			}
+		},
+		"State": {"Pid": 4321}
+	}]`)
+	inspected, err := parseInspectContainer(payload)
+	if err != nil {
+		t.Fatalf("parseInspectContainer returned error: %v", err)
+	}
+	endpoint, ok := publishedMetricsEndpoint(inspected.Ports, 9000)
+	if !ok {
+		t.Fatal("expected published endpoint")
+	}
+	if endpoint != "http://127.0.0.1:19000/metrics" {
+		t.Fatalf("endpoint = %q, want published host endpoint", endpoint)
+	}
+}

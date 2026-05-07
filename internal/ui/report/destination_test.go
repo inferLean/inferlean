@@ -15,7 +15,7 @@ func TestIsIdentityCompleteFalseWhenMissingFields(t *testing.T) {
 
 func TestChooseDestinationSkipsSelectorWhenNotTTY(t *testing.T) {
 	t.Parallel()
-	destination := chooseDestination(reportIdentity{runID: "run_1", installationID: "inst_1"}, false, false)
+	destination := chooseDestination(false, false)
 	if destination != destinationTerminal {
 		t.Fatalf("expected terminal fallback when tty is disabled, got %q", destination)
 	}
@@ -23,7 +23,7 @@ func TestChooseDestinationSkipsSelectorWhenNotTTY(t *testing.T) {
 
 func TestChooseDestinationSkipsSelectorWhenNonInteractive(t *testing.T) {
 	t.Parallel()
-	destination := chooseDestination(reportIdentity{runID: "run_1", installationID: "inst_1"}, true, true)
+	destination := chooseDestination(true, true)
 	if destination != destinationTerminal {
 		t.Fatalf("expected terminal fallback when non-interactive is enabled, got %q", destination)
 	}

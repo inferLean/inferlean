@@ -7,7 +7,7 @@ import (
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
-func TestHandleUploadFailsBeforeUploadWhenEvidenceIsInsufficient(t *testing.T) {
+func TestUploadAndFinishFailsBeforeUploadWhenEvidenceIsInsufficient(t *testing.T) {
 	p := Presenter{}
 	artifact := contracts.RunArtifact{
 		CollectionQuality: contracts.CollectionQuality{
@@ -20,12 +20,12 @@ func TestHandleUploadFailsBeforeUploadWhenEvidenceIsInsufficient(t *testing.T) {
 		},
 	}
 
-	result, err := p.handleUpload(context.Background(), Options{}, Result{
+	result, err := p.uploadAndFinish(context.Background(), Options{}, Result{
 		ArtifactPath: "artifact.json",
 		RunID:        "run-1",
 	}, artifact)
-	if err != nil {
-		t.Fatalf("handleUpload() error = %v, want nil", err)
+	if err == nil {
+		t.Fatal("uploadAndFinish() error = nil, want failure")
 	}
 	if !result.Failed {
 		t.Fatal("result.Failed = false, want true")

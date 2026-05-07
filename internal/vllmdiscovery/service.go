@@ -14,6 +14,8 @@ import (
 
 type Service struct{}
 
+var errSourceCancelled = errors.New("discovery source cancelled")
+
 func NewService() Service {
 	return Service{}
 }
@@ -42,36 +44,33 @@ func (Service) Discover(ctx context.Context, opts DiscoverOptions) ([]Candidate,
 			continue
 		}
 		if err != nil {
-			if source == shared.SourceProcesses {
-				return nil, err
-			}
-			continue
+			return nil, err
 		}
 		all = append(all, items...)
 	}
 	for i := range all {
 		if all[i].MetricsEndpoint == "" {
-			all[i].MetricsEndpoint = "http://127.0.0.1:8000/metrics"
+			all[i].MetricsEndpoint = shared.MetricsEndpoint(
+				"127.0.0.1",
+				shared.InferMetricsPort(all[i].RawCommandLine, nil),
+			)
 		}
 	}
 	return dedupe(all), nil
 }
 
 func discoverSource(ctx context.Context, opts DiscoverOptions, source string) ([]Candidate, bool, error) {
-	sourceCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	sourceCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 
-	cancelByUser := make(chan struct{}, 1)
 	doneWatching := make(chan struct{})
 	if opts.CancelCurrent != nil {
-		go watchCancelCurrent(opts.CancelCurrent, doneWatching, cancel, cancelByUser)
+		go watchCancelCurrent(opts.CancelCurrent, doneWatching, cancel)
 	}
 	items, err := runDiscoverySource(sourceCtx, opts, source)
 	close(doneWatching)
-	select {
-	case <-cancelByUser:
+	if errors.Is(context.Cause(sourceCtx), errSourceCancelled) {
 		return nil, true, nil
-	default:
 	}
 	if errors.Is(err, context.Canceled) && ctx.Err() == nil {
 		return nil, true, nil
@@ -79,16 +78,12 @@ func discoverSource(ctx context.Context, opts DiscoverOptions, source string) ([
 	return items, false, err
 }
 
-func watchCancelCurrent(cancelCurrent <-chan struct{}, done <-chan struct{}, cancel context.CancelFunc, cancelled chan<- struct{}) {
+func watchCancelCurrent(cancelCurrent <-chan struct{}, done <-chan struct{}, cancel context.CancelCauseFunc) {
 	select {
 	case <-done:
 		return
 	case <-cancelCurrent:
-		select {
-		case cancelled <- struct{}{}:
-		default:
-		}
-		cancel()
+		cancel(errSourceCancelled)
 	}
 }
 

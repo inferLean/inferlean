@@ -26,7 +26,7 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 	args := input.Configurations.ParsedArgs
 	argSources := input.Configurations.ParsedArgSources
 	hints := input.Configurations.EnvironmentHints
-	host, port := parseHostPort(input.Target.MetricsEndpoint)
+	host, port := runtimeHostPort(args, input.Target.MetricsEndpoint)
 	prefixCaching := resolvePrefixCaching(args, input.Observations.Prometheus["vllm"])
 	chunkedPrefill, _ := parseBool(args, []string{"enable-chunked-prefill", "chunked-prefill"})
 	flashInfer, _ := parseBool(args, []string{"enable-flashinfer", "flashinfer"})
@@ -67,6 +67,17 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 	}
 	runtime.Coverage = runtimeCoverage(runtime)
 	return runtime
+}
+
+func runtimeHostPort(args map[string]string, endpoint string) (string, int) {
+	host, port := parseHostPort(endpoint)
+	if explicitHost := strings.TrimSpace(args["host"]); explicitHost != "" {
+		host = explicitHost
+	}
+	if explicitPort := parseInt(args, []string{"port"}, 0); explicitPort > 0 {
+		port = explicitPort
+	}
+	return host, port
 }
 
 func runtimeCoverage(runtime contracts.RuntimeConfig) contracts.SourceCoverage {

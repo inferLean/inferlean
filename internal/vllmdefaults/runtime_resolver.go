@@ -2,7 +2,6 @@ package vllmdefaults
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -149,18 +148,6 @@ func findDumpScriptUnderRoot(start string) string {
 func isRegularFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
-}
-
-func loadRuntimeDump(path string) (runtimeDumpFile, error) {
-	var dump runtimeDumpFile
-	payload, err := os.ReadFile(path)
-	if err != nil {
-		return dump, fmt.Errorf("read defaults dump: %w", err)
-	}
-	if err := json.Unmarshal(payload, &dump); err != nil {
-		return dump, fmt.Errorf("parse defaults dump: %w", err)
-	}
-	return dump, nil
 }
 
 func resolveFromDump(input Input, dump runtimeDumpFile) (Output, error) {

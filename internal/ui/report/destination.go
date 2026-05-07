@@ -14,7 +14,7 @@ const (
 	destinationTerminal reportDestination = "terminal"
 )
 
-func chooseDestination(identity reportIdentity, nonInteractive, tty bool) reportDestination {
+func chooseDestination(nonInteractive, tty bool) reportDestination {
 	if nonInteractive || !tty {
 		return destinationTerminal
 	}

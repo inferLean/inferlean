@@ -79,20 +79,16 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 	result := Result{ArtifactPath: collectRes.ArtifactPath, RunID: collectRes.Artifact.Job.RunID}
-	result, err = p.handleUpload(ctx, opts, result, collectRes.Artifact)
-	if err != nil {
-		return result, err
-	}
-	return result, finish(result)
+	return p.uploadAndFinish(ctx, opts, result, collectRes.Artifact)
 }
 
-func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result, artifact contracts.RunArtifact) (Result, error) {
+func (p Presenter) uploadAndFinish(ctx context.Context, opts Options, result Result, artifact contracts.RunArtifact) (Result, error) {
 	failure, ok := evidencegate.Check(artifact)
 	if !ok {
 		result.Failed = true
 		result.FailureReason = failure.Reason
 		result.FailureHint = failure.Hint
-		return result, nil
+		return result, finish(result)
 	}
 	uploadRes, err := p.upload.Run(ctx, uploadpresenter.Options{
 		BackendURL:    opts.BackendURL,
@@ -104,7 +100,7 @@ func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result
 			return result, err
 		}
 		result.UploadErr = err
-		return result, nil
+		return result, finish(result)
 	}
 	result.Uploaded = uploadRes.Uploaded
 	if uploadRes.RunID != "" {
@@ -120,7 +116,7 @@ func (p Presenter) handleUpload(ctx context.Context, opts Options, result Result
 		InstallationID: result.InstallationID,
 		NonInteractive: opts.NonInteractive,
 	})
-	return result, nil
+	return result, finish(result)
 }
 
 func finish(result Result) error {

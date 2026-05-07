@@ -13,21 +13,29 @@ import (
 )
 
 type collectionSources struct {
-	node nodeexporter.StartResult
-	dcgm dcgm.StartResult
-	nvml nvml.BridgeResult
+	vllmEndpoint string
+	vllmSession  *vllmMetricsSession
+	node         nodeexporter.StartResult
+	dcgm         dcgm.StartResult
+	nvml         nvml.BridgeResult
 }
 
-func startSources(ctx context.Context) collectionSources {
-	return collectionSources{
-		node: nodeexporter.Start(ctx),
-		dcgm: dcgm.Start(ctx),
-		nvml: nvml.StartBridge(),
+func startSources(ctx context.Context, opts Options) (collectionSources, error) {
+	vllmEndpoint, vllmSession, err := startVLLMMetrics(ctx, opts.Target)
+	if err != nil {
+		return collectionSources{}, err
 	}
+	return collectionSources{
+		vllmEndpoint: vllmEndpoint,
+		vllmSession:  vllmSession,
+		node:         nodeexporter.Start(ctx),
+		dcgm:         dcgm.Start(ctx),
+		nvml:         nvml.StartBridge(),
+	}, nil
 }
 
-func buildPromTargets(opts Options, sources collectionSources) []promcollector.Target {
-	targets := []promcollector.Target{{Name: "vllm", Endpoint: opts.Target.MetricsEndpoint, Required: true}}
+func buildPromTargets(sources collectionSources) []promcollector.Target {
+	targets := []promcollector.Target{{Name: "vllm", Endpoint: sources.vllmEndpoint, Required: true}}
 	if sources.node.Available {
 		targets = append(targets, promcollector.Target{Name: "node_exporter", Endpoint: sources.node.Endpoint})
 	}
@@ -63,6 +71,7 @@ func savePrometheusObservations(p Presenter, paths runstore.Paths, promRes promc
 
 func stopSources(ctx context.Context, p Presenter, paths runstore.Paths, sources collectionSources) string {
 	bridgeRaw := ""
+	stopExporterSession(ctx, p, paths, "vllm-port-forward", sources.vllmSession)
 	if sources.nvml.Bridge != nil {
 		_ = sources.nvml.Bridge.Stop(ctx)
 		if raw := strings.TrimSpace(sources.nvml.Bridge.LastRaw()); raw != "" {

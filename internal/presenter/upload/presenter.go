@@ -3,6 +3,7 @@ package upload
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,7 +25,6 @@ type Options struct {
 }
 
 type Result struct {
-	Ack            types.UploadAck
 	Report         map[string]any
 	RunID          string
 	InstallationID string
@@ -47,19 +47,16 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if opts.RunID != "" {
-		artifactPath, err := p.runStore.ArtifactPath(opts.RunID)
-		if err != nil {
-			return Result{}, err
-		}
-		opts.ArtifactPath = artifactPath
+	artifactPath, err := p.artifactPath(opts)
+	if err != nil {
+		return Result{}, err
 	}
-	artifact, err := readArtifact(opts.ArtifactPath)
+	artifact, err := readArtifact(artifactPath)
 	if err != nil {
 		return Result{}, err
 	}
 	if failure, ok := evidencegate.Check(artifact); !ok {
-		err := fmt.Errorf("%s", failure.String())
+		err := errors.New(failure.String())
 		p.uploadView.ShowFailure(err)
 		return Result{}, err
 	}
@@ -71,31 +68,43 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	}
 	p.uploadView.ShowUploadSuccess()
 	result := Result{
-		Ack:            ack,
 		RunID:          ack.RunID,
 		InstallationID: ack.InstallationID,
 		Uploaded:       true,
 	}
-	if ack.ReportURL == "" {
-		if opts.RequireReport {
-			return Result{}, fmt.Errorf("upload succeeded but report_url was empty")
-		}
-		return result, nil
-	}
-	report, err := p.apiClient.GetReport(ctx, ack.ReportURL, cfg.Auth)
+	report, err := p.loadReport(ctx, ack.ReportURL, cfg.Auth, artifactPath, opts.RequireReport)
 	if err != nil {
-		if opts.RequireReport {
-			return Result{}, err
-		}
-		return result, nil
-	}
-	result.Report = report
-	runDir := artifactRunDir(opts.ArtifactPath)
-	reportPath := filepath.Join(runDir, "report.json")
-	if err := p.runStore.SaveReport(reportPath, report); err != nil {
 		return Result{}, err
 	}
+	result.Report = report
 	return result, nil
+}
+
+func (p Presenter) artifactPath(opts Options) (string, error) {
+	if opts.RunID == "" {
+		return opts.ArtifactPath, nil
+	}
+	return p.runStore.ArtifactPath(opts.RunID)
+}
+
+func (p Presenter) loadReport(ctx context.Context, reportURL string, auth types.AuthState, artifactPath string, required bool) (map[string]any, error) {
+	if reportURL == "" {
+		if required {
+			return nil, fmt.Errorf("upload succeeded but report_url was empty")
+		}
+		return nil, nil
+	}
+	report, err := p.apiClient.GetReport(ctx, reportURL, auth)
+	if err != nil {
+		if required {
+			return nil, err
+		}
+		return nil, nil
+	}
+	if err := p.runStore.SaveReport(filepath.Join(filepath.Dir(artifactPath), "report.json"), report); err != nil {
+		return nil, err
+	}
+	return report, nil
 }
 
 func readArtifact(path string) (contracts.RunArtifact, error) {
@@ -111,8 +120,4 @@ func readArtifact(path string) (contracts.RunArtifact, error) {
 		return contracts.RunArtifact{}, fmt.Errorf("validate artifact: %w", err)
 	}
 	return artifact, nil
-}
-
-func artifactRunDir(path string) string {
-	return filepath.Dir(path)
 }

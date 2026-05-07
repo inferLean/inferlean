@@ -44,14 +44,20 @@ func Discover(ctx context.Context, name string) ([]shared.Candidate, error) {
 		if !shared.IsServeCommand(inspected.RawCommandLine) {
 			continue
 		}
+		port := shared.InferMetricsPort(inspected.RawCommandLine, inspected.Env)
+		endpoint, ok := publishedMetricsEndpoint(inspected.Ports, port)
+		if !ok {
+			return nil, shared.MissingPublishedPortError(containerName, port)
+		}
 		items = append(items, namedCandidate{
 			name: containerName,
 			candidate: shared.Candidate{
-				Source:         "docker",
-				PID:            inspected.PID,
-				ContainerID:    containerID,
-				RawCommandLine: inspected.RawCommandLine,
-				Executable:     "docker-container:" + containerName,
+				Source:          "docker",
+				PID:             inspected.PID,
+				ContainerID:     containerID,
+				RawCommandLine:  inspected.RawCommandLine,
+				MetricsEndpoint: endpoint,
+				Executable:      "docker-container:" + containerName,
 			},
 		})
 	}
@@ -78,9 +84,16 @@ type inspectOutput []struct {
 	Config struct {
 		Entrypoint []string `json:"Entrypoint"`
 		Cmd        []string `json:"Cmd"`
+		Env        []string `json:"Env"`
 	} `json:"Config"`
-	Path  string `json:"Path"`
-	Args  []string
+	Path            string `json:"Path"`
+	Args            []string
+	NetworkSettings struct {
+		Ports map[string][]struct {
+			HostIP   string `json:"HostIp"`
+			HostPort string `json:"HostPort"`
+		} `json:"Ports"`
+	} `json:"NetworkSettings"`
 	State struct {
 		PID int `json:"Pid"`
 	} `json:"State"`
@@ -89,6 +102,11 @@ type inspectOutput []struct {
 type inspectedContainer struct {
 	RawCommandLine string
 	PID            int32
+	Env            []string
+	Ports          map[string][]struct {
+		HostIP   string `json:"HostIp"`
+		HostPort string `json:"HostPort"`
+	}
 }
 
 func inspectContainer(ctx context.Context, containerID string) (inspectedContainer, error) {
@@ -110,11 +128,33 @@ func parseInspectContainer(payload []byte) (inspectedContainer, error) {
 	if strings.TrimSpace(command) == "" {
 		command = renderCommand(appendSlices([]string{item.Path}, item.Args))
 	}
-	result := inspectedContainer{RawCommandLine: command}
+	result := inspectedContainer{
+		RawCommandLine: command,
+		Env:            item.Config.Env,
+		Ports:          item.NetworkSettings.Ports,
+	}
 	if item.State.PID > 0 {
 		result.PID = int32(item.State.PID)
 	}
 	return result, nil
+}
+
+func publishedMetricsEndpoint(ports map[string][]struct {
+	HostIP   string `json:"HostIp"`
+	HostPort string `json:"HostPort"`
+}, port int) (string, bool) {
+	for _, binding := range ports[fmt.Sprintf("%d/tcp", port)] {
+		hostPort, err := strconv.Atoi(strings.TrimSpace(binding.HostPort))
+		if err != nil || hostPort <= 0 {
+			continue
+		}
+		host := strings.TrimSpace(binding.HostIP)
+		if host == "" || host == "0.0.0.0" || host == "::" {
+			host = "127.0.0.1"
+		}
+		return shared.MetricsEndpoint(host, hostPort), true
+	}
+	return "", false
 }
 
 func parseInspectOutput(payload []byte) (inspectOutput, error) {

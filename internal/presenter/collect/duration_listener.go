@@ -2,6 +2,7 @@ package collect
 
 import (
 	"errors"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,11 +30,14 @@ func startCollectionDurationListener(enabled bool, interrupts interrupt.Publishe
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go readCollectionDurationKey(stdinFD, stop, done, actions, interrupts)
+	var stopOnce sync.Once
 	return actions, func() {
-		close(stop)
-		<-done
-		_ = syscall.SetNonblock(stdinFD, false)
-		_ = term.Restore(stdinFD, state)
+		stopOnce.Do(func() {
+			close(stop)
+			<-done
+			_ = syscall.SetNonblock(stdinFD, false)
+			_ = term.Restore(stdinFD, state)
+		})
 	}
 }
 

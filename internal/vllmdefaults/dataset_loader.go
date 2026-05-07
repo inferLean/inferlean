@@ -78,25 +78,25 @@ func dedupeStrings(items []string) []string {
 }
 
 func loadManifest(path string) (manifestFile, error) {
-	var manifest manifestFile
-	payload, err := os.ReadFile(path)
-	if err != nil {
-		return manifest, fmt.Errorf("read defaults manifest: %w", err)
-	}
-	if err := json.Unmarshal(payload, &manifest); err != nil {
-		return manifest, fmt.Errorf("parse defaults manifest: %w", err)
-	}
-	return manifest, nil
+	return loadJSONFile[manifestFile](path, "defaults manifest")
 }
 
 func loadTagDefaults(path string) (tagDefaultsFile, error) {
-	var file tagDefaultsFile
+	return loadJSONFile[tagDefaultsFile](path, "defaults tag file")
+}
+
+func loadRuntimeDump(path string) (runtimeDumpFile, error) {
+	return loadJSONFile[runtimeDumpFile](path, "defaults dump")
+}
+
+func loadJSONFile[T any](path, label string) (T, error) {
+	var file T
 	payload, err := os.ReadFile(path)
 	if err != nil {
-		return file, fmt.Errorf("read defaults tag file: %w", err)
+		return file, fmt.Errorf("read %s: %w", label, err)
 	}
 	if err := json.Unmarshal(payload, &file); err != nil {
-		return file, fmt.Errorf("parse defaults tag file: %w", err)
+		return file, fmt.Errorf("parse %s: %w", label, err)
 	}
 	return file, nil
 }
