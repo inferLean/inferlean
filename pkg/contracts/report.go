@@ -302,9 +302,17 @@ type ReportCollectionQuality struct {
 }
 
 type UIHints struct {
-	AvailableModes    []string `json:"available_modes,omitempty"`
-	DefaultMode       string   `json:"default_mode,omitempty"`
-	HighlightIssueIDs []string `json:"highlight_issue_ids,omitempty"`
+	AvailableModes       []string              `json:"available_modes,omitempty"`
+	DefaultMode          string                `json:"default_mode,omitempty"`
+	HighlightIssueIDs    []string              `json:"highlight_issue_ids,omitempty"`
+	SecondaryOpportunity *SecondaryOpportunity `json:"secondary_opportunity,omitempty"`
+}
+
+type SecondaryOpportunity struct {
+	IssueID        string          `json:"issue_id,omitempty"`
+	IssueFamily    string          `json:"issue_family,omitempty"`
+	PriorityNote   string          `json:"priority_note,omitempty"`
+	Recommendation *Recommendation `json:"recommendation,omitempty"`
 }
 
 type SummaryPreview struct {

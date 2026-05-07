@@ -25,6 +25,29 @@ func TestFinalReportValidateAcceptsCanonicalShape(t *testing.T) {
 	}
 }
 
+func TestFinalReportValidateAcceptsSecondaryOpportunity(t *testing.T) {
+	report := validFinalReport()
+	report.UIHints.SecondaryOpportunity = &SecondaryOpportunity{
+		IssueID:      "issue:kv_footprint_heavy",
+		IssueFamily:  "kv_footprint_heavy",
+		PriorityNote: "Lower priority than the primary recommendation.",
+		Recommendation: &Recommendation{
+			Decision: "reduce_kv_footprint",
+			Title:    "Reduce KV footprint",
+			Actions: []Action{{
+				ID:            "action:reduce-max-model-len",
+				Title:         "Reduce `--max-model-len`",
+				CurrentValue:  "8192",
+				ProposedValue: "4096",
+			}},
+		},
+	}
+
+	if err := report.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestFinalReportValidateRejectsIncompleteActionDelta(t *testing.T) {
 	report := validFinalReport()
 	report.Diagnosis.BaseDiagnosis.Recommendation.Actions = []Action{{
@@ -57,6 +80,21 @@ func TestFinalReportValidateRequiresRankOneIssue(t *testing.T) {
 
 	if err := report.Validate(); err == nil {
 		t.Fatal("Validate() error = nil, want rank-one failure")
+	}
+}
+
+func TestFinalReportValidateRejectsIncompleteSecondaryOpportunity(t *testing.T) {
+	report := validFinalReport()
+	report.UIHints.SecondaryOpportunity = &SecondaryOpportunity{
+		IssueFamily: "kv_footprint_heavy",
+		Recommendation: &Recommendation{
+			Decision: "reduce_kv_footprint",
+			Title:    "Reduce KV footprint",
+		},
+	}
+
+	if err := report.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want invalid secondary opportunity")
 	}
 }
 
@@ -138,5 +176,10 @@ func validFinalReport() FinalReport {
 			ID:   "scheduler_conservative",
 			Rank: 1,
 		}},
+		UIHints: UIHints{
+			AvailableModes:    []string{"brief", "full"},
+			DefaultMode:       "brief",
+			HighlightIssueIDs: []string{"scheduler_conservative"},
+		},
 	}
 }

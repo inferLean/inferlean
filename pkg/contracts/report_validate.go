@@ -29,6 +29,7 @@ func (r FinalReport) Validate() error {
 	errs = append(errs, validateQuantizationLens(r.DiagnosticLenses.Quantization)...)
 	errs = append(errs, validateIssues(r.Issues)...)
 	errs = append(errs, validateReportCoverage(r.DiagnosticCoverage)...)
+	errs = append(errs, validateSecondaryOpportunity(r.UIHints.SecondaryOpportunity)...)
 
 	return errors.Join(errs...)
 }
@@ -137,6 +138,28 @@ func validateRecommendation(recommendation *Recommendation, field string) []erro
 			errs = append(errs, fmt.Errorf("%s.actions[%d] must include current_value and proposed_value", field, idx))
 		}
 	}
+	return errs
+}
+
+func validateSecondaryOpportunity(opportunity *SecondaryOpportunity) []error {
+	if opportunity == nil {
+		return nil
+	}
+
+	var errs []error
+	if strings.TrimSpace(opportunity.IssueID) == "" {
+		errs = append(errs, errors.New("ui_hints.secondary_opportunity.issue_id is required"))
+	}
+	if strings.TrimSpace(opportunity.IssueFamily) == "" {
+		errs = append(errs, errors.New("ui_hints.secondary_opportunity.issue_family is required"))
+	}
+	if strings.TrimSpace(opportunity.PriorityNote) == "" {
+		errs = append(errs, errors.New("ui_hints.secondary_opportunity.priority_note is required"))
+	}
+	if opportunity.Recommendation == nil {
+		errs = append(errs, errors.New("ui_hints.secondary_opportunity.recommendation is required"))
+	}
+	errs = append(errs, validateRecommendation(opportunity.Recommendation, "ui_hints.secondary_opportunity.recommendation")...)
 	return errs
 }
 
