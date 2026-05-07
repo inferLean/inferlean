@@ -15,8 +15,8 @@ func recommendationActionsSection(actions []contracts.Action) reportSectionViewM
 		if why := strings.TrimSpace(action.Why); why != "" {
 			lines = append(lines, "   Why: "+why)
 		}
-		if how := strings.TrimSpace(action.How); how != "" {
-			lines = append(lines, "   How: "+how)
+		if risk := strings.TrimSpace(action.Risk); risk != "" {
+			lines = append(lines, "   Risk: "+risk)
 		}
 	}
 	return reportSectionViewModel{title: "Actions", lines: lines}
@@ -100,6 +100,57 @@ func scenarioOverlaySummary(overlay contracts.ScenarioOverlay) string {
 		parts = append(parts, "confidence="+confidence)
 	}
 	return strings.Join(parts, " | ")
+}
+
+func buildTargetSummaryLines(overlay contracts.ScenarioOverlay) []string {
+	return []string{
+		"Latency: " + crossMetricLine(overlay.CrossMetric.Current.LatencyE2ESeconds, overlay.CrossMetric.Projected.LatencyE2ESeconds, "s"),
+		"Throughput: " + throughputProjectionLine(overlay.CrossMetric),
+	}
+}
+
+func throughputProjectionLine(crossMetric contracts.CrossMetricProjection) string {
+	current, currentUnit := throughputValue(crossMetric.Current)
+	projected, projectedUnit := throughputValue(crossMetric.Projected)
+	unit := currentUnit
+	if unit == "" {
+		unit = projectedUnit
+	}
+	return projectionLine(current, projected, unit)
+}
+
+func throughputValue(values contracts.CrossMetricValues) (*float64, string) {
+	if values.RequestThroughput != nil {
+		return values.RequestThroughput, "req/s"
+	}
+	if values.GenerationTokensPerSecond != nil {
+		return values.GenerationTokensPerSecond, "tok/s"
+	}
+	return nil, ""
+}
+
+func crossMetricLine(current, projected *float64, unit string) string {
+	return projectionLine(current, projected, unit)
+}
+
+func projectionLine(current, projected *float64, unit string) string {
+	switch {
+	case current == nil && projected == nil:
+		return "-"
+	case current != nil && projected != nil:
+		return fmt.Sprintf("current %.2f%s -> projected %.2f%s", *current, withUnit(unit), *projected, withUnit(unit))
+	case current != nil:
+		return fmt.Sprintf("current %.2f%s", *current, withUnit(unit))
+	default:
+		return fmt.Sprintf("projected %.2f%s", *projected, withUnit(unit))
+	}
+}
+
+func withUnit(unit string) string {
+	if strings.TrimSpace(unit) == "" {
+		return ""
+	}
+	return " " + unit
 }
 
 func quantizationOverlaySummary(overlay contracts.QuantizationScenarioOverlay) string {

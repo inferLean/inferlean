@@ -2,7 +2,6 @@ package report
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
@@ -12,15 +11,7 @@ func buildVerdictCard(report contracts.FinalReport) reportCardViewModel {
 	lines := []string{
 		"Headline: " + fallback(base.Situation.Headline, "-"),
 		"Limiter: " + limiterLabel(base.CurrentLimiter),
-		"Confidence: " + fallback(base.Confidence, "-"),
 		"Summary: " + fallback(base.Situation.Summary, "-"),
-		"Workload: " + workloadSummary(base.WorkloadSummary),
-	}
-	if load := strings.TrimSpace(realLoadSummary(base.RealLoadSummary)); load != "" {
-		lines = append(lines, "Load Context: "+load)
-	}
-	if tradeoff := strings.TrimSpace(base.Situation.KeyTradeoff); tradeoff != "" {
-		lines = append(lines, "Tradeoff: "+tradeoff)
 	}
 	return reportCardViewModel{
 		id:              "verdict",
@@ -52,42 +43,19 @@ func buildRecommendationCard(report contracts.FinalReport) reportCardViewModel {
 		"Title: " + fallback(rec.Title, rec.Decision),
 		"Rationale: " + fallback(rec.Rationale, "-"),
 		"Expected Gain: " + fallback(rec.ExpectedEffect.Summary, "-"),
-		"Effort: " + fallback(rec.Effort, "-"),
-		"Risk: " + fallback(rec.Risk, "-"),
-		"Reversibility: " + fallback(rec.Reversibility, "-"),
-		"Confidence: " + fallback(rec.Confidence, "-"),
-		"Tradeoff: " + fallback(rec.Tradeoff.Summary, "-"),
 	}})
 	if section := recommendationActionsSection(rec.Actions); len(section.lines) > 0 {
-		card.sections = append(card.sections, section)
-	}
-	if section := recommendationFollowUpsSection(rec.FollowUpSteps); len(section.lines) > 0 {
 		card.sections = append(card.sections, section)
 	}
 	return card
 }
 
 func buildFrontierCard(report contracts.FinalReport) reportCardViewModel {
-	base := report.Diagnosis.BaseDiagnosis
-	lines := []string{
-		"Current Frontier: " + frontierEstimateSummary(base.Frontier.CurrentPracticalFrontier),
-		"Safe Headroom: " + frontierEstimateSummary(base.Frontier.SafeHeadroom),
-		"Projected Frontier: " + frontierEstimateSummary(base.Frontier.ProjectedFrontierAfterPrimaryRecommendation),
-		"Likely Gain: " + gainRangeSummary(base.Frontier.LikelyGainRange),
-		"Target Overlay: " + scenarioOverlaySummary(report.Diagnosis.TargetOverlay),
-	}
-	if base.CapacitySnapshot != nil && base.CapacitySnapshot.HasData() {
-		lines = append(lines,
-			"Snapshot: "+fallback(base.CapacitySnapshot.Summary, "-"),
-			"Pressures: "+pressureSummary(base.CapacitySnapshot.Pressures),
-			"Observed: "+rateSummary(base.CapacitySnapshot.Observed),
-			"Current Frontier Rates: "+rateSummary(base.CapacitySnapshot.CurrentFrontier),
-		)
-	}
+	lines := buildTargetSummaryLines(report.Diagnosis.TargetOverlay)
 	return reportCardViewModel{
 		id:              "frontier",
 		title:           "Frontier And Target Estimate",
-		summary:         fallback(base.Frontier.LikelyGainRange.Summary, scenarioOverlaySummary(report.Diagnosis.TargetOverlay)),
+		summary:         "Selected target: " + fallback(report.Diagnosis.TargetOverlay.Target, "unknown"),
 		defaultExpanded: true,
 		sections:        []reportSectionViewModel{{lines: lines}},
 	}

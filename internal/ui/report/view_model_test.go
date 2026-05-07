@@ -74,11 +74,70 @@ func TestBuildReportViewModelCarriesValidationWarning(t *testing.T) {
 	}
 }
 
+func TestBuildReportViewModelKeepsVerdictCardConcise(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+
+	lines := vm.cards[0].sections[0].lines
+	want := []string{
+		"Headline: KV pressure is limiting throughput.",
+		"Limiter: KV cache pressure [kv_pressure]",
+		"Summary: Queue depth is stable but KV usage constrains headroom.",
+	}
+	if !slices.Equal(lines, want) {
+		t.Fatalf("verdict lines = %v, want %v", lines, want)
+	}
+}
+
+func TestBuildReportViewModelKeepsPrimaryRecommendationFocused(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+
+	if len(vm.cards[1].sections) != 2 {
+		t.Fatalf("primary recommendation sections = %d, want 2", len(vm.cards[1].sections))
+	}
+	lines := vm.cards[1].sections[0].lines
+	want := []string{
+		"Title: Reduce KV footprint",
+		"Rationale: This unlocks safer scheduler headroom before any throughput tuning.",
+		"Expected Gain: Likely improvement: +8% to +15% throughput.",
+	}
+	if !slices.Equal(lines, want) {
+		t.Fatalf("primary recommendation summary lines = %v, want %v", lines, want)
+	}
+	actionLines := vm.cards[1].sections[1].lines
+	if slices.Contains(actionLines, "   How: Keep prompt mix and concurrency stable.") {
+		t.Fatalf("action lines should not include how text: %v", actionLines)
+	}
+	if !slices.Contains(actionLines, "   Risk: Shorter maximum context for some requests.") {
+		t.Fatalf("action lines should include risk text: %v", actionLines)
+	}
+}
+
+func TestBuildReportViewModelKeepsFrontierCardToTwoRows(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+
+	lines := vm.cards[2].sections[0].lines
+	want := []string{
+		"Latency: current 0.82 s -> projected 0.71 s",
+		"Throughput: current 4.80 req/s -> projected 5.60 req/s",
+	}
+	if !slices.Equal(lines, want) {
+		t.Fatalf("frontier lines = %v, want %v", lines, want)
+	}
+}
+
 func fullReportFixture() contracts.FinalReport {
 	reportedAt := time.Unix(1700000100, 0).UTC()
 	collectedAt := time.Unix(1700000000, 0).UTC()
 	reqPerSec := 4.8
 	projReqPerSec := 5.6
+	latencySec := 0.82
+	projectedLatencySec := 0.71
 	low := 8.0
 	high := 15.0
 	return contracts.FinalReport{
@@ -176,6 +235,8 @@ func fullReportFixture() contracts.FinalReport {
 						Title:         "Reduce `--max-model-len`",
 						CurrentValue:  "8192",
 						ProposedValue: "4096",
+						Why:           "Free KV headroom before increasing scheduler aggressiveness.",
+						Risk:          "Shorter maximum context for some requests.",
 					}},
 					FollowUpSteps: []contracts.FollowUpStep{{
 						ID:    "action:rerun",
@@ -189,6 +250,16 @@ func fullReportFixture() contracts.FinalReport {
 				Target:     "throughput",
 				Summary:    "A modest throughput win is plausible if KV pressure is reduced first.",
 				Confidence: "medium",
+				CrossMetric: contracts.CrossMetricProjection{
+					Current: contracts.CrossMetricValues{
+						LatencyE2ESeconds: &latencySec,
+						RequestThroughput: &reqPerSec,
+					},
+					Projected: contracts.CrossMetricValues{
+						LatencyE2ESeconds: &projectedLatencySec,
+						RequestThroughput: &projReqPerSec,
+					},
+				},
 			},
 		},
 		DiagnosticLenses: contracts.DiagnosticLenses{
