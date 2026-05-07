@@ -74,6 +74,7 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 			ExcludeKubernetes: opts.target.ExcludeKubernetes,
 			NonInteractive:    application.nonInteractive,
 		},
+<<<<<<< HEAD
 		Collect: collectpresenter.Options{
 			CollectFor:              opts.collect.CollectFor,
 			ScrapeEvery:             opts.collect.ScrapeEvery,
@@ -94,6 +95,20 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 			BackendURL:     application.appURL,
 			NonInteractive: application.nonInteractive,
 		},
+=======
+		CollectFor:              opts.collect.CollectFor,
+		ScrapeEvery:             opts.collect.ScrapeEvery,
+		OutputPath:              opts.collect.OutputPath,
+		Version:                 version,
+		DeclaredWorkloadMode:    opts.collect.DeclaredWorkloadMode,
+		DeclaredWorkloadTarget:  opts.collect.DeclaredWorkloadTarget,
+		PrefixHeavy:             intent.PrefixHeavy,
+		Multimodal:              intent.Multimodal,
+		RepeatedMultimodalMedia: intent.RepeatedMultimodalMedia,
+		NonInteractive:          application.nonInteractive,
+		BackendURL:              application.backendURL,
+		RequireUpload:           opts.requireUpload,
+>>>>>>> 37fda28 (feat: secondary opp)
 	})
 	return err
 }

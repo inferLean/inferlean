@@ -16,7 +16,7 @@ func newLoginCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			authState, err := application.auth.Login(cmd.Context(), application.appURL)
+			authState, err := application.auth.Login(cmd.Context(), application.backendURL)
 			if err != nil {
 				return err
 			}

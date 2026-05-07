@@ -27,14 +27,14 @@ import (
 var version = "dev"
 
 type rootOptions struct {
-	appURL         string
+	backendURL     string
 	debug          bool
 	debugFile      string
 	nonInteractive bool
 }
 
 type app struct {
-	appURL         string
+	backendURL     string
 	nonInteractive bool
 	cfgStore       *configstore.Store
 	discoverySvc   vllmdiscovery.Service
@@ -66,7 +66,9 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 		},
 	}
 	cmd.SetContext(ctx)
-	cmd.PersistentFlags().StringVar(&opts.appURL, "app-url", defaults.AppBaseURL, "app base URL")
+	cmd.PersistentFlags().StringVar(&opts.backendURL, "backend-url", defaults.AppBaseURL, "backend base URL")
+	cmd.PersistentFlags().StringVar(&opts.backendURL, "app-url", defaults.AppBaseURL, "deprecated alias for --backend-url")
+	_ = cmd.PersistentFlags().MarkDeprecated("app-url", "use --backend-url instead")
 	cmd.PersistentFlags().BoolVar(&opts.debug, "debug", false, "show debug output")
 	cmd.PersistentFlags().StringVar(&opts.debugFile, "debug-file", "", "write debug output to a file")
 	cmd.PersistentFlags().BoolVar(&opts.nonInteractive, "non-interactive", false, "disable interactive prompts and viewers")
@@ -117,7 +119,7 @@ func newApp(ctx context.Context, opts *rootOptions) (app, error) {
 	reportPresenter := reportpresenter.NewPresenter(reportui.NewView())
 	runPresenter := runpresenter.NewPresenter(discoverPresenter, collectPresenter, uploadPresenter, reportPresenter)
 	return app{
-		appURL:         opts.appURL,
+		backendURL:     opts.backendURL,
 		nonInteractive: opts.nonInteractive,
 		cfgStore:       cfgStore,
 		discoverySvc:   discoverySvc,

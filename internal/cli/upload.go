@@ -34,7 +34,7 @@ func newUploadCommand() *cobra.Command {
 				artifactPath = args[0]
 			}
 			result, err := application.upload.Run(cmd.Context(), uploadpresenter.Options{
-				BackendURL:    application.appURL,
+				BackendURL:    application.backendURL,
 				ArtifactPath:  artifactPath,
 				RunID:         strings.TrimSpace(opts.RunID),
 				RequireReport: opts.RequireReport,
@@ -43,7 +43,7 @@ func newUploadCommand() *cobra.Command {
 				return err
 			}
 			application.report.Run(reportpresenter.Options{
-				BackendURL:     application.appURL,
+				BackendURL:     application.backendURL,
 				Payload:        result.Report,
 				RunID:          result.RunID,
 				InstallationID: result.InstallationID,
