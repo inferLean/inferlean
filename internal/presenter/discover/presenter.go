@@ -2,16 +2,18 @@ package discover
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync/atomic"
 
+	"github.com/inferLean/inferlean-main/cli/internal/interrupt"
 	"github.com/inferLean/inferlean-main/cli/internal/ui/discovery"
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 )
 
 type Presenter struct {
-	service vllmdiscovery.Service
-	view    discovery.View
+	service    vllmdiscovery.Service
+	view       discovery.View
+	interrupts interrupt.Publisher
 }
 
 type Options struct {
@@ -25,8 +27,8 @@ type Options struct {
 	NonInteractive    bool
 }
 
-func NewPresenter(service vllmdiscovery.Service, view discovery.View) Presenter {
-	return Presenter{service: service, view: view}
+func NewPresenter(service vllmdiscovery.Service, view discovery.View, interrupts interrupt.Publisher) Presenter {
+	return Presenter{service: service, view: view, interrupts: interrupts}
 }
 
 func (p Presenter) Run(ctx context.Context, opts Options) (vllmdiscovery.Candidate, []vllmdiscovery.Candidate, error) {
@@ -38,33 +40,8 @@ func (p Presenter) Run(ctx context.Context, opts Options) (vllmdiscovery.Candida
 		}
 	}()
 	p.view.ShowStart()
-	runCtx, cancelRun := context.WithCancel(ctx)
-	defer cancelRun()
-	cancelCurrent, interrupt, stopListening := startCancelCurrentListener(opts.NonInteractive)
-	stopped := false
-	stop := func() {
-		if stopped {
-			return
-		}
-		stopped = true
-		stopListening()
-	}
-	defer stop()
-	var interrupted atomic.Bool
-	doneInterrupt := make(chan struct{})
-	go func() {
-		defer close(doneInterrupt)
-		select {
-		case <-interrupt:
-			interrupted.Store(true)
-			cancelRun()
-		case <-runCtx.Done():
-		}
-	}()
-	defer func() {
-		cancelRun()
-		<-doneInterrupt
-	}()
+	cancelCurrent, stopListening := startCancelCurrentListener(opts.NonInteractive, p.interrupts)
+	defer stopListening()
 	discoverOpts := vllmdiscovery.DiscoverOptions{
 		PID:               opts.PID,
 		ContainerName:     opts.ContainerName,
@@ -77,9 +54,9 @@ func (p Presenter) Run(ctx context.Context, opts Options) (vllmdiscovery.Candida
 		OnSourceStart:     p.view.ShowSourceStart,
 		OnSourceCancelled: p.view.ShowSourceCancelled,
 	}
-	candidates, err := p.service.Discover(runCtx, discoverOpts)
-	stop()
-	if interrupted.Load() {
+	candidates, err := p.service.Discover(ctx, discoverOpts)
+	stopListening()
+	if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 		return vllmdiscovery.Candidate{}, nil, fmt.Errorf("discovery interrupted")
 	}
 	if err != nil {

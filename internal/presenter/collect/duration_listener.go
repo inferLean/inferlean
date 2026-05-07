@@ -5,31 +5,31 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/inferLean/inferlean-main/cli/internal/interrupt"
 	"golang.org/x/term"
 )
 
-func startCollectionDurationListener(enabled bool) (<-chan collectionDurationAction, <-chan struct{}, func()) {
+func startCollectionDurationListener(enabled bool, interrupts interrupt.Publisher) (<-chan collectionDurationAction, func()) {
 	if !enabled {
-		return nil, nil, func() {}
+		return nil, func() {}
 	}
 	stdinFD := int(syscall.Stdin)
 	if !term.IsTerminal(stdinFD) || !term.IsTerminal(int(syscall.Stdout)) {
-		return nil, nil, func() {}
+		return nil, func() {}
 	}
 	state, err := term.MakeRaw(stdinFD)
 	if err != nil {
-		return nil, nil, func() {}
+		return nil, func() {}
 	}
 	if err := syscall.SetNonblock(stdinFD, true); err != nil {
 		_ = term.Restore(stdinFD, state)
-		return nil, nil, func() {}
+		return nil, func() {}
 	}
 	actions := make(chan collectionDurationAction, 8)
-	interrupt := make(chan struct{}, 1)
 	stop := make(chan struct{})
 	done := make(chan struct{})
-	go readCollectionDurationKey(stdinFD, stop, done, actions, interrupt)
-	return actions, interrupt, func() {
+	go readCollectionDurationKey(stdinFD, stop, done, actions, interrupts)
+	return actions, func() {
 		close(stop)
 		<-done
 		_ = syscall.SetNonblock(stdinFD, false)
@@ -37,7 +37,7 @@ func startCollectionDurationListener(enabled bool) (<-chan collectionDurationAct
 	}
 }
 
-func readCollectionDurationKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, actions chan<- collectionDurationAction, interrupt chan<- struct{}) {
+func readCollectionDurationKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, actions chan<- collectionDurationAction, interrupts interrupt.Publisher) {
 	defer close(done)
 	buffer := make([]byte, 1)
 	for {
@@ -59,10 +59,7 @@ func readCollectionDurationKey(stdinFD int, stop <-chan struct{}, done chan<- st
 			continue
 		}
 		if isCollectionInterruptKey(buffer[0]) {
-			select {
-			case interrupt <- struct{}{}:
-			default:
-			}
+			interrupt.Publish(interrupts)
 			continue
 		}
 		action := mapCollectionDurationKeyAction(buffer[0])

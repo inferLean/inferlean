@@ -100,14 +100,6 @@ func inspectContainer(ctx context.Context, containerID string) (inspectedContain
 	return parseInspectContainer(out)
 }
 
-func inspectRawCommandLine(ctx context.Context, containerID string) (string, error) {
-	inspected, err := inspectContainer(ctx, containerID)
-	if err != nil {
-		return "", err
-	}
-	return inspected.RawCommandLine, nil
-}
-
 func parseInspectContainer(payload []byte) (inspectedContainer, error) {
 	inspected, err := parseInspectOutput(payload)
 	if err != nil {
@@ -123,14 +115,6 @@ func parseInspectContainer(payload []byte) (inspectedContainer, error) {
 		result.PID = int32(item.State.PID)
 	}
 	return result, nil
-}
-
-func parseInspectRawCommandLine(payload []byte) (string, error) {
-	inspected, err := parseInspectContainer(payload)
-	if err != nil {
-		return "", err
-	}
-	return inspected.RawCommandLine, nil
 }
 
 func parseInspectOutput(payload []byte) (inspectOutput, error) {

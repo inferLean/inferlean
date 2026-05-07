@@ -3,42 +3,46 @@ package discover
 import (
 	"errors"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/inferLean/inferlean-main/cli/internal/interrupt"
 	"golang.org/x/term"
 )
 
-func startCancelCurrentListener(nonInteractive bool) (<-chan struct{}, <-chan struct{}, func()) {
+func startCancelCurrentListener(nonInteractive bool, interrupts interrupt.Publisher) (<-chan struct{}, func()) {
 	if nonInteractive {
-		return nil, nil, func() {}
+		return nil, func() {}
 	}
 	stdinFD := int(os.Stdin.Fd())
 	if !term.IsTerminal(stdinFD) || !term.IsTerminal(int(os.Stdout.Fd())) {
-		return nil, nil, func() {}
+		return nil, func() {}
 	}
 	state, err := term.MakeRaw(stdinFD)
 	if err != nil {
-		return nil, nil, func() {}
+		return nil, func() {}
 	}
 	if err := syscall.SetNonblock(stdinFD, true); err != nil {
 		_ = term.Restore(stdinFD, state)
-		return nil, nil, func() {}
+		return nil, func() {}
 	}
 	cancelCurrent := make(chan struct{}, 1)
-	interrupt := make(chan struct{}, 1)
 	stop := make(chan struct{})
 	done := make(chan struct{})
-	go readCancelKey(stdinFD, stop, done, cancelCurrent, interrupt)
-	return cancelCurrent, interrupt, func() {
-		close(stop)
-		<-done
-		_ = syscall.SetNonblock(stdinFD, false)
-		_ = term.Restore(stdinFD, state)
+	go readCancelKey(stdinFD, stop, done, cancelCurrent, interrupts)
+	var stopOnce sync.Once
+	return cancelCurrent, func() {
+		stopOnce.Do(func() {
+			close(stop)
+			<-done
+			_ = syscall.SetNonblock(stdinFD, false)
+			_ = term.Restore(stdinFD, state)
+		})
 	}
 }
 
-func readCancelKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, cancelCurrent chan<- struct{}, interrupt chan<- struct{}) {
+func readCancelKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, cancelCurrent chan<- struct{}, interrupts interrupt.Publisher) {
 	defer close(done)
 	buffer := make([]byte, 1)
 	for {
@@ -66,10 +70,7 @@ func readCancelKey(stdinFD int, stop <-chan struct{}, done chan<- struct{}, canc
 			default:
 			}
 		case 3:
-			select {
-			case interrupt <- struct{}{}:
-			default:
-			}
+			interrupt.Publish(interrupts)
 		}
 	}
 }

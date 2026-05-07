@@ -8,6 +8,7 @@ import (
 
 	"github.com/inferLean/inferlean-main/cli/internal/api"
 	"github.com/inferLean/inferlean-main/cli/internal/defaults"
+	"github.com/inferLean/inferlean-main/cli/internal/interrupt"
 	"github.com/inferLean/inferlean-main/cli/internal/logging"
 	collectpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/collect"
 	discoverpresenter "github.com/inferLean/inferlean-main/cli/internal/presenter/discover"
@@ -37,6 +38,7 @@ type app struct {
 	nonInteractive bool
 	cfgStore       *configstore.Store
 	discoverySvc   vllmdiscovery.Service
+	interrupts     *interrupt.Bus
 	discover       discoverpresenter.Presenter
 	collect        collectpresenter.Presenter
 	upload         uploadpresenter.Presenter
@@ -70,15 +72,18 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&opts.nonInteractive, "non-interactive", false, "disable interactive prompts and viewers")
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
 		maybePrintHeader(cmd, opts.nonInteractive)
-		application, err := newApp(opts)
+		application, err := newApp(cmd.Context(), opts)
 		if err != nil {
 			return err
 		}
-		cmd.SetContext(context.WithValue(cmd.Context(), appKey{}, application))
+		cmd.SetContext(context.WithValue(application.interrupts.Context(), appKey{}, application))
 		return nil
 	}
 	cmd.PersistentPostRun = func(cmd *cobra.Command, _ []string) {
 		application := appFromContext(cmd.Context())
+		if application.interrupts != nil {
+			application.interrupts.Close()
+		}
 		if application.closeLoggerFn != nil {
 			_ = application.closeLoggerFn()
 		}
@@ -95,7 +100,7 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 	return cmd
 }
 
-func newApp(opts *rootOptions) (app, error) {
+func newApp(ctx context.Context, opts *rootOptions) (app, error) {
 	cfgStore, err := configstore.NewStore()
 	if err != nil {
 		return app{}, err
@@ -105,8 +110,9 @@ func newApp(opts *rootOptions) (app, error) {
 		return app{}, err
 	}
 	discoverySvc := vllmdiscovery.NewService()
-	discoverPresenter := discoverpresenter.NewPresenter(discoverySvc, discoveryui.NewView())
-	collectPresenter := collectpresenter.NewPresenter(collectionui.NewView(), intentui.NewView(), cfgStore)
+	interrupts := interrupt.NewBus(ctx)
+	discoverPresenter := discoverpresenter.NewPresenter(discoverySvc, discoveryui.NewView(), interrupts)
+	collectPresenter := collectpresenter.NewPresenter(collectionui.NewView(), intentui.NewView(), cfgStore, interrupts)
 	uploadPresenter := uploadpresenter.NewPresenter(cfgStore, uploadui.NewView())
 	reportPresenter := reportpresenter.NewPresenter(reportui.NewView())
 	runPresenter := runpresenter.NewPresenter(discoverPresenter, collectPresenter, uploadPresenter, reportPresenter)
@@ -115,6 +121,7 @@ func newApp(opts *rootOptions) (app, error) {
 		nonInteractive: opts.nonInteractive,
 		cfgStore:       cfgStore,
 		discoverySvc:   discoverySvc,
+		interrupts:     interrupts,
 		discover:       discoverPresenter,
 		collect:        collectPresenter,
 		upload:         uploadPresenter,

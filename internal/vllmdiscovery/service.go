@@ -161,8 +161,7 @@ func runtimeIdentityKey(item Candidate) string {
 	if containerID := normalizedContainerID(item.ContainerID); containerID != "" {
 		return "container:" + containerID
 	}
-	podName := strings.TrimSpace(item.PodName)
-	if podName != "" {
+	if podName := strings.TrimSpace(item.PodName); podName != "" {
 		return "pod:" + strings.TrimSpace(item.Namespace) + "/" + podName
 	}
 	return fmt.Sprintf(

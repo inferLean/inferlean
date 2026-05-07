@@ -12,6 +12,7 @@ import (
 	"github.com/inferLean/inferlean-main/cli/internal/identity"
 	"github.com/inferLean/inferlean-main/cli/internal/intentresolver/interactive"
 	"github.com/inferLean/inferlean-main/cli/internal/intentresolver/noninteractive"
+	"github.com/inferLean/inferlean-main/cli/internal/interrupt"
 	configstore "github.com/inferLean/inferlean-main/cli/internal/storage/configuration"
 	"github.com/inferLean/inferlean-main/cli/internal/storage/observation"
 	"github.com/inferLean/inferlean-main/cli/internal/storage/processio"
@@ -51,6 +52,7 @@ type Presenter struct {
 	obsStore    observation.Store
 	pioStore    processio.Store
 	cfgStore    *configstore.Store
+	interrupts  interrupt.Controller
 }
 
 const (
@@ -71,7 +73,7 @@ const (
 	collectionActionStopAndAnalyze
 )
 
-func NewPresenter(collectView collectionui.View, intentView intentui.View, cfgStore *configstore.Store) Presenter {
+func NewPresenter(collectView collectionui.View, intentView intentui.View, cfgStore *configstore.Store, interrupts interrupt.Controller) Presenter {
 	return Presenter{
 		collectView: collectView,
 		intentView:  intentView,
@@ -79,6 +81,7 @@ func NewPresenter(collectView collectionui.View, intentView intentui.View, cfgSt
 		obsStore:    observation.NewStore(),
 		pioStore:    processio.NewStore(),
 		cfgStore:    cfgStore,
+		interrupts:  interrupts,
 	}
 }
 
@@ -155,14 +158,16 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	defer cancelCollect()
 
 	p.collectView.ShowStart(opts.CollectFor.Seconds())
-	actions, interrupt, stopListening := startCollectionDurationListener(interactive)
+	interruptCh, stopInterrupts := interrupt.Subscribe(p.interrupts)
+	defer stopInterrupts()
+	actions, stopListening := startCollectionDurationListener(interactive, p.interrupts)
 	defer stopListening()
 	var interrupted atomic.Bool
 	doneInterrupt := make(chan struct{})
 	go func() {
 		defer close(doneInterrupt)
 		select {
-		case <-interrupt:
+		case <-interruptCh:
 			interrupted.Store(true)
 			cancelCollect()
 		case <-collectCtx.Done():
