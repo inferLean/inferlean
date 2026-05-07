@@ -16,9 +16,9 @@ var (
 	reportCardStyle      = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#A8C5D6", Dark: "#2B5B6E"}).Padding(0, 1)
 	reportFocusedStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"}).Padding(0, 1)
 	reportCardTitleStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"}).Bold(true)
-	reportActionBoxStyle = lipgloss.NewStyle().Border(lipgloss.ThickBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#875F00", Dark: "#FFD75F"}).Padding(0, 1)
-	reportActionHead     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#875F00", Dark: "#FFD75F"}).Bold(true)
-	reportActionKey      = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#87D7FF"}).Bold(true)
+	reportActionBoxStyle = lipgloss.NewStyle().Border(lipgloss.ThickBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#2F6B2F", Dark: "#87FF87"}).Padding(0, 1)
+	reportActionHead     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#2F6B2F", Dark: "#87FF87"}).Bold(true)
+	reportActionKey      = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#1F7A4D", Dark: "#5FFFBF"}).Bold(true)
 )
 
 func renderReportContent(vm reportViewModel, focus int, expanded map[string]bool, evidenceTab, width int) (string, map[int]int) {
