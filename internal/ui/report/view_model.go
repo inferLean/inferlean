@@ -8,10 +8,11 @@ import (
 )
 
 type reportViewModel struct {
-	headerChips []string
-	footerChips []string
-	cards       []reportCardViewModel
-	browserURL  string
+	headerChips       []string
+	footerChips       []string
+	cards             []reportCardViewModel
+	browserURL        string
+	validationWarning string
 }
 
 type reportCardViewModel struct {
@@ -40,11 +41,12 @@ type reportTableViewModel struct {
 	rows    [][]string
 }
 
-func buildReportViewModel(report contracts.FinalReport, identity reportIdentity, backendURL string, now time.Time) reportViewModel {
+func buildReportViewModel(report contracts.FinalReport, identity reportIdentity, backendURL string, now time.Time, validationWarning string) reportViewModel {
 	vm := reportViewModel{
-		headerChips: buildHeaderChips(report),
-		footerChips: buildFooterChips(report, now),
-		cards:       buildReportCards(report),
+		headerChips:       buildHeaderChips(report),
+		footerChips:       buildFooterChips(report, now),
+		cards:             buildReportCards(report),
+		validationWarning: strings.TrimSpace(validationWarning),
 	}
 	if url, ok := ReportURL(backendURL, identity.installationID, identity.runID); ok {
 		vm.browserURL = url

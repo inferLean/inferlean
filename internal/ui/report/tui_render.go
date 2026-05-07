@@ -12,6 +12,7 @@ var (
 	reportHeaderStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"}).Bold(true)
 	reportChipStyle      = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"}).Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#BFD7EA", Dark: "#3A6478"}).Padding(0, 1)
 	reportMutedStyle     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#666666", Dark: "#8A8A8A"})
+	reportWarningStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#8A5200", Dark: "#FFD75F"}).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#D9B36C", Dark: "#8A6A1F"}).Padding(0, 1).Bold(true)
 	reportCardStyle      = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#A8C5D6", Dark: "#2B5B6E"}).Padding(0, 1)
 	reportFocusedStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"}).Padding(0, 1)
 	reportCardTitleStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"}).Bold(true)
@@ -26,6 +27,10 @@ func renderReportContent(vm reportViewModel, focus int, expanded map[string]bool
 		reportHeaderStyle.Render("CLI Report Viewer"),
 		renderChipRow(vm.headerChips, contentWidth),
 		"",
+	}
+	if vm.validationWarning != "" {
+		warning := reportWarningStyle.Width(cardWidth).Render(vm.validationWarning)
+		lines = append(lines, warning, "")
 	}
 	cardLines := map[int]int{}
 	currentLine := len(lines)
@@ -127,7 +132,7 @@ func renderTable(vm reportTableViewModel, width int) string {
 		table.WithColumns(columns),
 		table.WithRows(rows),
 		table.WithFocused(false),
-		table.WithHeight(min(len(vm.rows)+1, 8)),
+		table.WithHeight(max(1, len(vm.rows)+1)),
 	)
 	styles := table.DefaultStyles()
 	styles.Header = styles.Header.Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"}).Bold(true)

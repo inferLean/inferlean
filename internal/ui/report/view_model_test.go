@@ -12,7 +12,7 @@ import (
 func TestBuildReportViewModelIncludesDashboardParityCards(t *testing.T) {
 	t.Parallel()
 	report := fullReportFixture()
-	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC())
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 
 	var ids []string
 	for _, card := range vm.cards {
@@ -48,7 +48,7 @@ func TestBuildReportViewModelOmitsOptionalCardsWhenDataMissing(t *testing.T) {
 	report.DiagnosticLenses.Quantization = nil
 	report.UIHints.SecondaryOpportunity = nil
 
-	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC())
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 	for _, card := range vm.cards {
 		if card.id == "quantization" || card.id == "secondary-opportunity" {
 			t.Fatalf("unexpected optional card present: %s", card.id)
@@ -56,6 +56,21 @@ func TestBuildReportViewModelOmitsOptionalCardsWhenDataMissing(t *testing.T) {
 	}
 	if vm.browserURL != "" {
 		t.Fatalf("browser URL should be absent when installation identity is incomplete, got %q", vm.browserURL)
+	}
+}
+
+func TestBuildReportViewModelCarriesValidationWarning(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	vm := buildReportViewModel(
+		report,
+		reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID},
+		defaults.AppBaseURL,
+		time.Unix(1700000200, 0).UTC(),
+		"Schema validation warning: invalid detector status",
+	)
+	if vm.validationWarning == "" {
+		t.Fatal("expected validation warning to be preserved in the view model")
 	}
 }
 

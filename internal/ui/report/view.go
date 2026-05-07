@@ -90,7 +90,11 @@ func resolveIdentity(report map[string]any, opts RenderOptions) reportIdentity {
 }
 
 func runReportTUI(report contracts.FinalReport, identity reportIdentity, opts RenderOptions) error {
-	vm := buildReportViewModel(report, identity, opts.BackendURL, time.Now().UTC())
+	validationWarning := ""
+	if err := report.Validate(); err != nil {
+		validationWarning = "Schema validation warning: " + err.Error()
+	}
+	vm := buildReportViewModel(report, identity, opts.BackendURL, time.Now().UTC(), validationWarning)
 	program := tea.NewProgram(newReportModel(vm), tea.WithAltScreen())
 	_, err := program.Run()
 	return err
