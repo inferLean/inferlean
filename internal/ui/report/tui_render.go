@@ -16,6 +16,9 @@ var (
 	reportCardStyle      = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#A8C5D6", Dark: "#2B5B6E"}).Padding(0, 1)
 	reportFocusedStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"}).Padding(0, 1)
 	reportCardTitleStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#5FD7FF"}).Bold(true)
+	reportActionBoxStyle = lipgloss.NewStyle().Border(lipgloss.ThickBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#875F00", Dark: "#FFD75F"}).Padding(0, 1)
+	reportActionHead     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#875F00", Dark: "#FFD75F"}).Bold(true)
+	reportActionKey      = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#87D7FF"}).Bold(true)
 )
 
 func renderReportContent(vm reportViewModel, focus int, expanded map[string]bool, evidenceTab, width int) (string, map[int]int) {
@@ -105,6 +108,9 @@ func renderEvidenceCard(tabs []reportTabViewModel, evidenceTab, width int) strin
 }
 
 func renderSection(section reportSectionViewModel, width int) string {
+	if section.title == "Actions" {
+		return renderActionSection(section, width)
+	}
 	parts := make([]string, 0, 3)
 	if title := strings.TrimSpace(section.title); title != "" {
 		parts = append(parts, reportCardTitleStyle.Render(title))
@@ -139,4 +145,65 @@ func renderTable(vm reportTableViewModel, width int) string {
 	styles.Selected = lipgloss.NewStyle()
 	t.SetStyles(styles)
 	return t.View()
+}
+
+func renderActionSection(section reportSectionViewModel, width int) string {
+	parts := []string{reportCardTitleStyle.Render(section.title)}
+	blocks := splitActionBlocks(section.lines)
+	for _, block := range blocks {
+		lines := make([]string, 0, len(block))
+		for idx, line := range block {
+			trimmed := strings.TrimSpace(line)
+			switch {
+			case idx == 0:
+				lines = append(lines, reportActionHead.Render(trimmed))
+			case strings.HasPrefix(trimmed, "Current:"):
+				lines = append(lines, reportActionKey.Render("Change: ")+strings.TrimSpace(strings.TrimPrefix(trimmed, "Current:")))
+			case strings.HasPrefix(trimmed, "Why:"):
+				lines = append(lines, reportActionKey.Render("Why: ")+strings.TrimSpace(strings.TrimPrefix(trimmed, "Why:")))
+			case strings.HasPrefix(trimmed, "Risk:"):
+				lines = append(lines, reportActionKey.Render("Risk: ")+strings.TrimSpace(strings.TrimPrefix(trimmed, "Risk:")))
+			default:
+				lines = append(lines, trimmed)
+			}
+		}
+		parts = append(parts, reportActionBoxStyle.Width(width).Render(strings.Join(lines, "\n")))
+	}
+	return strings.Join(parts, "\n")
+}
+
+func splitActionBlocks(lines []string) [][]string {
+	blocks := make([][]string, 0)
+	var current []string
+	for _, line := range lines {
+		if isActionHeadline(line) {
+			if len(current) > 0 {
+				blocks = append(blocks, current)
+			}
+			current = []string{line}
+			continue
+		}
+		current = append(current, line)
+	}
+	if len(current) > 0 {
+		blocks = append(blocks, current)
+	}
+	return blocks
+}
+
+func isActionHeadline(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return false
+	}
+	dot := strings.Index(trimmed, ". ")
+	if dot <= 0 {
+		return false
+	}
+	for _, ch := range trimmed[:dot] {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }

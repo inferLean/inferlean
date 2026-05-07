@@ -131,6 +131,25 @@ func TestBuildReportViewModelKeepsFrontierCardToTwoRows(t *testing.T) {
 	}
 }
 
+func TestBuildReportViewModelKeepsQuantizationCardShort(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+
+	card := vm.cards[3]
+	if len(card.sections) != 1 {
+		t.Fatalf("quantization sections = %d, want 1", len(card.sections))
+	}
+	want := []string{
+		"Candidate: FP8 | Qwen/Qwen3-32B-FP8",
+		"Expected Gain: throughput | 8% to 15%",
+		"Why: Evaluate the FP8 candidate",
+	}
+	if !slices.Equal(card.sections[0].lines, want) {
+		t.Fatalf("quantization lines = %v, want %v", card.sections[0].lines, want)
+	}
+}
+
 func fullReportFixture() contracts.FinalReport {
 	reportedAt := time.Unix(1700000100, 0).UTC()
 	collectedAt := time.Unix(1700000000, 0).UTC()

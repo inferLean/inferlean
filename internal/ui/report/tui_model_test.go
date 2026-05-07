@@ -138,6 +138,24 @@ func TestRenderReportContentIncludesAllIssueRows(t *testing.T) {
 	}
 }
 
+func TestRenderReportContentHighlightsActions(t *testing.T) {
+	t.Parallel()
+	vm := buildReportViewModel(fullReportFixture(), reportIdentity{runID: "run-123", installationID: "inst-123"}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+	content, _ := renderReportContent(vm, 1, map[string]bool{
+		"verdict":                true,
+		"primary-recommendation": true,
+		"frontier":               false,
+		"quantization":           false,
+		"secondary-opportunity":  false,
+		"issues":                 false,
+		"evidence":               false,
+		"collection-quality":     false,
+	}, 0, 120)
+	if !strings.Contains(content, "Actions") || !strings.Contains(content, "Risk: Shorter maximum context for some requests.") {
+		t.Fatalf("expected highlighted action content to remain visible: %s", content)
+	}
+}
+
 func newSizedReportModel() reportModel {
 	vm := buildReportViewModel(fullReportFixture(), reportIdentity{runID: "run-123", installationID: "inst-123"}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 	model := newReportModel(vm)

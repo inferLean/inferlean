@@ -66,29 +66,19 @@ func buildQuantizationCard(report contracts.FinalReport) (reportCardViewModel, b
 	if lens == nil {
 		return reportCardViewModel{}, false
 	}
+	lines := []string{
+		"Candidate: " + quantizationCandidateSummary(lens.SelectedCandidate),
+		"Expected Gain: " + quantizationOverlaySummary(lens.TargetOverlay),
+	}
+	if lens.Recommendation != nil {
+		lines = append(lines, "Why: "+fallback(lens.Recommendation.Rationale, fallback(lens.Recommendation.Title, lens.Recommendation.Decision)))
+	}
 	card := reportCardViewModel{
 		id:              "quantization",
 		title:           "Quantization Opportunity",
-		summary:         fallback(firstNonEmpty(lens.SelectedCandidate.Repo, lens.SelectedCandidate.Family), "Quantization opportunity"),
+		summary:         "Shortlist: " + fallback(firstNonEmpty(lens.SelectedCandidate.Repo, lens.SelectedCandidate.Family), "quantized candidate"),
 		defaultExpanded: false,
-	}
-	card.sections = append(card.sections, reportSectionViewModel{lines: []string{
-		"Current Posture: " + quantizationCurrentSummary(lens.CurrentPosture),
-		"Candidate: " + quantizationCandidateSummary(lens.SelectedCandidate),
-		"Confidence: " + fallback(firstNonEmpty(lens.Confidence, lens.SelectedCandidate.Confidence), "-"),
-		"Target Estimate: " + quantizationOverlaySummary(lens.TargetOverlay),
-	}})
-	if lens.Recommendation != nil {
-		card.sections = append(card.sections, reportSectionViewModel{title: "Recommendation", lines: []string{
-			"Title: " + fallback(lens.Recommendation.Title, lens.Recommendation.Decision),
-			"Rationale: " + fallback(lens.Recommendation.Rationale, "-"),
-		}})
-		if section := recommendationActionsSection(lens.Recommendation.Actions); len(section.lines) > 0 {
-			card.sections = append(card.sections, section)
-		}
-		if section := recommendationFollowUpsSection(lens.Recommendation.FollowUpSteps); len(section.lines) > 0 {
-			card.sections = append(card.sections, section)
-		}
+		sections:        []reportSectionViewModel{{lines: lines}},
 	}
 	return card, true
 }
