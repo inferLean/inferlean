@@ -48,13 +48,18 @@ func normalizeGPUMetrics(nvml, dcgm []promcollector.Sample) contracts.GPUTelemet
 		windowFromMetric(nvml, "inferlean_nvml_gpu_utilization_percent"),
 	)
 	memoryUsed := firstWindow(
-		mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_used_mb")),
 		mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_USED")),
+		mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_used_mb")),
 	)
-	memoryTotal := mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_total_mb"))
+	memoryFree := mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_FREE"))
+	memoryReserved := mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_RESERVED"))
+	memoryTotal := firstWindow(
+		mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_TOTAL")),
+		mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_total_mb")),
+	)
 	gpu := contracts.GPUTelemetry{
 		GPUUtilizationOrSMActivity: gpuUtil,
-		FramebufferMemory:          memoryWindows(memoryUsed, memoryTotal),
+		FramebufferMemory:          memoryWindows(memoryUsed, memoryFree, memoryReserved, memoryTotal),
 		MemoryBandwidth:            windowFromMetric(dcgm, "DCGM_FI_PROF_DRAM_ACTIVE"),
 		Clocks: contracts.ClockMetrics{
 			SM:     windowFromMetric(dcgm, "DCGM_FI_DEV_SM_CLOCK"),
@@ -84,7 +89,7 @@ func normalizeGPUMetrics(nvml, dcgm []promcollector.Sample) contracts.GPUTelemet
 			),
 		},
 	}
-	gpu.Coverage = gpuCoverage(gpu, len(dcgm) > 0)
+	gpu.Coverage = gpuCoverage(gpu)
 	return gpu
 }
 
@@ -94,6 +99,7 @@ func normalizeNvidiaSMIMetrics(nvml, dcgm []promcollector.Sample, staticSMI stri
 		MemoryUsed:     mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_used_mb")),
 		MemoryTotal:    mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_total_mb")),
 		PowerDraw:      windowFromMetric(nvml, "inferlean_nvml_power_draw_watts"),
+		PowerLimit:     windowFromMetric(nvml, "inferlean_nvml_power_limit_watts"),
 		Temperature:    windowFromMetric(nvml, "inferlean_nvml_temperature_celsius"),
 		SMClock: firstWindow(
 			windowFromMetric(nvml, "inferlean_nvml_sm_clock_mhz"),
@@ -104,6 +110,8 @@ func normalizeNvidiaSMIMetrics(nvml, dcgm []promcollector.Sample, staticSMI stri
 			windowFromMetric(dcgm, "DCGM_FI_DEV_MEM_CLOCK"),
 		),
 		ProcessGPUMemory: processGPUMemoryFromNvidiaSMI(staticSMI),
+		PerformanceState: latestMetricLabelValue(nvml, "inferlean_nvml_performance_state_info", "pstate"),
+		ThrottleReasons:  latestMetricLabelValues(nvml, "inferlean_nvml_throttle_reason_active", "reason"),
 	}
 	metrics.Coverage = nvidiaCoverage(metrics)
 	return metrics
@@ -230,7 +238,7 @@ func hostCoverage(metrics contracts.HostMetrics) contracts.SourceCoverage {
 	return newCoverage(present, hostRequiredFields())
 }
 
-func gpuCoverage(metrics contracts.GPUTelemetry, dcgmAvailable bool) contracts.SourceCoverage {
+func gpuCoverage(metrics contracts.GPUTelemetry) contracts.SourceCoverage {
 	present := map[string]bool{}
 	appendPresent(present, "gpu_utilization_or_sm_activity", metrics.GPUUtilizationOrSMActivity.HasData())
 	appendPresent(present, "framebuffer_memory", metrics.FramebufferMemory.HasData())
@@ -242,16 +250,13 @@ func gpuCoverage(metrics contracts.GPUTelemetry, dcgmAvailable bool) contracts.S
 	appendPresent(present, "nvlink_throughput", metrics.NVLinkThroughput.HasData())
 	appendPresent(present, "reliability_errors", metrics.ReliabilityErrors.HasData())
 	coverage := newCoverage(present, gpuRequiredFields())
-	if dcgmAvailable {
-		coverage = markUnsupported(
-			coverage,
-			"memory_bandwidth",
-			"pcie_throughput",
-			"nvlink_throughput",
-			"reliability_errors",
-		)
-	}
-	return coverage
+	return markUnsupported(
+		coverage,
+		"memory_bandwidth",
+		"pcie_throughput",
+		"nvlink_throughput",
+		"reliability_errors",
+	)
 }
 
 func nvidiaCoverage(metrics contracts.NvidiaSMIMetrics) contracts.SourceCoverage {
@@ -260,10 +265,13 @@ func nvidiaCoverage(metrics contracts.NvidiaSMIMetrics) contracts.SourceCoverage
 	appendPresent(present, "memory_used", metrics.MemoryUsed.HasData())
 	appendPresent(present, "memory_total", metrics.MemoryTotal.HasData())
 	appendPresent(present, "power_draw", metrics.PowerDraw.HasData())
+	appendPresent(present, "power_limit", metrics.PowerLimit.HasData())
 	appendPresent(present, "temperature", metrics.Temperature.HasData())
 	appendPresent(present, "sm_clock", metrics.SMClock.HasData())
 	appendPresent(present, "mem_clock", metrics.MemClock.HasData())
 	appendPresent(present, "process_gpu_memory", metrics.ProcessGPUMemory.HasData())
+	appendPresent(present, "performance_state", metrics.PerformanceState != "")
+	appendPresent(present, "throttle_reasons", len(metrics.ThrottleReasons) > 0)
 	return newCoverage(present, nvidiaRequiredFields())
 }
 
@@ -301,9 +309,12 @@ func nvidiaRequiredFields() []string {
 		"memory_used",
 		"memory_total",
 		"power_draw",
+		"power_limit",
 		"temperature",
 		"sm_clock",
 		"mem_clock",
 		"process_gpu_memory",
+		"performance_state",
+		"throttle_reasons",
 	}
 }

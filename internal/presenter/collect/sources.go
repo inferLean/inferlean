@@ -61,6 +61,9 @@ func savePrometheusObservations(p Presenter, paths runstore.Paths, promRes promc
 	if raw, ok := promRes.RawByTarget["dcgm_exporter"]; ok && strings.TrimSpace(raw) != "" {
 		_, _ = p.obsStore.SaveRaw(paths.Observations, "dcgm_exporter.metrics", []byte(raw))
 	}
+	if raw, ok := promRes.RawByTarget["nvml_bridge"]; ok && strings.TrimSpace(raw) != "" {
+		_, _ = p.obsStore.SaveRaw(paths.Observations, "nvml_bridge.metrics", []byte(raw))
+	}
 	if len(promRes.Samples) > 0 {
 		if payload, err := json.MarshalIndent(promRes.Samples, "", "  "); err == nil {
 			payload = append(payload, '\n')

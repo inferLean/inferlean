@@ -25,12 +25,15 @@ type JobInput struct {
 }
 
 type TargetInput struct {
+	Source          string
 	PID             int32
+	InternalPID     int32
 	Executable      string
 	RawCommandLine  string
 	MetricsEndpoint string
 	ContainerID     string
 	PodName         string
+	Namespace       string
 }
 
 type ObservationsInput struct {

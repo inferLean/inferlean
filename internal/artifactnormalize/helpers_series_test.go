@@ -18,7 +18,7 @@ func TestMemoryWindowsDerivesFreeMemoryFromAlignedSamples(t *testing.T) {
 		{Timestamp: now.Add(time.Second), Value: 100},
 	})
 
-	memory := memoryWindows(used, total)
+	memory := memoryWindows(used, contracts.MetricWindow{}, contracts.MetricWindow{}, total)
 
 	if got, want := len(memory.Free.Samples), 2; got != want {
 		t.Fatalf("free sample count = %d, want %d", got, want)
@@ -45,7 +45,7 @@ func TestMemoryWindowsSkipsUnalignedAndNegativeFreeSamples(t *testing.T) {
 		{Timestamp: now.Add(2 * time.Second), Value: 100},
 	})
 
-	memory := memoryWindows(used, total)
+	memory := memoryWindows(used, contracts.MetricWindow{}, contracts.MetricWindow{}, total)
 
 	if memory.Free.HasData() {
 		t.Fatalf("free memory should be empty for negative or unaligned samples: %+v", memory.Free)

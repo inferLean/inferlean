@@ -33,6 +33,16 @@ type DistributionSnapshot struct {
 	Buckets []DistributionBucket `json:"buckets,omitempty"`
 }
 
+type LabeledDelta struct {
+	Labels map[string]string `json:"labels,omitempty"`
+	Value  float64           `json:"value"`
+}
+
+type DeltaSnapshot struct {
+	Total  *float64       `json:"total,omitempty"`
+	Series []LabeledDelta `json:"series,omitempty"`
+}
+
 type CacheSnapshot struct {
 	Hits    *float64 `json:"hits,omitempty"`
 	Queries *float64 `json:"queries,omitempty"`
@@ -48,9 +58,10 @@ type SourceCoverage struct {
 }
 
 type MemoryMetrics struct {
-	Used  MetricWindow `json:"used,omitempty"`
-	Free  MetricWindow `json:"free,omitempty"`
-	Total MetricWindow `json:"total,omitempty"`
+	Used     MetricWindow `json:"used,omitempty"`
+	Free     MetricWindow `json:"free,omitempty"`
+	Reserved MetricWindow `json:"reserved,omitempty"`
+	Total    MetricWindow `json:"total,omitempty"`
 }
 
 type ClockMetrics struct {
@@ -69,24 +80,30 @@ type ReliabilityMetrics struct {
 }
 
 type VLLMMetrics struct {
-	RequestsRunning        MetricWindow         `json:"requests_running,omitempty"`
-	RequestsWaiting        MetricWindow         `json:"requests_waiting,omitempty"`
-	RequestThroughput      MetricWindow         `json:"request_throughput,omitempty"`
-	LatencyE2E             MetricWindow         `json:"latency_e2e,omitempty"`
-	LatencyTTFT            MetricWindow         `json:"latency_ttft,omitempty"`
-	LatencyQueue           MetricWindow         `json:"latency_queue,omitempty"`
-	LatencyPrefill         MetricWindow         `json:"latency_prefill,omitempty"`
-	LatencyDecode          MetricWindow         `json:"latency_decode,omitempty"`
-	PromptTokens           MetricWindow         `json:"prompt_tokens,omitempty"`
-	GenerationTokens       MetricWindow         `json:"generation_tokens,omitempty"`
-	PromptLength           DistributionSnapshot `json:"prompt_length,omitempty"`
-	GenerationLength       DistributionSnapshot `json:"generation_length,omitempty"`
-	KVCacheUsage           MetricWindow         `json:"kv_cache_usage,omitempty"`
-	Preemptions            MetricWindow         `json:"preemptions,omitempty"`
-	RecomputedPromptTokens MetricWindow         `json:"recomputed_prompt_tokens,omitempty"`
-	PrefixCache            CacheSnapshot        `json:"prefix_cache,omitempty"`
-	MultimodalCache        CacheSnapshot        `json:"multimodal_cache,omitempty"`
-	Coverage               SourceCoverage       `json:"coverage,omitempty"`
+	RequestsRunning           MetricWindow            `json:"requests_running,omitempty"`
+	RequestsWaiting           MetricWindow            `json:"requests_waiting,omitempty"`
+	RequestsWaitingByReason   map[string]MetricWindow `json:"requests_waiting_by_reason,omitempty"`
+	RequestThroughput         MetricWindow            `json:"request_throughput,omitempty"`
+	CompletedRequests         DeltaSnapshot           `json:"completed_requests,omitempty"`
+	LatencyE2E                MetricWindow            `json:"latency_e2e,omitempty"`
+	LatencyTTFT               MetricWindow            `json:"latency_ttft,omitempty"`
+	LatencyQueue              MetricWindow            `json:"latency_queue,omitempty"`
+	LatencyPrefill            MetricWindow            `json:"latency_prefill,omitempty"`
+	LatencyDecode             MetricWindow            `json:"latency_decode,omitempty"`
+	PromptTokens              MetricWindow            `json:"prompt_tokens,omitempty"`
+	PromptTokensProcessed     DeltaSnapshot           `json:"prompt_tokens_processed,omitempty"`
+	PromptTokensBySource      DeltaSnapshot           `json:"prompt_tokens_by_source,omitempty"`
+	CachedPromptTokens        DeltaSnapshot           `json:"cached_prompt_tokens,omitempty"`
+	GenerationTokens          MetricWindow            `json:"generation_tokens,omitempty"`
+	GenerationTokensProcessed DeltaSnapshot           `json:"generation_tokens_processed,omitempty"`
+	PromptLength              DistributionSnapshot    `json:"prompt_length,omitempty"`
+	GenerationLength          DistributionSnapshot    `json:"generation_length,omitempty"`
+	KVCacheUsage              MetricWindow            `json:"kv_cache_usage,omitempty"`
+	Preemptions               MetricWindow            `json:"preemptions,omitempty"`
+	RecomputedPromptTokens    MetricWindow            `json:"recomputed_prompt_tokens,omitempty"`
+	PrefixCache               CacheSnapshot           `json:"prefix_cache,omitempty"`
+	MultimodalCache           CacheSnapshot           `json:"multimodal_cache,omitempty"`
+	Coverage                  SourceCoverage          `json:"coverage,omitempty"`
 }
 
 type HostMetrics struct {
@@ -120,9 +137,12 @@ type NvidiaSMIMetrics struct {
 	MemoryUsed       MetricWindow   `json:"memory_used,omitempty"`
 	MemoryTotal      MetricWindow   `json:"memory_total,omitempty"`
 	PowerDraw        MetricWindow   `json:"power_draw,omitempty"`
+	PowerLimit       MetricWindow   `json:"power_limit,omitempty"`
 	Temperature      MetricWindow   `json:"temperature,omitempty"`
 	SMClock          MetricWindow   `json:"sm_clock,omitempty"`
 	MemClock         MetricWindow   `json:"mem_clock,omitempty"`
 	ProcessGPUMemory MetricWindow   `json:"process_gpu_memory,omitempty"`
+	PerformanceState string         `json:"performance_state,omitempty"`
+	ThrottleReasons  []string       `json:"throttle_reasons,omitempty"`
 	Coverage         SourceCoverage `json:"coverage,omitempty"`
 }

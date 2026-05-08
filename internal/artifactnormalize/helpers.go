@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/inferLean/inferlean-main/cli/internal/types"
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
@@ -89,19 +90,30 @@ func parseHostPort(endpoint string) (string, int) {
 	return host, port
 }
 
-func toSourceStates(rawStates map[string]string) map[string]contracts.SourceState {
+func toSourceStates(rawStates map[string]string, metadata map[string]types.SourceMetadata) map[string]contracts.SourceState {
 	states := map[string]contracts.SourceState{}
 	for key, raw := range rawStates {
 		status, reason := normalizeSourceStatus(raw)
-		states[key] = contracts.SourceState{Status: status, Reason: reason}
+		states[key] = enrichSourceState(contracts.SourceState{Status: status, Reason: reason}, metadata[key])
 	}
 	for _, key := range requiredSourceNames() {
 		if _, ok := states[key]; ok {
 			continue
 		}
-		states[key] = contracts.SourceState{Status: "missing", Reason: "not reported by collector"}
+		states[key] = enrichSourceState(contracts.SourceState{Status: "missing", Reason: "not reported by collector"}, metadata[key])
 	}
 	return states
+}
+
+func enrichSourceState(state contracts.SourceState, meta types.SourceMetadata) contracts.SourceState {
+	if state.Reason == "" {
+		state.Reason = strings.TrimSpace(meta.Reason)
+	}
+	state.Endpoint = strings.TrimSpace(meta.Endpoint)
+	state.Transport = strings.TrimSpace(meta.Transport)
+	state.Fallback = meta.Fallback
+	state.Artifacts = append([]string{}, meta.Artifacts...)
+	return state
 }
 
 func normalizeSourceStatus(raw string) (string, string) {

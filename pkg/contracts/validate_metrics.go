@@ -15,22 +15,28 @@ func validateMetrics(m Metrics) []error {
 
 func vllmChecks(m VLLMMetrics) map[string]bool {
 	return map[string]bool{
-		"requests_running":         m.RequestsRunning.HasData(),
-		"requests_waiting":         m.RequestsWaiting.HasData(),
-		"latency_e2e":              m.LatencyE2E.HasData(),
-		"latency_ttft":             m.LatencyTTFT.HasData(),
-		"latency_queue":            m.LatencyQueue.HasData(),
-		"latency_prefill":          m.LatencyPrefill.HasData(),
-		"latency_decode":           m.LatencyDecode.HasData(),
-		"prompt_tokens":            m.PromptTokens.HasData(),
-		"generation_tokens":        m.GenerationTokens.HasData(),
-		"prompt_length":            m.PromptLength.HasData(),
-		"generation_length":        m.GenerationLength.HasData(),
-		"kv_cache_usage":           m.KVCacheUsage.HasData(),
-		"preemptions":              m.Preemptions.HasData(),
-		"recomputed_prompt_tokens": m.RecomputedPromptTokens.HasData(),
-		"prefix_cache":             m.PrefixCache.HasData(),
-		"multimodal_cache":         m.MultimodalCache.HasData(),
+		"requests_running":            m.RequestsRunning.HasData(),
+		"requests_waiting":            m.RequestsWaiting.HasData(),
+		"requests_waiting_by_reason":  len(m.RequestsWaitingByReason) > 0,
+		"completed_requests":          m.CompletedRequests.HasData(),
+		"latency_e2e":                 m.LatencyE2E.HasData(),
+		"latency_ttft":                m.LatencyTTFT.HasData(),
+		"latency_queue":               m.LatencyQueue.HasData(),
+		"latency_prefill":             m.LatencyPrefill.HasData(),
+		"latency_decode":              m.LatencyDecode.HasData(),
+		"prompt_tokens":               m.PromptTokens.HasData(),
+		"prompt_tokens_processed":     m.PromptTokensProcessed.HasData(),
+		"prompt_tokens_by_source":     m.PromptTokensBySource.HasData(),
+		"cached_prompt_tokens":        m.CachedPromptTokens.HasData(),
+		"generation_tokens":           m.GenerationTokens.HasData(),
+		"generation_tokens_processed": m.GenerationTokensProcessed.HasData(),
+		"prompt_length":               m.PromptLength.HasData(),
+		"generation_length":           m.GenerationLength.HasData(),
+		"kv_cache_usage":              m.KVCacheUsage.HasData(),
+		"preemptions":                 m.Preemptions.HasData(),
+		"recomputed_prompt_tokens":    m.RecomputedPromptTokens.HasData(),
+		"prefix_cache":                m.PrefixCache.HasData(),
+		"multimodal_cache":            m.MultimodalCache.HasData(),
 	}
 }
 
@@ -68,10 +74,13 @@ func nvidiaChecks(m NvidiaSMIMetrics) map[string]bool {
 		"memory_used":        m.MemoryUsed.HasData(),
 		"memory_total":       m.MemoryTotal.HasData(),
 		"power_draw":         m.PowerDraw.HasData(),
+		"power_limit":        m.PowerLimit.HasData(),
 		"temperature":        m.Temperature.HasData(),
 		"sm_clock":           m.SMClock.HasData(),
 		"mem_clock":          m.MemClock.HasData(),
 		"process_gpu_memory": m.ProcessGPUMemory.HasData(),
+		"performance_state":  m.PerformanceState != "",
+		"throttle_reasons":   len(m.ThrottleReasons) > 0,
 	}
 }
 

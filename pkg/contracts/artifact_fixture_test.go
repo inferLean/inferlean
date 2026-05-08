@@ -41,15 +41,30 @@ func validEnvironment() Environment {
 
 func validRuntimeConfig() RuntimeConfig {
 	return RuntimeConfig{
-		Model:                 "meta-llama/Llama-3.1-8B-Instruct",
-		Host:                  "127.0.0.1",
-		Port:                  8000,
-		TensorParallelSize:    1,
-		MaxModelLen:           8192,
-		MaxNumBatchedTokens:   4096,
-		MaxNumSeqs:            256,
-		GPUMemoryUtilization:  0.9,
-		Quantization:          "none",
+		Model:               "meta-llama/Llama-3.1-8B-Instruct",
+		Host:                "127.0.0.1",
+		Port:                8000,
+		TensorParallelSize:  1,
+		MaxModelLen:         8192,
+		MaxNumBatchedTokens: 4096,
+		MaxNumSeqs:          256,
+		Scheduler: SchedulerConfig{
+			AsyncScheduling:           boolPointer(true),
+			Policy:                    "fcfs",
+			MaxNumPartialPrefills:     1,
+			MaxLongPartialPrefills:    1,
+			LongPrefillTokenThreshold: 512,
+		},
+		GPUMemoryUtilization: 0.9,
+		Quantization:         "none",
+		Cache: CacheConfig{
+			BlockSize:             16,
+			CacheDType:            "auto",
+			NumGPUBlocks:          1024,
+			KVOffloadingBackend:   "native",
+			PrefixCachingHashAlgo: "sha256",
+			GPUMemoryUtilization:  0.9,
+		},
 		ChunkedPrefill:        boolPointer(true),
 		PrefixCaching:         boolPointer(true),
 		MultimodalFlags:       []string{"image-inputs"},
@@ -77,24 +92,30 @@ func validMetrics(now time.Time) Metrics {
 func validVLLMMetrics(now time.Time) VLLMMetrics {
 	window := metricWindow(now, 1)
 	return VLLMMetrics{
-		RequestsRunning:        window,
-		RequestsWaiting:        window,
-		RequestThroughput:      window,
-		LatencyE2E:             window,
-		LatencyTTFT:            window,
-		LatencyQueue:           window,
-		LatencyPrefill:         window,
-		LatencyDecode:          window,
-		PromptTokens:           window,
-		GenerationTokens:       window,
-		PromptLength:           histogram(),
-		GenerationLength:       histogram(),
-		KVCacheUsage:           window,
-		Preemptions:            window,
-		RecomputedPromptTokens: window,
-		PrefixCache:            cacheSnapshot(),
-		MultimodalCache:        cacheSnapshot(),
-		Coverage:               coverage(vllmRequiredFields()...),
+		RequestsRunning:           window,
+		RequestsWaiting:           window,
+		RequestsWaitingByReason:   map[string]MetricWindow{"capacity": window},
+		RequestThroughput:         window,
+		CompletedRequests:         deltaSnapshot(),
+		LatencyE2E:                window,
+		LatencyTTFT:               window,
+		LatencyQueue:              window,
+		LatencyPrefill:            window,
+		LatencyDecode:             window,
+		PromptTokens:              window,
+		PromptTokensProcessed:     deltaSnapshot(),
+		PromptTokensBySource:      deltaSnapshot(),
+		CachedPromptTokens:        deltaSnapshot(),
+		GenerationTokens:          window,
+		GenerationTokensProcessed: deltaSnapshot(),
+		PromptLength:              histogram(),
+		GenerationLength:          histogram(),
+		KVCacheUsage:              window,
+		Preemptions:               window,
+		RecomputedPromptTokens:    window,
+		PrefixCache:               cacheSnapshot(),
+		MultimodalCache:           cacheSnapshot(),
+		Coverage:                  coverage(vllmRequiredFields()...),
 	}
 }
 
@@ -137,10 +158,13 @@ func validNvidiaSMIMetrics(now time.Time) NvidiaSMIMetrics {
 		MemoryUsed:       window,
 		MemoryTotal:      window,
 		PowerDraw:        window,
+		PowerLimit:       window,
 		Temperature:      window,
 		SMClock:          window,
 		MemClock:         window,
 		ProcessGPUMemory: window,
+		PerformanceState: "P0",
+		ThrottleReasons:  []string{"none"},
 		Coverage:         coverage(nvidiaRequiredFields()...),
 	}
 }
@@ -150,6 +174,7 @@ func validProcessInspection(now time.Time) ProcessInspection {
 	return ProcessInspection{
 		TargetProcess: TargetProcess{
 			PID:            1234,
+			InternalPID:    1234,
 			Executable:     "/usr/bin/python3",
 			RawCommandLine: "python -m vllm.entrypoints.openai.api_server",
 			StartedAt:      startedAt,
@@ -163,6 +188,7 @@ func validProcessInspection(now time.Time) ProcessInspection {
 		Coverage: coverage(
 			"raw_command_line",
 			"target_pid",
+			"internal_pid",
 			"executable_identity",
 			"related_process_identities",
 		),
@@ -203,6 +229,16 @@ func histogram() DistributionSnapshot {
 	}
 }
 
+func deltaSnapshot() DeltaSnapshot {
+	return DeltaSnapshot{
+		Total: floatPointer(10),
+		Series: []LabeledDelta{{
+			Labels: map[string]string{"source": "fixture"},
+			Value:  10,
+		}},
+	}
+}
+
 func cacheSnapshot() CacheSnapshot {
 	return CacheSnapshot{
 		Hits:    floatPointer(8),
@@ -213,9 +249,10 @@ func cacheSnapshot() CacheSnapshot {
 
 func memoryMetrics(ts time.Time) MemoryMetrics {
 	return MemoryMetrics{
-		Used:  metricWindow(ts, 2),
-		Free:  metricWindow(ts, 1),
-		Total: metricWindow(ts, 3),
+		Used:     metricWindow(ts, 2),
+		Free:     metricWindow(ts, 1),
+		Reserved: metricWindow(ts, 0),
+		Total:    metricWindow(ts, 3),
 	}
 }
 

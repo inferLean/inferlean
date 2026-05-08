@@ -2,7 +2,7 @@ package contracts
 
 import "time"
 
-const SchemaVersion = "v2.7"
+const SchemaVersion = "v2.8"
 
 type RunArtifact struct {
 	SchemaVersion        string               `json:"schema_version"`
@@ -44,15 +44,22 @@ type WorkloadObservations struct {
 }
 
 type CollectionQuality struct {
-	SourceStates     map[string]SourceState `json:"source_states,omitempty"`
-	MissingEvidence  []string               `json:"missing_evidence,omitempty"`
-	DegradedEvidence []string               `json:"degraded_evidence,omitempty"`
-	Completeness     float64                `json:"completeness,omitempty"`
-	Summary          string                 `json:"summary,omitempty"`
+	SourceStates              map[string]SourceState `json:"source_states,omitempty"`
+	MissingEvidence           []string               `json:"missing_evidence,omitempty"`
+	DegradedEvidence          []string               `json:"degraded_evidence,omitempty"`
+	Completeness              float64                `json:"completeness,omitempty"`
+	Summary                   string                 `json:"summary,omitempty"`
+	TelemetryMode             string                 `json:"telemetry_mode,omitempty"`
+	Fallbacks                 []string               `json:"fallbacks,omitempty"`
+	CollectionDurationSeconds float64                `json:"collection_duration_seconds,omitempty"`
+	ScrapeIntervalSeconds     float64                `json:"scrape_interval_seconds,omitempty"`
 }
 
 type SourceState struct {
 	Status    string   `json:"status,omitempty"`
 	Reason    string   `json:"reason,omitempty"`
 	Artifacts []string `json:"artifacts,omitempty"`
+	Endpoint  string   `json:"endpoint,omitempty"`
+	Transport string   `json:"transport,omitempty"`
+	Fallback  bool     `json:"fallback,omitempty"`
 }

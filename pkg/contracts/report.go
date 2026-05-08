@@ -291,14 +291,17 @@ type EvidenceHighlight struct {
 }
 
 type ReportCollectionQuality struct {
-	SourceStates            map[string]SourceState `json:"source_states,omitempty"`
-	MissingEvidence         []string               `json:"missing_evidence,omitempty"`
-	DegradedEvidence        []string               `json:"degraded_evidence,omitempty"`
-	Completeness            float64                `json:"completeness,omitempty"`
-	Summary                 string                 `json:"summary,omitempty"`
-	SelectedGPUPath         string                 `json:"selected_gpu_path,omitempty"`
-	TelemetryMode           string                 `json:"telemetry_mode,omitempty"`
-	ConfidenceImpactSummary string                 `json:"confidence_impact_summary,omitempty"`
+	SourceStates              map[string]SourceState `json:"source_states,omitempty"`
+	MissingEvidence           []string               `json:"missing_evidence,omitempty"`
+	DegradedEvidence          []string               `json:"degraded_evidence,omitempty"`
+	Completeness              float64                `json:"completeness,omitempty"`
+	Summary                   string                 `json:"summary,omitempty"`
+	SelectedGPUPath           string                 `json:"selected_gpu_path,omitempty"`
+	TelemetryMode             string                 `json:"telemetry_mode,omitempty"`
+	Fallbacks                 []string               `json:"fallbacks,omitempty"`
+	CollectionDurationSeconds float64                `json:"collection_duration_seconds,omitempty"`
+	ScrapeIntervalSeconds     float64                `json:"scrape_interval_seconds,omitempty"`
+	ConfidenceImpactSummary   string                 `json:"confidence_impact_summary,omitempty"`
 }
 
 type UIHints struct {

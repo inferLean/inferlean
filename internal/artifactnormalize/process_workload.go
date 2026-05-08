@@ -10,6 +10,7 @@ import (
 func normalizeProcessInspection(input Input) contracts.ProcessInspection {
 	target := contracts.TargetProcess{
 		PID:            input.Target.PID,
+		InternalPID:    input.Target.InternalPID,
 		Executable:     strings.TrimSpace(input.Target.Executable),
 		RawCommandLine: strings.TrimSpace(input.Target.RawCommandLine),
 	}
@@ -17,6 +18,7 @@ func normalizeProcessInspection(input Input) contracts.ProcessInspection {
 	present := map[string]bool{}
 	appendPresent(present, "raw_command_line", target.RawCommandLine != "")
 	appendPresent(present, "target_pid", target.PID > 0)
+	appendPresent(present, "internal_pid", target.InternalPID > 0)
 	appendPresent(present, "executable_identity", target.Executable != "")
 	appendPresent(present, "related_process_identities", len(related) > 0)
 	return contracts.ProcessInspection{
@@ -61,6 +63,7 @@ func processInspectionRequiredFields() []string {
 	return []string{
 		"raw_command_line",
 		"target_pid",
+		"internal_pid",
 		"executable_identity",
 		"related_process_identities",
 	}

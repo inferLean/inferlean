@@ -140,6 +140,68 @@ func TestNormalizeRuntimeConfigPrefersLivePrefixCachingConfig(t *testing.T) {
 	}
 }
 
+func TestNormalizeRuntimeConfigCapturesSchedulerAndCacheDetails(t *testing.T) {
+	input := Input{
+		Configurations: types.Configurations{
+			ParsedArgs: map[string]string{
+				"async-scheduling":             "true",
+				"scheduler-policy":             "fcfs",
+				"max-num-partial-prefills":     "2",
+				"max-long-partial-prefills":    "1",
+				"long-prefill-token-threshold": "256",
+				"disable-chunked-mm-input":     "false",
+				"kv-offloading-backend":        "native",
+				"kv-sharing-fast-prefill":      "true",
+				"prefix-caching-hash-algo":     "sha256",
+			},
+		},
+		Observations: ObservationsInput{
+			Prometheus: map[string][]promcollector.Sample{
+				"vllm": {
+					{
+						Timestamp: time.Unix(10, 0).UTC(),
+						Metrics: []promcollector.MetricPoint{
+							{
+								Name: "vllm:cache_config_info",
+								Labels: map[string]string{
+									"block_size":               "16",
+									"cache_dtype":              "auto",
+									"num_gpu_blocks":           "351",
+									"num_cpu_blocks":           "8",
+									"enable_prefix_caching":    "False",
+									"gpu_memory_utilization":   "0.95",
+									"kv_offloading_backend":    "native",
+									"kv_sharing_fast_prefill":  "True",
+									"prefix_caching_hash_algo": "sha256",
+								},
+								Value: 1,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	runtime := normalizeRuntimeConfig(input)
+
+	if runtime.Scheduler.AsyncScheduling == nil || !*runtime.Scheduler.AsyncScheduling {
+		t.Fatalf("async_scheduling = %v, want true", runtime.Scheduler.AsyncScheduling)
+	}
+	if got, want := runtime.Scheduler.MaxNumPartialPrefills, 2; got != want {
+		t.Fatalf("max_num_partial_prefills = %d, want %d", got, want)
+	}
+	if got, want := runtime.Cache.NumGPUBlocks, 351; got != want {
+		t.Fatalf("num_gpu_blocks = %d, want %d", got, want)
+	}
+	if got, want := runtime.Cache.BlockSize, 16; got != want {
+		t.Fatalf("block_size = %d, want %d", got, want)
+	}
+	if runtime.Cache.KVSharingFastPrefill == nil || !*runtime.Cache.KVSharingFastPrefill {
+		t.Fatalf("kv_sharing_fast_prefill = %v, want true", runtime.Cache.KVSharingFastPrefill)
+	}
+}
+
 func TestNormalizeRuntimeConfigUsesNoImageProcessorForNonMultimodalRuns(t *testing.T) {
 	runtime := normalizeRuntimeConfig(Input{})
 

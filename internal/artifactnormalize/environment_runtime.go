@@ -27,8 +27,9 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 	args := input.Configurations.ParsedArgs
 	argSources := input.Configurations.ParsedArgSources
 	hints := input.Configurations.EnvironmentHints
+	vllmSamples := input.Observations.Prometheus["vllm"]
 	host, port := runtimeHostPort(args, input.Target.MetricsEndpoint)
-	prefixCaching, prefixCachingSource := resolvePrefixCaching(args, input.Observations.Prometheus["vllm"])
+	prefixCaching, prefixCachingSource := resolvePrefixCaching(args, vllmSamples)
 	chunkedPrefill, _ := parseBool(args, []string{"enable-chunked-prefill", "chunked-prefill"})
 	flashInfer, _ := parseBool(args, []string{"flashinfer-present", "enable-flashinfer", "flashinfer"})
 	attentionBackend := strings.TrimSpace(args["attention-backend"])
@@ -48,8 +49,10 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 		MaxModelLen:           parseInt(args, []string{"max-model-len"}, 0),
 		MaxNumBatchedTokens:   parseInt(args, []string{"max-num-batched-tokens"}, 0),
 		MaxNumSeqs:            parseInt(args, []string{"max-num-seqs"}, 0),
+		Scheduler:             normalizeSchedulerConfig(args),
 		GPUMemoryUtilization:  parseFloat(args, []string{"gpu-memory-utilization"}, 0),
 		KVCacheDType:          firstNonEmpty(args["kv-cache-dtype"], "auto"),
+		Cache:                 normalizeCacheConfig(args, vllmSamples),
 		ChunkedPrefill:        chunkedPrefill,
 		PrefixCaching:         prefixCaching,
 		Quantization:          firstNonEmpty(args["quantization"], "none"),
@@ -86,7 +89,9 @@ func runtimeCoverage(runtime contracts.RuntimeConfig) contracts.SourceCoverage {
 	appendPresent(present, "max_model_len", runtime.MaxModelLen > 0)
 	appendPresent(present, "max_num_batched_tokens", runtime.MaxNumBatchedTokens > 0)
 	appendPresent(present, "max_num_seqs", runtime.MaxNumSeqs > 0)
+	appendPresent(present, "scheduler_details", runtime.Scheduler.HasData())
 	appendPresent(present, "gpu_memory_utilization", runtime.GPUMemoryUtilization > 0)
+	appendPresent(present, "cache_details", runtime.Cache.HasData())
 	appendPresent(present, "parallelism_settings", runtime.TensorParallelSize > 0 || runtime.DataParallelSize > 0 || runtime.PipelineParallelSize > 0)
 	appendPresent(present, "quantization_mode", runtime.Quantization != "")
 	appendPresent(present, "prefix_caching_state", runtime.PrefixCaching != nil)
@@ -108,7 +113,9 @@ func runtimeRequiredFields() []string {
 		"max_model_len",
 		"max_num_batched_tokens",
 		"max_num_seqs",
+		"scheduler_details",
 		"gpu_memory_utilization",
+		"cache_details",
 		"parallelism_settings",
 		"quantization_mode",
 		"prefix_caching_state",
@@ -137,7 +144,14 @@ func runtimeValueSources(argSources map[string]string, prefixCachingSource strin
 	copyIfPresent("max_model_len", "max-model-len")
 	copyIfPresent("max_num_batched_tokens", "max-num-batched-tokens")
 	copyIfPresent("max_num_seqs", "max-num-seqs")
+	copyIfPresent("scheduler.policy", "scheduler-policy")
+	copyIfPresent("scheduler.policy", "scheduling-policy")
+	copyIfPresent("scheduler.max_num_partial_prefills", "max-num-partial-prefills")
+	copyIfPresent("scheduler.max_long_partial_prefills", "max-long-partial-prefills")
+	copyIfPresent("scheduler.long_prefill_token_threshold", "long-prefill-token-threshold")
 	copyIfPresent("gpu_memory_utilization", "gpu-memory-utilization")
+	copyIfPresent("cache.block_size", "block-size")
+	copyIfPresent("cache.kv_offloading_backend", "kv-offloading-backend")
 	copyIfPresent("prefix_caching", "enable-prefix-caching")
 	copyIfPresent("chunked_prefill", "enable-chunked-prefill")
 	copyIfPresent("flashinfer_presence", "flashinfer-present")

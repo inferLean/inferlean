@@ -2,7 +2,9 @@ package collect
 
 import (
 	"testing"
+	"time"
 
+	"github.com/inferLean/inferlean-main/cli/internal/collectors/nvml"
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
 	"github.com/inferLean/inferlean-main/cli/internal/exporters/nodeexporter"
 )
@@ -23,6 +25,42 @@ func TestSourceStatesExplainUnavailableHostMetrics(t *testing.T) {
 	want := "degraded: node_exporter unavailable: node_exporter not found in InferLean tool directories or PATH"
 	if states["host_metrics"] != want {
 		t.Fatalf("host_metrics = %q, want %q", states["host_metrics"], want)
+	}
+}
+
+func TestBuildQualityCarriesCollectionMetadataAndFallbacks(t *testing.T) {
+	started := time.Unix(1700000000, 0).UTC()
+	quality := buildQuality(buildInput{
+		StartedAt:  started,
+		FinishedAt: started.Add(30 * time.Second),
+		PromResult: promcollector.Result{
+			StartedAt:  started.Add(5 * time.Second),
+			FinishedAt: started.Add(20 * time.Second),
+			SourceStatus: map[string]string{
+				"vllm":               "ok",
+				"nvml_bridge":        "ok",
+				"prometheus_runtime": "degraded: prometheus not found",
+			},
+			ScrapeInterval: time.Second,
+		},
+		Sources: collectionSources{
+			vllmEndpoint: "http://127.0.0.1:8000/metrics",
+			node:         nodeexporter.StartResult{Available: false, Reason: "node missing"},
+			nvml:         nvml.BridgeResult{Available: true, Endpoint: "http://127.0.0.1:9999/metrics"},
+		},
+	})
+
+	if got, want := quality.CollectionDuration, 15*time.Second; got != want {
+		t.Fatalf("CollectionDuration = %v, want %v", got, want)
+	}
+	if got, want := quality.ScrapeInterval, time.Second; got != want {
+		t.Fatalf("ScrapeInterval = %v, want %v", got, want)
+	}
+	if len(quality.Fallbacks) == 0 {
+		t.Fatal("Fallbacks is empty, want degraded source fallbacks")
+	}
+	if got, want := quality.SourceMetadata["gpu_telemetry"].Transport, "nvml_bridge"; got != want {
+		t.Fatalf("gpu transport = %q, want %q", got, want)
 	}
 }
 

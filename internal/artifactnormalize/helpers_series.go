@@ -2,6 +2,7 @@ package artifactnormalize
 
 import (
 	"math"
+	"sort"
 	"strings"
 
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
@@ -119,6 +120,41 @@ func latestMetricValue(samples []promcollector.Sample, name string) (float64, bo
 	return metricValue(samples[len(samples)-1].Metrics, name)
 }
 
+func latestMetricLabelValue(samples []promcollector.Sample, name, label string) string {
+	values := latestMetricLabelValues(samples, name, label)
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func latestMetricLabelValues(samples []promcollector.Sample, name, label string) []string {
+	if len(samples) == 0 {
+		return nil
+	}
+	values := map[string]bool{}
+	for idx := len(samples) - 1; idx >= 0; idx-- {
+		for _, metric := range samples[idx].Metrics {
+			if metric.Name != name || metric.Value == 0 {
+				continue
+			}
+			value := strings.TrimSpace(metric.Labels[label])
+			if value != "" {
+				values[value] = true
+			}
+		}
+		if len(values) > 0 {
+			out := make([]string, 0, len(values))
+			for value := range values {
+				out = append(out, value)
+			}
+			sort.Strings(out)
+			return out
+		}
+	}
+	return nil
+}
+
 func hasMetric(samples []promcollector.Sample, name string) bool {
 	for _, sample := range samples {
 		for _, metric := range sample.Metrics {
@@ -153,9 +189,16 @@ func deltaRateWindow(samples []promcollector.Sample, name string, scale float64)
 	return withSamples(points)
 }
 
-func memoryWindows(usedBytes, totalBytes contracts.MetricWindow) contracts.MemoryMetrics {
-	memory := contracts.MemoryMetrics{Used: usedBytes, Total: totalBytes}
-	memory.Free = derivedFreeMemoryWindow(usedBytes.Samples, totalBytes.Samples)
+func memoryWindows(usedBytes, freeBytes, reservedBytes, totalBytes contracts.MetricWindow) contracts.MemoryMetrics {
+	memory := contracts.MemoryMetrics{
+		Used:     usedBytes,
+		Free:     freeBytes,
+		Reserved: reservedBytes,
+		Total:    totalBytes,
+	}
+	if !memory.Free.HasData() {
+		memory.Free = derivedFreeMemoryWindow(usedBytes.Samples, totalBytes.Samples)
+	}
 	return memory
 }
 

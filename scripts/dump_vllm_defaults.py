@@ -828,6 +828,14 @@ def _aggregate_effective_serve_parameters(
     values: dict[str, Any] = {}
     sources: dict[str, str | None] = {}
 
+    def add_effective_value(
+        name: str,
+        candidates: list[tuple[Any, str]],
+    ) -> None:
+        value, source = _pick_value(candidates)
+        values[name] = value
+        sources[name] = source
+
     model, source = _pick_value(
         _requested_model_candidates(parsed_cli, engine_args)
         + [
@@ -1093,6 +1101,69 @@ def _aggregate_effective_serve_parameters(
     )
     values["enable_chunked_prefill"] = enable_chunked_prefill
     sources["enable_chunked_prefill"] = source
+
+    add_effective_value(
+        "async_scheduling",
+        [
+            (
+                full_sched_cfg.get("async_scheduling"),
+                "effective_engine_config.scheduler_config.async_scheduling",
+            ),
+            (engine_args.get("async_scheduling"), "engine_args_from_input.async_scheduling"),
+            (parsed_cli.get("async_scheduling"), "parsed_cli_from_input.async_scheduling"),
+        ],
+    )
+    add_effective_value(
+        "scheduler_policy",
+        [
+            (full_sched_cfg.get("policy"), "effective_engine_config.scheduler_config.policy"),
+            (engine_args.get("scheduling_policy"), "engine_args_from_input.scheduling_policy"),
+            (parsed_cli.get("scheduling_policy"), "parsed_cli_from_input.scheduling_policy"),
+        ],
+    )
+    for field_name in [
+        "max_num_partial_prefills",
+        "max_long_partial_prefills",
+        "long_prefill_token_threshold",
+        "max_num_scheduled_tokens",
+        "max_num_encoder_input_tokens",
+        "scheduler_reserve_full_isl",
+        "disable_chunked_mm_input",
+        "disable_hybrid_kv_cache_manager",
+    ]:
+        add_effective_value(
+            field_name,
+            [
+                (
+                    full_sched_cfg.get(field_name),
+                    f"effective_engine_config.scheduler_config.{field_name}",
+                ),
+                (engine_args.get(field_name), f"engine_args_from_input.{field_name}"),
+                (parsed_cli.get(field_name), f"parsed_cli_from_input.{field_name}"),
+            ],
+        )
+
+    for field_name in [
+        "block_size",
+        "kv_cache_memory_bytes",
+        "kv_offloading_backend",
+        "kv_offloading_size",
+        "kv_sharing_fast_prefill",
+        "sliding_window",
+        "prefix_caching_hash_algo",
+        "calculate_kv_scales",
+    ]:
+        add_effective_value(
+            field_name,
+            [
+                (
+                    full_cache_cfg.get(field_name),
+                    f"effective_engine_config.cache_config.{field_name}",
+                ),
+                (engine_args.get(field_name), f"engine_args_from_input.{field_name}"),
+                (parsed_cli.get(field_name), f"parsed_cli_from_input.{field_name}"),
+            ],
+        )
 
     quantization, source = _pick_value(
         [

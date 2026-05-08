@@ -24,7 +24,7 @@ func normalizeInput(input Input) contracts.RunArtifact {
 	if collectedAt.IsZero() {
 		collectedAt = time.Now().UTC()
 	}
-	sourceStates := toSourceStates(input.CollectionQuality.SourceStatus)
+	sourceStates := toSourceStates(input.CollectionQuality.SourceStatus, input.CollectionQuality.SourceMetadata)
 	missingEvidence := make([]string, 0)
 	degradedEvidence := make([]string, 0)
 	appendMissing(sourceStates, &missingEvidence, "missing")
@@ -44,11 +44,15 @@ func normalizeInput(input Input) contracts.RunArtifact {
 		ProcessInspection:    normalizeProcessInspection(input),
 		WorkloadObservations: normalizeWorkload(input),
 		CollectionQuality: contracts.CollectionQuality{
-			SourceStates:     sourceStates,
-			MissingEvidence:  missingEvidence,
-			DegradedEvidence: degradedEvidence,
-			Completeness:     completeness(sourceStates),
-			Summary:          firstNonEmpty(input.CollectionQuality.TelemetryMode, "normalized-from-cli"),
+			SourceStates:              sourceStates,
+			MissingEvidence:           missingEvidence,
+			DegradedEvidence:          degradedEvidence,
+			Completeness:              completeness(sourceStates),
+			Summary:                   firstNonEmpty(input.CollectionQuality.TelemetryMode, "normalized-from-cli"),
+			TelemetryMode:             input.CollectionQuality.TelemetryMode,
+			Fallbacks:                 input.CollectionQuality.Fallbacks,
+			CollectionDurationSeconds: input.CollectionQuality.CollectionDuration.Seconds(),
+			ScrapeIntervalSeconds:     input.CollectionQuality.ScrapeInterval.Seconds(),
 		},
 	}
 }

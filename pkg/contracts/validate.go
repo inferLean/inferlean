@@ -87,7 +87,9 @@ func (r RuntimeConfig) validate() []error {
 		"max_model_len":            r.MaxModelLen != 0,
 		"max_num_batched_tokens":   r.MaxNumBatchedTokens != 0,
 		"max_num_seqs":             r.MaxNumSeqs != 0,
+		"scheduler_details":        r.Scheduler.HasData(),
 		"gpu_memory_utilization":   r.GPUMemoryUtilization != 0,
+		"cache_details":            r.Cache.HasData(),
 		"parallelism_settings":     hasParallelism(r),
 		"quantization_mode":        strings.TrimSpace(r.Quantization) != "",
 		"prefix_caching_state":     r.PrefixCaching != nil,
@@ -118,6 +120,7 @@ func (p ProcessInspection) validate() []error {
 	checks := map[string]bool{
 		"raw_command_line":           strings.TrimSpace(p.TargetProcess.RawCommandLine) != "",
 		"target_pid":                 p.TargetProcess.PID != 0,
+		"internal_pid":               p.TargetProcess.InternalPID != 0,
 		"executable_identity":        strings.TrimSpace(p.TargetProcess.Executable) != "",
 		"related_process_identities": len(p.RelatedProcesses) > 0,
 	}

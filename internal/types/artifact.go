@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 type Configurations struct {
 	ParsedArgs          map[string]string `json:"parsed_args,omitempty"`
 	ParsedArgSources    map[string]string `json:"parsed_arg_sources,omitempty"`
@@ -25,6 +27,18 @@ type UserIntent struct {
 }
 
 type CollectionQuality struct {
-	SourceStatus  map[string]string `json:"source_status,omitempty"`
-	TelemetryMode string            `json:"telemetry_mode,omitempty"`
+	SourceStatus       map[string]string         `json:"source_status,omitempty"`
+	SourceMetadata     map[string]SourceMetadata `json:"source_metadata,omitempty"`
+	TelemetryMode      string                    `json:"telemetry_mode,omitempty"`
+	Fallbacks          []string                  `json:"fallbacks,omitempty"`
+	CollectionDuration time.Duration             `json:"collection_duration,omitempty"`
+	ScrapeInterval     time.Duration             `json:"scrape_interval,omitempty"`
+}
+
+type SourceMetadata struct {
+	Endpoint  string   `json:"endpoint,omitempty"`
+	Transport string   `json:"transport,omitempty"`
+	Fallback  bool     `json:"fallback,omitempty"`
+	Reason    string   `json:"reason,omitempty"`
+	Artifacts []string `json:"artifacts,omitempty"`
 }

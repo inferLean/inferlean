@@ -37,10 +37,13 @@ type Sample struct {
 }
 
 type Result struct {
-	RawText      string
-	RawByTarget  map[string]string
-	Samples      map[string][]Sample
-	SourceStatus map[string]string
+	RawText        string
+	RawByTarget    map[string]string
+	Samples        map[string][]Sample
+	SourceStatus   map[string]string
+	StartedAt      time.Time
+	FinishedAt     time.Time
+	ScrapeInterval time.Duration
 }
 
 func NewCollector() Collector {
@@ -55,6 +58,7 @@ func (c Collector) Collect(ctx context.Context, endpoint string, collectFor, eve
 func (c Collector) CollectTargets(ctx context.Context, targets []Target, collectFor, every time.Duration) Result {
 	cleanTargets := sanitizeTargets(targets)
 	result := initResult(cleanTargets)
+	result.ScrapeInterval = every
 	if len(cleanTargets) == 0 || collectFor <= 0 || every <= 0 {
 		return result
 	}
@@ -65,7 +69,11 @@ func (c Collector) CollectTargets(ctx context.Context, targets []Target, collect
 	} else if strings.TrimSpace(runtimeReason) != "" {
 		result.SourceStatus["prometheus_runtime"] = "degraded: " + runtimeReason
 	}
-	deadline := time.Now().Add(collectFor)
+	result.StartedAt = time.Now().UTC()
+	deadline := result.StartedAt.Add(collectFor)
+	defer func() {
+		result.FinishedAt = time.Now().UTC()
+	}()
 	for {
 		c.scrapeOnce(ctx, cleanTargets, &result)
 		if time.Now().After(deadline) {
