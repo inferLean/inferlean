@@ -29,7 +29,7 @@ func startSources(ctx context.Context, opts Options) (collectionSources, error) 
 		vllmEndpoint: vllmEndpoint,
 		vllmSession:  vllmSession,
 		node:         nodeexporter.Start(ctx),
-		dcgm:         dcgm.Start(ctx),
+		dcgm:         dcgm.Start(ctx, opts.DCGMEndpoint),
 		nvml:         nvml.StartBridge(),
 	}, nil
 }

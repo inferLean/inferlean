@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
@@ -27,9 +28,9 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 	argSources := input.Configurations.ParsedArgSources
 	hints := input.Configurations.EnvironmentHints
 	host, port := runtimeHostPort(args, input.Target.MetricsEndpoint)
-	prefixCaching := resolvePrefixCaching(args, input.Observations.Prometheus["vllm"])
+	prefixCaching, prefixCachingSource := resolvePrefixCaching(args, input.Observations.Prometheus["vllm"])
 	chunkedPrefill, _ := parseBool(args, []string{"enable-chunked-prefill", "chunked-prefill"})
-	flashInfer, _ := parseBool(args, []string{"enable-flashinfer", "flashinfer"})
+	flashInfer, _ := parseBool(args, []string{"flashinfer-present", "enable-flashinfer", "flashinfer"})
 	attentionBackend := strings.TrimSpace(args["attention-backend"])
 	var flashAttention *bool
 	if attentionBackend != "" {
@@ -62,8 +63,8 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 		AttentionBackend:      attentionBackend,
 		FlashinferPresent:     flashInfer,
 		FlashAttentionPresent: flashAttention,
-		ImageProcessor:        firstNonEmpty(args["image-processor"], "unknown"),
-		ValueSources:          runtimeValueSources(argSources),
+		ImageProcessor:        imageProcessorValue(args, input.UserIntent),
+		ValueSources:          runtimeValueSources(argSources, prefixCachingSource),
 	}
 	runtime.Coverage = runtimeCoverage(runtime)
 	return runtime
@@ -124,7 +125,7 @@ func runtimeRequiredFields() []string {
 	}
 }
 
-func runtimeValueSources(argSources map[string]string) map[string]string {
+func runtimeValueSources(argSources map[string]string, prefixCachingSource string) map[string]string {
 	sources := map[string]string{}
 	copyIfPresent := func(contractKey, argKey string) {
 		value := strings.TrimSpace(argSources[argKey])
@@ -139,20 +140,24 @@ func runtimeValueSources(argSources map[string]string) map[string]string {
 	copyIfPresent("gpu_memory_utilization", "gpu-memory-utilization")
 	copyIfPresent("prefix_caching", "enable-prefix-caching")
 	copyIfPresent("chunked_prefill", "enable-chunked-prefill")
+	copyIfPresent("flashinfer_presence", "flashinfer-present")
+	if strings.TrimSpace(prefixCachingSource) != "" {
+		sources["prefix_caching"] = strings.TrimSpace(prefixCachingSource)
+	}
 	if len(sources) == 0 {
 		return nil
 	}
 	return sources
 }
 
-func resolvePrefixCaching(args map[string]string, samples []promcollector.Sample) *bool {
-	if value, ok := parseBool(args, []string{"enable-prefix-caching", "prefix-caching"}); ok {
-		return value
-	}
+func resolvePrefixCaching(args map[string]string, samples []promcollector.Sample) (*bool, string) {
 	if value, ok := cacheConfigPrefixCaching(samples); ok {
-		return boolPtr(value)
+		return boolPtr(value), "metrics.vllm.cache_config_info.enable_prefix_caching"
 	}
-	return nil
+	if value, ok := parseBool(args, []string{"enable-prefix-caching", "prefix-caching"}); ok {
+		return value, ""
+	}
+	return nil, ""
 }
 
 func cacheConfigPrefixCaching(samples []promcollector.Sample) (bool, bool) {
@@ -173,6 +178,16 @@ func cacheConfigPrefixCaching(samples []promcollector.Sample) (bool, bool) {
 		}
 	}
 	return false, false
+}
+
+func imageProcessorValue(args map[string]string, intent types.UserIntent) string {
+	if value := strings.TrimSpace(args["image-processor"]); value != "" {
+		return value
+	}
+	if !intent.Multimodal {
+		return "none"
+	}
+	return "unknown"
 }
 
 func buildMultimodalFlags(input Input) []string {

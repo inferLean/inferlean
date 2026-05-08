@@ -41,7 +41,7 @@ func TestStartUsesExistingEndpointFromEnv(t *testing.T) {
 
 	t.Setenv("INFERLEAN_DCGM_EXPORTER_ENDPOINT", server.URL)
 
-	res := Start(context.Background())
+	res := Start(context.Background(), "")
 	if !res.Available {
 		t.Fatalf("expected available=true, got false with reason=%q", res.Reason)
 	}
@@ -50,5 +50,40 @@ func TestStartUsesExistingEndpointFromEnv(t *testing.T) {
 	}
 	if res.Session != nil {
 		t.Fatalf("expected session=nil when attaching to existing exporter")
+	}
+}
+
+func TestStartUsesExplicitEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/metrics" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("# HELP test test\n"))
+	}))
+	t.Cleanup(server.Close)
+
+	t.Setenv("INFERLEAN_DCGM_EXPORTER_ENDPOINT", "http://127.0.0.1:1/metrics")
+
+	res := Start(context.Background(), server.URL)
+	if !res.Available {
+		t.Fatalf("expected available=true, got false with reason=%q", res.Reason)
+	}
+	if res.Endpoint != server.URL+"/metrics" {
+		t.Fatalf("Endpoint = %q, want %q", res.Endpoint, server.URL+"/metrics")
+	}
+	if res.Session != nil {
+		t.Fatalf("expected session=nil when attaching to explicit exporter")
+	}
+}
+
+func TestStartRejectsInvalidExplicitEndpoint(t *testing.T) {
+	res := Start(context.Background(), "://")
+	if res.Available {
+		t.Fatal("expected available=false")
+	}
+	if res.Reason != "invalid dcgm-exporter endpoint" {
+		t.Fatalf("Reason = %q", res.Reason)
 	}
 }

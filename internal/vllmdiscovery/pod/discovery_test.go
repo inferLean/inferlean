@@ -1,6 +1,7 @@
 package pod
 
 import (
+	"context"
 	"testing"
 
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/shared"
@@ -9,7 +10,7 @@ import (
 func TestAppendPodUsesEnvMetricsPort(t *testing.T) {
 	t.Parallel()
 	var candidates []shared.Candidate
-	appendPod(&candidates, "prod", "vllm-0", []podContainer{{
+	appendPod(context.Background(), &candidates, "prod", "vllm-0", []podContainer{{
 		Name:    "server",
 		Command: []string{"vllm"},
 		Args:    []string{"serve", "Qwen/Qwen3.5-0.8B"},
@@ -32,7 +33,7 @@ func TestAppendPodUsesEnvMetricsPort(t *testing.T) {
 func TestAppendPodUsesImageFallback(t *testing.T) {
 	t.Parallel()
 	var candidates []shared.Candidate
-	appendPod(&candidates, "prod", "vllm-0", []podContainer{{
+	appendPod(context.Background(), &candidates, "prod", "vllm-0", []podContainer{{
 		Name:  "server",
 		Image: "vllm/vllm-openai:latest",
 	}})
@@ -69,5 +70,19 @@ func TestPodNamespacePrefersObservedNamespace(t *testing.T) {
 	}
 	if got := podNamespace("staging", ""); got != "staging" {
 		t.Fatalf("podNamespace() = %q, want staging", got)
+	}
+}
+
+func TestKubectlExecArgsOmitsNamespaceWhenUnset(t *testing.T) {
+	t.Parallel()
+	got := kubectlExecArgs("", "vllm-0", "server", "true")
+	want := []string{"exec", "vllm-0", "-c", "server", "--", "true"}
+	if len(got) != len(want) {
+		t.Fatalf("len(kubectlExecArgs()) = %d, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("kubectlExecArgs()[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }

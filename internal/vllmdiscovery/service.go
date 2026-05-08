@@ -176,6 +176,9 @@ func mergeCandidate(a, b Candidate) Candidate {
 	if merged.PID <= 0 {
 		merged.PID = secondary.PID
 	}
+	if merged.InternalPID <= 0 {
+		merged.InternalPID = secondary.InternalPID
+	}
 	merged.ContainerID = mergeContainerID(merged.ContainerID, secondary.ContainerID)
 	if strings.TrimSpace(merged.PodName) == "" {
 		merged.PodName = secondary.PodName

@@ -171,11 +171,6 @@ func shouldUseHighMemoryProfile(input Input) bool {
 	return !strings.Contains(model, "a100")
 }
 
-func applyDefaults(target map[string]string, profile profileDefaults, model string) int {
-	_, applied := applyDefaultsWithSources(target, explicitArgSources(target), profile, model)
-	return applied
-}
-
 func applyDefaultsWithSources(target, sources map[string]string, profile profileDefaults, model string) (map[string]string, int) {
 	merged := map[string]any{}
 	for key, value := range profile.Resolved {

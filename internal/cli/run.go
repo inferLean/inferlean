@@ -78,6 +78,7 @@ func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {
 			CollectFor:              opts.collect.CollectFor,
 			ScrapeEvery:             opts.collect.ScrapeEvery,
 			OutputPath:              opts.collect.OutputPath,
+			DCGMEndpoint:            opts.collect.DCGMEndpoint,
 			CollectorVersion:        version,
 			DeclaredWorkloadMode:    opts.collect.DeclaredWorkloadMode,
 			DeclaredWorkloadTarget:  opts.collect.DeclaredWorkloadTarget,

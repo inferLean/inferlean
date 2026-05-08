@@ -1,13 +1,18 @@
 package prometheus
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 type Target struct {
@@ -53,9 +58,12 @@ func (c Collector) CollectTargets(ctx context.Context, targets []Target, collect
 	if len(cleanTargets) == 0 || collectFor <= 0 || every <= 0 {
 		return result
 	}
-	runtime := tryStartRuntime(ctx, cleanTargets, every)
+	runtime, runtimeReason := tryStartRuntime(ctx, cleanTargets, every)
 	if runtime != nil {
+		result.SourceStatus["prometheus_runtime"] = "ok"
 		defer runtime.Stop(context.Background())
+	} else if strings.TrimSpace(runtimeReason) != "" {
+		result.SourceStatus["prometheus_runtime"] = "degraded: " + runtimeReason
 	}
 	deadline := time.Now().Add(collectFor)
 	for {
@@ -152,116 +160,151 @@ func (c Collector) fetch(ctx context.Context, endpoint string) (string, []Metric
 	if resp.StatusCode != http.StatusOK {
 		return "", nil, fmt.Errorf("status=%s", resp.Status)
 	}
-	scan := bufio.NewScanner(resp.Body)
-	parsed := make([]MetricPoint, 0)
-	lines := make([]string, 0)
-	for scan.Scan() {
-		line := scan.Text()
-		lines = append(lines, line)
-		if strings.HasPrefix(line, "#") {
-			continue
-		}
-		point, ok := parseMetricLine(line)
-		if ok {
-			parsed = append(parsed, point)
-		}
-	}
-	return strings.Join(lines, "\n"), parsed, nil
-}
-
-func parseMetricLine(line string) (MetricPoint, bool) {
-	parts := strings.Fields(line)
-	if len(parts) < 2 {
-		return MetricPoint{}, false
-	}
-	value, err := strconv.ParseFloat(parts[1], 64)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return MetricPoint{}, false
+		return "", nil, err
 	}
-	name, labels := parseMetricToken(parts[0])
-	if strings.TrimSpace(name) == "" {
-		return MetricPoint{}, false
+	parsed, err := parseMetrics(string(body))
+	if err != nil {
+		return string(body), nil, err
 	}
-	return MetricPoint{Name: name, Labels: labels, Value: value}, true
+	return string(body), parsed, nil
 }
 
-func parseMetricToken(token string) (string, map[string]string) {
-	openIdx := strings.Index(token, "{")
-	if openIdx < 0 {
-		return token, nil
+func parseMetrics(text string) ([]MetricPoint, error) {
+	parser := expfmt.NewTextParser(model.LegacyValidation)
+	families, err := parser.TextToMetricFamilies(strings.NewReader(text))
+	if err != nil {
+		return nil, err
 	}
-	closeIdx := strings.LastIndex(token, "}")
-	if closeIdx <= openIdx {
-		return token, nil
+	points := make([]MetricPoint, 0)
+	for name, family := range families {
+		for _, metric := range family.GetMetric() {
+			points = append(points, flattenMetric(name, metric)...)
+		}
 	}
-	name := strings.TrimSpace(token[:openIdx])
-	if name == "" {
-		return "", nil
-	}
-	labelsPart := token[openIdx+1 : closeIdx]
-	return name, parseLabels(labelsPart)
+	return points, nil
 }
 
-func parseLabels(text string) map[string]string {
-	if strings.TrimSpace(text) == "" {
+func flattenMetric(name string, metric *dto.Metric) []MetricPoint {
+	switch {
+	case metric.Histogram != nil:
+		return flattenHistogram(name, metric)
+	case metric.Summary != nil:
+		return flattenSummary(name, metric)
+	default:
+		value, ok := scalarMetricValue(metric)
+		if !ok {
+			return nil
+		}
+		return []MetricPoint{{
+			Name:   name,
+			Labels: metricLabels(metric),
+			Value:  value,
+		}}
+	}
+}
+
+func flattenHistogram(name string, metric *dto.Metric) []MetricPoint {
+	histogram := metric.GetHistogram()
+	labels := metricLabels(metric)
+	points := make([]MetricPoint, 0, len(histogram.GetBucket())+2)
+	for _, bucket := range histogram.GetBucket() {
+		points = append(points, MetricPoint{
+			Name:   name + "_bucket",
+			Labels: labelsWith(labels, "le", formatPrometheusBound(bucket.GetUpperBound())),
+			Value:  float64(bucket.GetCumulativeCount()),
+		})
+	}
+	points = append(points, MetricPoint{
+		Name:   name + "_count",
+		Labels: copyLabels(labels),
+		Value:  float64(histogram.GetSampleCount()),
+	})
+	points = append(points, MetricPoint{
+		Name:   name + "_sum",
+		Labels: copyLabels(labels),
+		Value:  histogram.GetSampleSum(),
+	})
+	return points
+}
+
+func flattenSummary(name string, metric *dto.Metric) []MetricPoint {
+	summary := metric.GetSummary()
+	labels := metricLabels(metric)
+	points := make([]MetricPoint, 0, len(summary.GetQuantile())+2)
+	for _, quantile := range summary.GetQuantile() {
+		points = append(points, MetricPoint{
+			Name:   name,
+			Labels: labelsWith(labels, "quantile", strconv.FormatFloat(quantile.GetQuantile(), 'g', -1, 64)),
+			Value:  quantile.GetValue(),
+		})
+	}
+	points = append(points, MetricPoint{
+		Name:   name + "_count",
+		Labels: copyLabels(labels),
+		Value:  float64(summary.GetSampleCount()),
+	})
+	points = append(points, MetricPoint{
+		Name:   name + "_sum",
+		Labels: copyLabels(labels),
+		Value:  summary.GetSampleSum(),
+	})
+	return points
+}
+
+func metricLabels(metric *dto.Metric) map[string]string {
+	if len(metric.GetLabel()) == 0 {
 		return nil
 	}
 	labels := map[string]string{}
-	for _, pair := range splitLabelPairs(text) {
-		parts := strings.SplitN(pair, "=", 2)
-		if len(parts) != 2 {
-			continue
+	for _, label := range metric.GetLabel() {
+		if strings.TrimSpace(label.GetName()) != "" {
+			labels[label.GetName()] = label.GetValue()
 		}
-		key := strings.TrimSpace(parts[0])
-		if key == "" {
-			continue
-		}
-		value := strings.TrimSpace(parts[1])
-		if unquoted, err := strconv.Unquote(value); err == nil {
-			value = unquoted
-		} else {
-			value = strings.Trim(value, "\"")
-		}
-		labels[key] = value
-	}
-	if len(labels) == 0 {
-		return nil
 	}
 	return labels
 }
 
-func splitLabelPairs(text string) []string {
-	pairs := make([]string, 0)
-	var current strings.Builder
-	inQuotes := false
-	escaped := false
-	for _, r := range text {
-		if escaped {
-			current.WriteRune(r)
-			escaped = false
-			continue
-		}
-		if r == '\\' {
-			current.WriteRune(r)
-			escaped = true
-			continue
-		}
-		if r == '"' {
-			inQuotes = !inQuotes
-			current.WriteRune(r)
-			continue
-		}
-		if r == ',' && !inQuotes {
-			if strings.TrimSpace(current.String()) != "" {
-				pairs = append(pairs, strings.TrimSpace(current.String()))
-			}
-			current.Reset()
-			continue
-		}
-		current.WriteRune(r)
+func labelsWith(labels map[string]string, key, value string) map[string]string {
+	out := copyLabels(labels)
+	if out == nil {
+		out = map[string]string{}
 	}
-	if strings.TrimSpace(current.String()) != "" {
-		pairs = append(pairs, strings.TrimSpace(current.String()))
+	out[key] = value
+	return out
+}
+
+func copyLabels(labels map[string]string) map[string]string {
+	if len(labels) == 0 {
+		return nil
 	}
-	return pairs
+	out := make(map[string]string, len(labels))
+	for key, value := range labels {
+		out[key] = value
+	}
+	return out
+}
+
+func formatPrometheusBound(value float64) string {
+	if math.IsInf(value, 1) {
+		return "+Inf"
+	}
+	if math.IsInf(value, -1) {
+		return "-Inf"
+	}
+	return strconv.FormatFloat(value, 'g', -1, 64)
+}
+
+func scalarMetricValue(metric *dto.Metric) (float64, bool) {
+	switch {
+	case metric.Gauge != nil:
+		return metric.GetGauge().GetValue(), true
+	case metric.Counter != nil:
+		return metric.GetCounter().GetValue(), true
+	case metric.Untyped != nil:
+		return metric.GetUntyped().GetValue(), true
+	default:
+		return 0, false
+	}
 }

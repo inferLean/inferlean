@@ -305,26 +305,81 @@ def _read_pid_environ(pid: int) -> dict[str, str]:
     return out
 
 
-def _infer_vllm_cli_args_from_cmdline(cmdline: list[str]) -> list[str]:
-    if not cmdline:
-        return []
-
-    argv = cmdline[1:]
-
-    if "-m" in argv:
-        mod_idx = argv.index("-m")
-        if mod_idx + 1 < len(argv):
-            module = argv[mod_idx + 1]
-            if module == "vllm" or module.startswith("vllm."):
-                argv = argv[mod_idx + 2 :]
-
-    if argv and os.path.basename(argv[0]) == "vllm":
-        argv = argv[1:]
-
+def _strip_optional_serve(argv: list[str]) -> list[str]:
     if argv and argv[0] == "serve":
-        argv = argv[1:]
-
+        return argv[1:]
     return argv
+
+
+def _is_python_executable(value: str) -> bool:
+    executable = os.path.basename(value)
+    return executable == "python" or executable.startswith("python")
+
+
+def _python_module_args(argv: list[str]) -> list[str] | None:
+    if len(argv) < 3:
+        return None
+    if not _is_python_executable(argv[0]):
+        return None
+    if argv[1] != "-m":
+        return None
+    module = argv[2]
+    if module == "vllm" or module.startswith("vllm."):
+        return _strip_optional_serve(argv[3:])
+    return None
+
+
+def _python_vllm_script_args(argv: list[str]) -> list[str] | None:
+    if len(argv) < 2:
+        return None
+    if not _is_python_executable(argv[0]):
+        return None
+    if os.path.basename(argv[1]) != "vllm":
+        return None
+    return _strip_optional_serve(argv[2:])
+
+
+def _direct_vllm_args(argv: list[str]) -> list[str] | None:
+    if not argv:
+        return None
+    if os.path.basename(argv[0]) != "vllm":
+        return None
+    return _strip_optional_serve(argv[1:])
+
+
+def _uv_run_args(argv: list[str]) -> list[str] | None:
+    if len(argv) < 3:
+        return None
+    if os.path.basename(argv[0]) != "uv" or argv[1] != "run":
+        return None
+    # Only parse the exact wrapper forms we understand. uv run flags are not
+    # reinterpreted here because that would become a second command parser.
+    wrapped = argv[2:]
+    return (
+        _direct_vllm_args(wrapped)
+        or _python_module_args(wrapped)
+        or _python_vllm_script_args(wrapped)
+    )
+
+
+def _infer_vllm_cli_args_from_cmdline(
+    cmdline: list[str],
+) -> tuple[list[str], str | None]:
+    if not cmdline:
+        return [], "empty cmdline"
+
+    for parser in (
+        _direct_vllm_args,
+        _python_module_args,
+        _python_vllm_script_args,
+        _uv_run_args,
+    ):
+        inferred = parser(cmdline)
+        if inferred is not None:
+            return inferred, None
+
+    executable = os.path.basename(cmdline[0]) if cmdline else ""
+    return [], f"unsupported vLLM launch shape: {executable or '<empty>'}"
 
 
 def _is_sensitive_env_key(key: str) -> bool:
@@ -350,9 +405,55 @@ def _redact_env(env_map: dict[str, str]) -> dict[str, str]:
     return out
 
 
-def _apply_pid_environment(env_map: dict[str, str]) -> None:
-    for key, value in env_map.items():
+def _allowed_pid_env(key: str) -> bool:
+    exact = {
+        "CONDA_DEFAULT_ENV",
+        "CONDA_PREFIX",
+        "CUDA_VISIBLE_DEVICES",
+        "HF_HOME",
+        "HOME",
+        "HUGGINGFACE_HUB_CACHE",
+        "LD_LIBRARY_PATH",
+        "PATH",
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "TORCH_HOME",
+        "VIRTUAL_ENV",
+        "VLLM_ATTENTION_BACKEND",
+        "VLLM_TARGET_DEVICE",
+    }
+    prefixes = (
+        "CUDA_",
+        "HF_",
+        "HUGGINGFACE_",
+        "NCCL_",
+        "NVIDIA_",
+        "PYTORCH_",
+        "TORCH_",
+        "TRANSFORMERS_",
+        "VLLM_",
+    )
+    return key in exact or any(key.startswith(prefix) for prefix in prefixes)
+
+
+def _filter_pid_environment(env_map: dict[str, str]) -> dict[str, str]:
+    return {key: value for key, value in env_map.items() if _allowed_pid_env(key)}
+
+
+def _apply_pid_environment(env_map: dict[str, str]) -> list[str]:
+    filtered = _filter_pid_environment(env_map)
+    for key, value in filtered.items():
         os.environ[key] = value
+    _apply_pythonpath(filtered.get("PYTHONPATH", ""))
+    return sorted(filtered)
+
+
+def _apply_pythonpath(raw: str) -> None:
+    for item in reversed(raw.split(os.pathsep)):
+        path = item.strip()
+        if not path or path in sys.path:
+            continue
+        sys.path.insert(0, path)
 
 
 def _force_platform_if_needed(
@@ -509,11 +610,27 @@ def _extract_effective_engine_config(
     try:
         vllm_config = engine_args_obj.create_engine_config(
             usage_context=usage_ctx,
-            headless=False,
+            headless=True,
         )
         return _serialize_effective_engine_config(vllm_config, errors)
     except Exception as exc:
         message = repr(exc)
+
+        def _degraded_config_fallback(
+            *,
+            reason: str,
+            cfg: Any,
+        ) -> dict[str, Any]:
+            return {
+                "_fallback": "degraded_effective_config",
+                "_usage_context": usage_context_name,
+                "_degraded_reason": reason,
+                "engine_args": _to_jsonable(engine_args_obj),
+                "degraded_effective_config": _serialize_effective_engine_config(
+                    cfg,
+                    errors,
+                ),
+            }
 
         def _build_engine_args_fallback(
             warn_message: str,
@@ -545,13 +662,16 @@ def _extract_effective_engine_config(
                 fresh_engine_args = cls(**kwargs)
                 cfg = fresh_engine_args.create_engine_config(
                     usage_context=usage_ctx,
-                    headless=False,
+                    headless=True,
                 )
                 warnings["effective.create_engine_config"] = (
                     warn_message
                     + " Recovered by rebuilding EngineArgs under forced CPU."
                 )
-                return _serialize_effective_engine_config(cfg, errors)
+                return _degraded_config_fallback(
+                    reason="forced CPU fallback after primary effective config failed",
+                    cfg=cfg,
+                )
             except Exception as derive_exc:
                 warnings["effective.derive_model_defaults"] = (
                     "Failed to recover effective config in fallback mode: "
@@ -572,13 +692,18 @@ def _extract_effective_engine_config(
                 engine_arg_utils.current_platform = cpu_platform
                 vllm_config = engine_args_obj.create_engine_config(
                     usage_context=usage_ctx,
-                    headless=False,
+                    headless=True,
                 )
                 warnings["effective.create_engine_config"] = (
                     "Fell back to CPU platform because CUDA GPUs were not "
-                    "visible in this exec context."
+                    "visible in this exec context. CPU-derived config is "
+                    "recorded as degraded evidence and is not treated as the "
+                    "actual runtime config."
                 )
-                return _serialize_effective_engine_config(vllm_config, errors)
+                return _degraded_config_fallback(
+                    reason="forced CPU fallback because CUDA was unavailable",
+                    cfg=vllm_config,
+                )
             except Exception as retry_exc:
                 warn_message = (
                     "Could not materialize VllmConfig in this exec context "
@@ -642,6 +767,18 @@ def _clean_dtype_value(value: Any) -> str | None:
     return cleaned
 
 
+def _requested_model_candidates(
+    parsed_cli: dict[str, Any],
+    engine_args: dict[str, Any],
+) -> list[tuple[Any, str]]:
+    return [
+        (parsed_cli.get("model_tag"), "parsed_cli_from_input.model_tag"),
+        (engine_args.get("model_tag"), "engine_args_from_input.model_tag"),
+        (parsed_cli.get("model"), "parsed_cli_from_input.model"),
+        (engine_args.get("model"), "engine_args_from_input.model"),
+    ]
+
+
 def _aggregate_effective_serve_parameters(
     *,
     parsed_cli: dict[str, Any] | None,
@@ -692,12 +829,17 @@ def _aggregate_effective_serve_parameters(
     sources: dict[str, str | None] = {}
 
     model, source = _pick_value(
-        [
+        _requested_model_candidates(parsed_cli, engine_args)
+        + [
             (full_model_cfg.get("model"), "effective_engine_config.model_config.model"),
-            (derived_defaults.get("model"), "effective_engine_config.derived_model_defaults.model"),
-            (fallback_engine_args.get("model"), "effective_engine_config.engine_args.model"),
-            (engine_args.get("model"), "engine_args_from_input.model"),
-            (parsed_cli.get("model"), "parsed_cli_from_input.model"),
+            (
+                derived_defaults.get("model"),
+                "effective_engine_config.derived_model_defaults.model",
+            ),
+            (
+                fallback_engine_args.get("model"),
+                "effective_engine_config.engine_args.model",
+            ),
         ]
     )
     values["model"] = model
@@ -705,10 +847,6 @@ def _aggregate_effective_serve_parameters(
 
     served_model_name, source = _pick_value(
         [
-            (
-                _clean_served_model_name(full_model_cfg.get("served_model_name")),
-                "effective_engine_config.model_config.served_model_name",
-            ),
             (
                 _clean_served_model_name(fallback_engine_args.get("served_model_name")),
                 "effective_engine_config.engine_args.served_model_name",
@@ -724,6 +862,10 @@ def _aggregate_effective_serve_parameters(
             (
                 _clean_served_model_name(model),
                 "effective_serve_parameters.model",
+            ),
+            (
+                _clean_served_model_name(full_model_cfg.get("served_model_name")),
+                "effective_engine_config.model_config.served_model_name",
             ),
         ]
     )
@@ -1036,7 +1178,6 @@ def _aggregate_effective_serve_parameters(
                 _clean_attention_backend(os.environ.get("VLLM_ATTENTION_BACKEND")),
                 "pid_process.environ.VLLM_ATTENTION_BACKEND",
             ),
-            ("default", "vllm_default"),
         ]
     )
     values["attention_backend"] = attention_backend
@@ -1044,24 +1185,33 @@ def _aggregate_effective_serve_parameters(
     if resolved_attention_backend:
         values["attention_backend_details"] = resolved_attention_backend
 
+    values["flashinfer_present"] = _optional_import("flashinfer") is not None
+    sources["flashinfer_present"] = "runtime_import.flashinfer"
+
     values["_usage_context"] = usage_context
-    values["_effective_mode"] = (
-        "fallback" if fallback_mode else "full_vllm_config"
-    )
+    if fallback_mode:
+        values["_effective_mode"] = "fallback"
+    elif is_cfg_dict:
+        values["_effective_mode"] = "full_vllm_config"
+    else:
+        values["_effective_mode"] = "unavailable"
     values["_sources"] = sources
     return values
 
 
 def _build_metadata(args: argparse.Namespace) -> dict[str, Any]:
     vllm_mod = _optional_import("vllm")
+    torch_mod = _optional_import("torch")
     version = getattr(vllm_mod, "__version__", None) if vllm_mod else None
     module_path = getattr(vllm_mod, "__file__", None) if vllm_mod else None
+    torch_version = getattr(torch_mod, "__version__", None) if torch_mod else None
 
     return {
         "python": sys.version,
         "executable": sys.executable,
         "vllm_version": version,
         "vllm_module_path": module_path,
+        "torch_version": torch_version,
         "argv": sys.argv,
         "options": {
             "pid": args.pid,
@@ -1119,10 +1269,10 @@ def main() -> int:
     try:
         pid_cmdline = _read_pid_cmdline(args.pid)
         pid_environ = _read_pid_environ(args.pid)
-        inferred_args = _infer_vllm_cli_args_from_cmdline(pid_cmdline)
+        inferred_args, infer_warning = _infer_vllm_cli_args_from_cmdline(pid_cmdline)
         inferred_usage_context = _infer_usage_context_from_cmdline(pid_cmdline)
 
-        _apply_pid_environment(pid_environ)
+        applied_env_keys = _apply_pid_environment(pid_environ)
         _force_platform_if_needed(pid_environ, errors)
 
         pid_process = {
@@ -1133,11 +1283,13 @@ def main() -> int:
             "environ": _redact_env(pid_environ)
             if args.redact_pid_env
             else pid_environ,
-            "pid_env_applied": True,
+            "pid_env_applied": "allowlisted",
+            "pid_env_applied_keys": applied_env_keys,
         }
         if not inferred_args:
             errors["pid.inferred_cli_args"] = (
-                "Could not infer vLLM CLI args from /proc/<pid>/cmdline."
+                infer_warning
+                or "Could not infer vLLM CLI args from /proc/<pid>/cmdline."
             )
     except Exception as exc:
         errors["pid.read"] = repr(exc)

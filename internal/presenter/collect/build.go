@@ -81,6 +81,9 @@ func sourceStates(promRes promcollector.Result, sources collectionSources) (map[
 		"nvidia_smi":         nvidiaSMIState,
 		"process_inspection": "ok",
 	}
+	if runtimeState := stateFor(promRes.SourceStatus, "prometheus_runtime"); runtimeState != "missing" {
+		states["prometheus_runtime"] = runtimeState
+	}
 	mode := "standard"
 	if states["gpu_telemetry"] == "ok" {
 		mode = "rich"

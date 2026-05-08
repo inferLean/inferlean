@@ -42,7 +42,17 @@ func Check(ctx context.Context) Result {
 	return Result{Available: true}
 }
 
-func Start(ctx context.Context) StartResult {
+func Start(ctx context.Context, endpoint string) StartResult {
+	if strings.TrimSpace(endpoint) != "" {
+		normalized := normalizeEndpoint(endpoint)
+		if normalized == "" {
+			return StartResult{Available: false, Reason: "invalid dcgm-exporter endpoint"}
+		}
+		if err := waitReady(ctx, normalized, 1500*time.Millisecond); err != nil {
+			return StartResult{Available: false, Reason: "dcgm-exporter endpoint is not reachable"}
+		}
+		return StartResult{Available: true, Endpoint: normalized}
+	}
 	if endpoint := detectExistingEndpoint(ctx); endpoint != "" {
 		return StartResult{Available: true, Endpoint: endpoint}
 	}

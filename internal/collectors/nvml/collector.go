@@ -17,6 +17,8 @@ type Sample struct {
 	MemoryTotal float64   `json:"memory_total"`
 	PowerDraw   float64   `json:"power_draw"`
 	Temperature float64   `json:"temperature"`
+	SMClock     float64   `json:"sm_clock"`
+	MemoryClock float64   `json:"memory_clock"`
 }
 
 type Result struct {
@@ -56,6 +58,10 @@ func BuildPromMetrics(ctx context.Context) (string, string, error) {
 	lines = append(lines, "# TYPE inferlean_nvml_power_draw_watts gauge")
 	lines = append(lines, "# HELP inferlean_nvml_temperature_celsius GPU temperature in celsius")
 	lines = append(lines, "# TYPE inferlean_nvml_temperature_celsius gauge")
+	lines = append(lines, "# HELP inferlean_nvml_sm_clock_mhz GPU SM clock in MHz")
+	lines = append(lines, "# TYPE inferlean_nvml_sm_clock_mhz gauge")
+	lines = append(lines, "# HELP inferlean_nvml_memory_clock_mhz GPU memory clock in MHz")
+	lines = append(lines, "# TYPE inferlean_nvml_memory_clock_mhz gauge")
 	for _, sample := range samples {
 		label := fmt.Sprintf("{gpu=\"%s\"}", sample.GPU)
 		lines = append(lines, fmt.Sprintf("inferlean_nvml_gpu_utilization_percent%s %f", label, sample.Utilization))
@@ -63,6 +69,8 @@ func BuildPromMetrics(ctx context.Context) (string, string, error) {
 		lines = append(lines, fmt.Sprintf("inferlean_nvml_memory_total_mb%s %f", label, sample.MemoryTotal))
 		lines = append(lines, fmt.Sprintf("inferlean_nvml_power_draw_watts%s %f", label, sample.PowerDraw))
 		lines = append(lines, fmt.Sprintf("inferlean_nvml_temperature_celsius%s %f", label, sample.Temperature))
+		lines = append(lines, fmt.Sprintf("inferlean_nvml_sm_clock_mhz%s %f", label, sample.SMClock))
+		lines = append(lines, fmt.Sprintf("inferlean_nvml_memory_clock_mhz%s %f", label, sample.MemoryClock))
 	}
 	return strings.Join(lines, "\n"), raw, nil
 }
@@ -71,7 +79,7 @@ func querySamples(ctx context.Context) ([]Sample, string, error) {
 	cmd := exec.CommandContext(
 		ctx,
 		"nvidia-smi",
-		"--query-gpu=index,utilization.gpu,memory.used,memory.total,power.draw,temperature.gpu",
+		"--query-gpu=index,utilization.gpu,memory.used,memory.total,power.draw,temperature.gpu,clocks.sm,clocks.mem",
 		"--format=csv,noheader,nounits",
 	)
 	out, err := cmd.Output()
@@ -99,14 +107,19 @@ func parseSample(line string) (Sample, bool) {
 	if len(parts) < 6 {
 		return Sample{}, false
 	}
-	return Sample{
+	sample := Sample{
 		GPU:         strings.TrimSpace(parts[0]),
 		Utilization: parse(parts[1]),
 		MemoryUsed:  parse(parts[2]),
 		MemoryTotal: parse(parts[3]),
 		PowerDraw:   parse(parts[4]),
 		Temperature: parse(parts[5]),
-	}, true
+	}
+	if len(parts) >= 8 {
+		sample.SMClock = parse(parts[6])
+		sample.MemoryClock = parse(parts[7])
+	}
+	return sample, true
 }
 
 func splitCSV(line string) []string {

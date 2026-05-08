@@ -53,7 +53,7 @@ func Discover(ctx context.Context, podName, namespace string) ([]shared.Candidat
 			return nil, nil
 		}
 		for _, item := range list.Items {
-			appendPod(&items, podNamespace(namespace, item.Metadata.Namespace), item.Metadata.Name, item.Spec.Containers)
+			appendPod(ctx, &items, podNamespace(namespace, item.Metadata.Namespace), item.Metadata.Name, item.Spec.Containers)
 		}
 		return items, nil
 	}
@@ -61,11 +61,11 @@ func Discover(ctx context.Context, podName, namespace string) ([]shared.Candidat
 	if err := json.Unmarshal(out, &one); err != nil {
 		return nil, fmt.Errorf("parse kubernetes pod %s: %w", podName, err)
 	}
-	appendPod(&items, podNamespace(namespace, one.Metadata.Namespace), one.Metadata.Name, one.Spec.Containers)
+	appendPod(ctx, &items, podNamespace(namespace, one.Metadata.Namespace), one.Metadata.Name, one.Spec.Containers)
 	return items, nil
 }
 
-func appendPod(items *[]shared.Candidate, namespace, podName string, containers []podContainer) {
+func appendPod(ctx context.Context, items *[]shared.Candidate, namespace, podName string, containers []podContainer) {
 	for _, container := range containers {
 		cmd := strings.Join(append(container.Command, container.Args...), " ")
 		if !shared.IsServeCommand(cmd) && !shared.IsVLLMImage(container.Image) {
@@ -74,6 +74,7 @@ func appendPod(items *[]shared.Candidate, namespace, podName string, containers 
 		port := shared.InferMetricsPort(cmd, podEnv(container))
 		*items = append(*items, shared.Candidate{
 			Source:          "pod",
+			InternalPID:     detectInternalPID(ctx, namespace, podName, container.Name),
 			PodName:         podName,
 			Namespace:       namespace,
 			Executable:      "k8s-container:" + container.Name,
@@ -81,6 +82,18 @@ func appendPod(items *[]shared.Candidate, namespace, podName string, containers 
 			MetricsEndpoint: shared.MetricsEndpoint("127.0.0.1", port),
 		})
 	}
+}
+
+func detectInternalPID(ctx context.Context, namespace, podName, container string) int32 {
+	out, err := exec.CommandContext(
+		ctx,
+		"kubectl",
+		kubectlExecArgs(namespace, podName, container, "sh", "-c", shared.ProcListScript)...,
+	).Output()
+	if err != nil {
+		return 0
+	}
+	return shared.FirstVLLMProcessPID(shared.ParseProcList(string(out)))
 }
 
 func kubectlGetArgs(podName, namespace string) []string {
@@ -112,6 +125,20 @@ func commandError(action string, err error, output []byte) error {
 		return fmt.Errorf("%s: %w", action, err)
 	}
 	return fmt.Errorf("%s: %w: %s", action, err, message)
+}
+
+func kubectlExecArgs(namespace, podName, container string, command ...string) []string {
+	args := []string{"exec"}
+	if namespace != "" {
+		args = append(args, "-n", namespace)
+	}
+	args = append(args, podName)
+	if container != "" {
+		args = append(args, "-c", container)
+	}
+	args = append(args, "--")
+	args = append(args, command...)
+	return args
 }
 
 func podEnv(container podContainer) []string {

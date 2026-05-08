@@ -107,11 +107,11 @@ Collection flags:
 - `--collect-for`: metrics collection duration, default `30s`
 - `--scrape-every`: metrics scrape interval, default `1s`
 - `--output`: artifact output path
-- `--workload-mode`: declared workload mode
-- `--workload-target`: declared optimization target
-- `--prefix-heavy`: `true`, `false`, or `auto`
-- `--multimodal`: `true`, `false`, or `auto`
-- `--repeated-multimodal-media`: `true`, `false`, or `auto`
+- `--workload-mode`: declared workload mode, required with `--non-interactive`
+- `--workload-target`: declared optimization target, required with `--non-interactive`
+- `--prefix-heavy`: `true`, `false`, or `auto`; explicit `true`/`false` required with `--non-interactive`
+- `--multimodal`: `true`, `false`, or `auto`; explicit `true`/`false` required with `--non-interactive`
+- `--repeated-multimodal-media`: `true`, `false`, or `auto`; explicit `true`/`false` required with `--non-interactive`
 
 `collect` also accepts the target discovery flags from `discover`.
 

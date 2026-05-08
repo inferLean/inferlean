@@ -23,28 +23,28 @@ type runtimeProcess struct {
 	workDir string
 }
 
-func tryStartRuntime(ctx context.Context, targets []Target, every time.Duration) *runtimeProcess {
+func tryStartRuntime(ctx context.Context, targets []Target, every time.Duration) (*runtimeProcess, string) {
 	path, err := tools.ResolveBinary("prometheus")
 	if err != nil {
-		return nil
+		return nil, err.Error()
 	}
 	configBody := buildConfig(targets, every)
 	if strings.TrimSpace(configBody) == "" {
-		return nil
+		return nil, "no valid prometheus scrape targets"
 	}
 	workDir, err := os.MkdirTemp("", "inferlean-prom-*")
 	if err != nil {
-		return nil
+		return nil, err.Error()
 	}
 	configPath := filepath.Join(workDir, "prometheus.yml")
 	if err := os.WriteFile(configPath, []byte(configBody), 0o600); err != nil {
 		_ = os.RemoveAll(workDir)
-		return nil
+		return nil, err.Error()
 	}
 	port, err := reservePort()
 	if err != nil {
 		_ = os.RemoveAll(workDir)
-		return nil
+		return nil, err.Error()
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	cmd := exec.CommandContext(
@@ -59,15 +59,15 @@ func tryStartRuntime(ctx context.Context, targets []Target, every time.Duration)
 	cmd.Stderr = &bytes.Buffer{}
 	if err := cmd.Start(); err != nil {
 		_ = os.RemoveAll(workDir)
-		return nil
+		return nil, err.Error()
 	}
 	runtime := &runtimeProcess{cmd: cmd, workDir: workDir}
 	readyURL := fmt.Sprintf("http://%s/-/ready", addr)
 	if err := waitReady(ctx, readyURL, 5*time.Second); err != nil {
 		_ = runtime.Stop(context.Background())
-		return nil
+		return nil, err.Error()
 	}
-	return runtime
+	return runtime, ""
 }
 
 func buildConfig(targets []Target, every time.Duration) string {

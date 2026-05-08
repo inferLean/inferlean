@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/shared"
 )
 
 func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
@@ -31,7 +33,11 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 				"quantization":           "none",
 				"dtype":                  "bfloat16",
 				"attention_backend":      "default",
-				"_sources":               map[string]any{"max_model_len": "x"},
+				"flashinfer_present":     false,
+				"_sources": map[string]any{
+					"max_model_len":      "x",
+					"flashinfer_present": "runtime_import.flashinfer",
+				},
 			},
 		},
 	)
@@ -62,6 +68,9 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 	if out.Args["attention-backend"] != "default" {
 		t.Fatalf("attention-backend = %q", out.Args["attention-backend"])
 	}
+	if out.Args["flashinfer-present"] != "false" {
+		t.Fatalf("flashinfer-present = %q", out.Args["flashinfer-present"])
+	}
 	if out.ArgSources["max-num-seqs"] != "explicit" {
 		t.Fatalf("max-num-seqs source = %q, want explicit", out.ArgSources["max-num-seqs"])
 	}
@@ -71,8 +80,11 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 	if out.ArgSources["enable-prefix-caching"] == "" {
 		t.Fatal("enable-prefix-caching source is empty")
 	}
-	if out.AppliedDefaults != 11 {
-		t.Fatalf("AppliedDefaults = %d, want 11", out.AppliedDefaults)
+	if out.ArgSources["flashinfer-present"] != "runtime_import.flashinfer" {
+		t.Fatalf("flashinfer-present source = %q, want runtime_import.flashinfer", out.ArgSources["flashinfer-present"])
+	}
+	if out.AppliedDefaults != 12 {
+		t.Fatalf("AppliedDefaults = %d, want 12", out.AppliedDefaults)
 	}
 }
 
@@ -81,6 +93,35 @@ func TestResolveFromDumpRequiresEffectiveServeParameters(t *testing.T) {
 	_, err := resolveFromDump(Input{}, runtimeDumpFile{})
 	if err == nil {
 		t.Fatal("resolveFromDump() expected error")
+	}
+}
+
+func TestResolveFromDumpSkipsUnknownAttentionBackend(t *testing.T) {
+	t.Parallel()
+
+	out, err := resolveFromDump(
+		Input{
+			RawCommandLine: "vllm serve model-a",
+			ExplicitArgs:   map[string]string{},
+		},
+		runtimeDumpFile{
+			EffectiveServeParameters: map[string]any{
+				"attention_backend": nil,
+				"_sources":          map[string]any{"attention_backend": nil},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("resolveFromDump() error = %v", err)
+	}
+	if _, ok := out.Args["attention-backend"]; ok {
+		t.Fatalf("attention-backend unexpectedly applied: %q", out.Args["attention-backend"])
+	}
+	if _, ok := out.ArgSources["attention-backend"]; ok {
+		t.Fatalf("attention-backend source unexpectedly applied: %q", out.ArgSources["attention-backend"])
+	}
+	if out.AppliedDefaults != 0 {
+		t.Fatalf("AppliedDefaults = %d, want 0", out.AppliedDefaults)
 	}
 }
 
@@ -99,5 +140,59 @@ func TestFindDumpScriptUnderRootFindsCLIScript(t *testing.T) {
 	got := findDumpScriptUnderRoot(filepath.Join(root, "cmd", "inferlean"))
 	if got != scriptPath {
 		t.Fatalf("findDumpScriptUnderRoot() = %q, want %q", got, scriptPath)
+	}
+}
+
+func TestRuntimePIDUsesInternalPID(t *testing.T) {
+	t.Parallel()
+	pid, err := runtimePID(shared.Candidate{
+		Source:      "docker",
+		PID:         4321,
+		InternalPID: 17,
+	}, "docker")
+	if err != nil {
+		t.Fatalf("runtimePID() error = %v", err)
+	}
+	if pid != 17 {
+		t.Fatalf("runtimePID() = %d, want 17", pid)
+	}
+}
+
+func TestRuntimePIDAllowsProcessPIDFallback(t *testing.T) {
+	t.Parallel()
+	pid, err := runtimePID(shared.Candidate{
+		Source: "process",
+		PID:    4321,
+	}, "process")
+	if err != nil {
+		t.Fatalf("runtimePID() error = %v", err)
+	}
+	if pid != 4321 {
+		t.Fatalf("runtimePID() = %d, want 4321", pid)
+	}
+}
+
+func TestRuntimePIDRequiresInternalPIDForDocker(t *testing.T) {
+	t.Parallel()
+	_, err := runtimePID(shared.Candidate{
+		Source: "docker",
+		PID:    4321,
+	}, "docker")
+	if err == nil {
+		t.Fatal("runtimePID() expected error")
+	}
+}
+
+func TestPythonCandidatesPreferTargetProcessExe(t *testing.T) {
+	t.Parallel()
+	got := pythonCandidates(17)
+	want := []string{"/proc/17/exe"}
+	if len(got) != len(want) {
+		t.Fatalf("len(pythonCandidates()) = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("pythonCandidates()[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }

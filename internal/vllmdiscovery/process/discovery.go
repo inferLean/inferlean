@@ -17,7 +17,7 @@ func Discover(ctx context.Context, pidFilter int32) ([]shared.Candidate, error) 
 			return nil, fmt.Errorf("inspect process %d: %w", pidFilter, err)
 		}
 		cand := fromProcess(ctx, proc)
-		if shared.IsServeCommand(cand.RawCommandLine) {
+		if shared.IsVLLMProcess(snapshotFromCandidate(cand)) {
 			return []shared.Candidate{cand}, nil
 		}
 		return nil, fmt.Errorf("process %d is not a vLLM serve process", pidFilter)
@@ -29,7 +29,7 @@ func Discover(ctx context.Context, pidFilter int32) ([]shared.Candidate, error) 
 	out := make([]shared.Candidate, 0, len(procs))
 	for _, proc := range procs {
 		cand := fromProcess(ctx, proc)
-		if !shared.IsServeCommand(cand.RawCommandLine) {
+		if !shared.IsVLLMProcess(snapshotFromCandidate(cand)) {
 			continue
 		}
 		out = append(out, cand)
@@ -48,10 +48,20 @@ func fromProcess(ctx context.Context, proc *gopsprocess.Process) shared.Candidat
 	return shared.Candidate{
 		Source:          "process",
 		PID:             proc.Pid,
+		InternalPID:     proc.Pid,
 		Executable:      exe,
 		RawCommandLine:  raw,
 		MetricsEndpoint: shared.InferMetricsEndpoint(raw, env),
 		StartedAt:       started,
+	}
+}
+
+func snapshotFromCandidate(cand shared.Candidate) shared.ProcessSnapshot {
+	return shared.ProcessSnapshot{
+		PID:            cand.PID,
+		Executable:     cand.Executable,
+		RawCommandLine: cand.RawCommandLine,
+		StartedAt:      cand.StartedAt,
 	}
 }
 

@@ -2,7 +2,9 @@ package artifactnormalize
 
 import (
 	"testing"
+	"time"
 
+	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
 	"github.com/inferLean/inferlean-main/cli/internal/types"
 )
 
@@ -92,5 +94,81 @@ func TestNormalizeRuntimeConfigPrefersExplicitRuntimeHostPort(t *testing.T) {
 	}
 	if got, want := runtime.Port, 9000; got != want {
 		t.Fatalf("port = %d, want %d", got, want)
+	}
+}
+
+func TestNormalizeRuntimeConfigPrefersLivePrefixCachingConfig(t *testing.T) {
+	input := Input{
+		Configurations: types.Configurations{
+			ParsedArgs: map[string]string{
+				"enable-prefix-caching": "true",
+			},
+			ParsedArgSources: map[string]string{
+				"enable-prefix-caching": "effective_engine_config.cache_config.enable_prefix_caching",
+			},
+		},
+		Observations: ObservationsInput{
+			Prometheus: map[string][]promcollector.Sample{
+				"vllm": {
+					{
+						Timestamp: time.Unix(10, 0).UTC(),
+						Metrics: []promcollector.MetricPoint{
+							{
+								Name: "vllm:cache_config_info",
+								Labels: map[string]string{
+									"enable_prefix_caching": "False",
+								},
+								Value: 1,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	runtime := normalizeRuntimeConfig(input)
+
+	if runtime.PrefixCaching == nil {
+		t.Fatal("prefix caching is nil")
+	}
+	if *runtime.PrefixCaching {
+		t.Fatal("prefix caching = true, want false from live vLLM cache config")
+	}
+	if got, want := runtime.ValueSources["prefix_caching"], "metrics.vllm.cache_config_info.enable_prefix_caching"; got != want {
+		t.Fatalf("prefix_caching source = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeRuntimeConfigUsesNoImageProcessorForNonMultimodalRuns(t *testing.T) {
+	runtime := normalizeRuntimeConfig(Input{})
+
+	if got, want := runtime.ImageProcessor, "none"; got != want {
+		t.Fatalf("image_processor = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeRuntimeConfigCarriesFlashinferPresence(t *testing.T) {
+	input := Input{
+		Configurations: types.Configurations{
+			ParsedArgs: map[string]string{
+				"flashinfer-present": "false",
+			},
+			ParsedArgSources: map[string]string{
+				"flashinfer-present": "runtime_import.flashinfer",
+			},
+		},
+	}
+
+	runtime := normalizeRuntimeConfig(input)
+
+	if runtime.FlashinferPresent == nil {
+		t.Fatal("flashinfer_present is nil")
+	}
+	if *runtime.FlashinferPresent {
+		t.Fatal("flashinfer_present = true, want false")
+	}
+	if got, want := runtime.ValueSources["flashinfer_presence"], "runtime_import.flashinfer"; got != want {
+		t.Fatalf("flashinfer_presence source = %q, want %q", got, want)
 	}
 }

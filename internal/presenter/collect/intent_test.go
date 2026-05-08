@@ -1,6 +1,7 @@
 package collect
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/inferLean/inferlean-main/cli/internal/types"
@@ -73,5 +74,41 @@ func TestHasCompleteIntent(t *testing.T) {
 				t.Fatalf("hasCompleteIntent() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestRequireCompleteIntentReportsMissingFlags(t *testing.T) {
+	t.Parallel()
+	err := requireCompleteIntent(Options{}, types.UserIntent{})
+	if err == nil {
+		t.Fatal("expected missing intent error")
+	}
+	message := err.Error()
+	for _, want := range []string{
+		"--workload-mode",
+		"--workload-target",
+		"--prefix-heavy",
+		"--multimodal",
+		"--repeated-multimodal-media",
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("missing error %q does not mention %s", message, want)
+		}
+	}
+}
+
+func TestRequireCompleteIntentAllowsExplicitFalseValues(t *testing.T) {
+	t.Parallel()
+	no := false
+	err := requireCompleteIntent(Options{
+		PrefixHeavy:             &no,
+		Multimodal:              &no,
+		RepeatedMultimodalMedia: &no,
+	}, types.UserIntent{
+		DeclaredWorkloadMode:   "mixed",
+		DeclaredWorkloadTarget: "latency",
+	})
+	if err != nil {
+		t.Fatalf("expected explicit false intent to be complete, got %v", err)
 	}
 }

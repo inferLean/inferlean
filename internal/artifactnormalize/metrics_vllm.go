@@ -33,11 +33,11 @@ func normalizeVLLMMetrics(samples []promcollector.Sample) contracts.VLLMMetrics 
 			"vllm:mm_cache_queries_total",
 		),
 	}
-	metrics.Coverage = vllmCoverage(metrics)
+	metrics.Coverage = vllmCoverage(metrics, len(samples) > 0 && !hasMetric(samples, "vllm:prompt_tokens_recomputed_total"))
 	return metrics
 }
 
-func vllmCoverage(metrics contracts.VLLMMetrics) contracts.SourceCoverage {
+func vllmCoverage(metrics contracts.VLLMMetrics, recomputedUnsupported bool) contracts.SourceCoverage {
 	present := map[string]bool{}
 	appendPresent(present, "requests_running", metrics.RequestsRunning.HasData())
 	appendPresent(present, "requests_waiting", metrics.RequestsWaiting.HasData())
@@ -57,6 +57,9 @@ func vllmCoverage(metrics contracts.VLLMMetrics) contracts.SourceCoverage {
 	appendPresent(present, "prefix_cache", metrics.PrefixCache.HasData())
 	appendPresent(present, "multimodal_cache", metrics.MultimodalCache.HasData())
 	coverage := newCoverage(present, vllmRequiredFields())
+	if recomputedUnsupported {
+		coverage = markUnsupported(coverage, "recomputed_prompt_tokens")
+	}
 	if metrics.RequestThroughput.HasData() {
 		coverage.PresentFields = append(coverage.PresentFields, "request_throughput")
 	} else {

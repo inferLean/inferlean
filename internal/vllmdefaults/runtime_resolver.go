@@ -21,7 +21,8 @@ type RuntimeInput struct {
 
 type runtimeDumpFile struct {
 	Metadata struct {
-		VLLMVersion string `json:"vllm_version"`
+		VLLMVersion  string `json:"vllm_version"`
+		TorchVersion string `json:"torch_version"`
 	} `json:"metadata"`
 	EffectiveServeParameters map[string]any    `json:"effective_serve_parameters"`
 	Errors                   map[string]string `json:"errors"`
@@ -49,6 +50,7 @@ var allowedEffectiveKeys = map[string]bool{
 	"quantization":           true,
 	"dtype":                  true,
 	"attention-backend":      true,
+	"flashinfer-present":     true,
 }
 
 func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
@@ -83,6 +85,9 @@ func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
 	out.RuntimeErrors = flattenStatusMap(dump.Errors)
 	if strings.TrimSpace(dump.Metadata.VLLMVersion) != "" {
 		out.ResolvedVersion = strings.TrimSpace(dump.Metadata.VLLMVersion)
+	}
+	if strings.TrimSpace(dump.Metadata.TorchVersion) != "" {
+		out.ResolvedTorchVersion = strings.TrimSpace(dump.Metadata.TorchVersion)
 	}
 	return out, nil
 }

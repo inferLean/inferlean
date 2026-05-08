@@ -150,6 +150,9 @@ func applyVLLMDefaults(
 	if strings.TrimSpace(resolved.ResolvedVersion) != "" {
 		hints = withHint(hints, "vllm_defaults_runtime_version", resolved.ResolvedVersion)
 	}
+	if strings.TrimSpace(resolved.ResolvedTorchVersion) != "" {
+		hints = withHint(hints, "torch_version", resolved.ResolvedTorchVersion)
+	}
 	if strings.TrimSpace(resolved.RuntimeWarnings) != "" {
 		hints = withHint(hints, "vllm_defaults_warnings", resolved.RuntimeWarnings)
 	}

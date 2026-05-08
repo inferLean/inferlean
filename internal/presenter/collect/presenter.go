@@ -29,6 +29,7 @@ type Options struct {
 	CollectFor              time.Duration
 	ScrapeEvery             time.Duration
 	OutputPath              string
+	DCGMEndpoint            string
 	CollectorVersion        string
 	DeclaredWorkloadMode    string
 	DeclaredWorkloadTarget  string
@@ -98,6 +99,10 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	if strings.TrimSpace(opts.CollectorVersion) == "" {
 		opts.CollectorVersion = "dev"
 	}
+	intent, err := p.resolveIntent(opts)
+	if err != nil {
+		return Result{}, err
+	}
 	cfg, err := p.cfgStore.Ensure()
 	if err != nil {
 		return Result{}, err
@@ -111,10 +116,6 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 
-	intent, err := p.resolveIntent(opts)
-	if err != nil {
-		return Result{}, err
-	}
 	start := time.Now().UTC()
 	evidence, err := p.collectEvidence(ctx, opts, paths)
 	if err != nil {
@@ -322,7 +323,14 @@ func (p Presenter) resolveIntent(opts Options) (types.UserIntent, error) {
 		Multimodal:              opts.Multimodal,
 		RepeatedMultimodalMedia: opts.RepeatedMultimodalMedia,
 	})
-	if opts.NonInteractive || hasCompleteIntent(opts, intentSeed) {
+	if opts.NonInteractive {
+		if err := requireCompleteIntent(opts, intentSeed); err != nil {
+			return types.UserIntent{}, err
+		}
+		p.intentView.ShowResolved(intentSeed)
+		return intentSeed, nil
+	}
+	if hasCompleteIntent(opts, intentSeed) {
 		p.intentView.ShowResolved(intentSeed)
 		return intentSeed, nil
 	}
@@ -334,12 +342,36 @@ func (p Presenter) resolveIntent(opts Options) (types.UserIntent, error) {
 	return intent, nil
 }
 
+func requireCompleteIntent(opts Options, seed types.UserIntent) error {
+	missing := missingIntentFields(opts, seed)
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf("non-interactive collection requires explicit user intent flags: %s", strings.Join(missing, ", "))
+}
+
+func missingIntentFields(opts Options, seed types.UserIntent) []string {
+	missing := []string{}
+	if strings.TrimSpace(seed.DeclaredWorkloadMode) == "" {
+		missing = append(missing, "--workload-mode")
+	}
+	if strings.TrimSpace(seed.DeclaredWorkloadTarget) == "" {
+		missing = append(missing, "--workload-target")
+	}
+	if opts.PrefixHeavy == nil {
+		missing = append(missing, "--prefix-heavy")
+	}
+	if opts.Multimodal == nil {
+		missing = append(missing, "--multimodal")
+	}
+	if opts.RepeatedMultimodalMedia == nil {
+		missing = append(missing, "--repeated-multimodal-media")
+	}
+	return missing
+}
+
 func hasCompleteIntent(opts Options, seed types.UserIntent) bool {
-	return strings.TrimSpace(seed.DeclaredWorkloadMode) != "" &&
-		strings.TrimSpace(seed.DeclaredWorkloadTarget) != "" &&
-		opts.PrefixHeavy != nil &&
-		opts.Multimodal != nil &&
-		opts.RepeatedMultimodalMedia != nil
+	return len(missingIntentFields(opts, seed)) == 0
 }
 
 func validateDurations(collectFor, scrapeEvery time.Duration) error {

@@ -40,6 +40,7 @@ func newCollectCommand() *cobra.Command {
 				CollectFor:              opts.CollectFor,
 				ScrapeEvery:             opts.ScrapeEvery,
 				OutputPath:              opts.OutputPath,
+				DCGMEndpoint:            opts.DCGMEndpoint,
 				CollectorVersion:        version,
 				DeclaredWorkloadMode:    opts.DeclaredWorkloadMode,
 				DeclaredWorkloadTarget:  opts.DeclaredWorkloadTarget,
@@ -64,11 +65,12 @@ func bindCollectFlags(cmd *cobra.Command, opts *CollectFlags) {
 	cmd.Flags().DurationVar(&opts.CollectFor, "collect-for", defaultCollectFor, "collection duration")
 	cmd.Flags().DurationVar(&opts.ScrapeEvery, "scrape-every", defaultScrapeEvery, "scrape interval")
 	cmd.Flags().StringVar(&opts.OutputPath, "output", "", "artifact output path")
-	cmd.Flags().StringVar(&opts.DeclaredWorkloadMode, "workload-mode", "", "declared workload mode")
-	cmd.Flags().StringVar(&opts.DeclaredWorkloadTarget, "workload-target", "", "declared optimization target")
-	cmd.Flags().StringVar(&opts.PrefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto)")
-	cmd.Flags().StringVar(&opts.Multimodal, "multimodal", "auto", "multimodal workload (true|false|auto)")
-	cmd.Flags().StringVar(&opts.RepeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto)")
+	cmd.Flags().StringVar(&opts.DCGMEndpoint, "dcgm-endpoint", "", "existing dcgm-exporter metrics endpoint")
+	cmd.Flags().StringVar(&opts.DeclaredWorkloadMode, "workload-mode", "", "declared workload mode, required with --non-interactive")
+	cmd.Flags().StringVar(&opts.DeclaredWorkloadTarget, "workload-target", "", "declared optimization target, required with --non-interactive")
+	cmd.Flags().StringVar(&opts.PrefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto), explicit true/false required with --non-interactive")
+	cmd.Flags().StringVar(&opts.Multimodal, "multimodal", "auto", "multimodal workload (true|false|auto), explicit true/false required with --non-interactive")
+	cmd.Flags().StringVar(&opts.RepeatedMultimodalMedia, "repeated-multimodal-media", "auto", "same images/media repeat across requests (true|false|auto), explicit true/false required with --non-interactive")
 }
 
 func parseCollectIntentFlags(opts CollectFlags) (collectIntentFlags, error) {

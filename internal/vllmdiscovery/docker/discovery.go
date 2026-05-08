@@ -49,10 +49,12 @@ func Discover(ctx context.Context, name string) ([]shared.Candidate, error) {
 		if !shared.IsServeCommand(inspected.RawCommandLine) {
 			continue
 		}
+		internalPID := detectInternalPID(ctx, containerID)
 		records = append(records, containerRecord{
-			id:        containerID,
-			name:      containerName,
-			inspected: inspected,
+			id:          containerID,
+			name:        containerName,
+			internalPID: internalPID,
+			inspected:   inspected,
 		})
 	}
 	if err := scan.Err(); err != nil {
@@ -81,9 +83,10 @@ func preferredRecords(records []containerRecord, name string) []containerRecord 
 }
 
 type containerRecord struct {
-	id        string
-	name      string
-	inspected inspectedContainer
+	id          string
+	name        string
+	internalPID int32
+	inspected   inspectedContainer
 }
 
 type inspectOutput []struct {
@@ -155,6 +158,7 @@ func candidatesFromRecords(records []containerRecord) ([]shared.Candidate, error
 		items = append(items, shared.Candidate{
 			Source:          "docker",
 			PID:             record.inspected.PID,
+			InternalPID:     record.internalPID,
 			ContainerID:     record.id,
 			RawCommandLine:  record.inspected.RawCommandLine,
 			MetricsEndpoint: endpoint,
@@ -162,6 +166,22 @@ func candidatesFromRecords(records []containerRecord) ([]shared.Candidate, error
 		})
 	}
 	return items, nil
+}
+
+func detectInternalPID(ctx context.Context, containerID string) int32 {
+	out, err := exec.CommandContext(
+		ctx,
+		"docker",
+		"exec",
+		containerID,
+		"sh",
+		"-c",
+		shared.ProcListScript,
+	).Output()
+	if err != nil {
+		return 0
+	}
+	return shared.FirstVLLMProcessPID(shared.ParseProcList(string(out)))
 }
 
 func publishedMetricsEndpoint(ports map[string][]portBinding, port int) (string, bool) {

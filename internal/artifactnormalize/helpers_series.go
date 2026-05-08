@@ -3,7 +3,6 @@ package artifactnormalize
 import (
 	"math"
 	"strings"
-	"time"
 
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
@@ -120,6 +119,17 @@ func latestMetricValue(samples []promcollector.Sample, name string) (float64, bo
 	return metricValue(samples[len(samples)-1].Metrics, name)
 }
 
+func hasMetric(samples []promcollector.Sample, name string) bool {
+	for _, sample := range samples {
+		for _, metric := range sample.Metrics {
+			if metric.Name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func deltaRateWindow(samples []promcollector.Sample, name string, scale float64) contracts.MetricWindow {
 	points := make([]contracts.MetricSample, 0, len(samples))
 	for idx := 1; idx < len(samples); idx++ {
@@ -145,9 +155,29 @@ func deltaRateWindow(samples []promcollector.Sample, name string, scale float64)
 
 func memoryWindows(usedBytes, totalBytes contracts.MetricWindow) contracts.MemoryMetrics {
 	memory := contracts.MemoryMetrics{Used: usedBytes, Total: totalBytes}
-	if usedBytes.Latest != nil && totalBytes.Latest != nil {
-		free := *totalBytes.Latest - *usedBytes.Latest
-		memory.Free = withSamples([]contracts.MetricSample{{Timestamp: time.Now().UTC(), Value: free}})
-	}
+	memory.Free = derivedFreeMemoryWindow(usedBytes.Samples, totalBytes.Samples)
 	return memory
+}
+
+func derivedFreeMemoryWindow(usedSamples, totalSamples []contracts.MetricSample) contracts.MetricWindow {
+	totalByTimestamp := make(map[int64]float64, len(totalSamples))
+	for _, sample := range totalSamples {
+		totalByTimestamp[sample.Timestamp.UnixNano()] = sample.Value
+	}
+	freeSamples := make([]contracts.MetricSample, 0, len(usedSamples))
+	for _, used := range usedSamples {
+		total, ok := totalByTimestamp[used.Timestamp.UnixNano()]
+		if !ok {
+			continue
+		}
+		free := total - used.Value
+		if free < 0 {
+			continue
+		}
+		freeSamples = append(freeSamples, contracts.MetricSample{
+			Timestamp: used.Timestamp,
+			Value:     free,
+		})
+	}
+	return withSamples(freeSamples)
 }

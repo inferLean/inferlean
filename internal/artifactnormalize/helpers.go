@@ -162,6 +162,36 @@ func newCoverage(present map[string]bool, required []string) contracts.SourceCov
 	return coverage
 }
 
+func markUnsupported(coverage contracts.SourceCoverage, fields ...string) contracts.SourceCoverage {
+	for _, field := range fields {
+		if contains(coverage.PresentFields, field) || contains(coverage.UnsupportedFields, field) {
+			continue
+		}
+		coverage.MissingFields = removeField(coverage.MissingFields, field)
+		coverage.UnsupportedFields = append(coverage.UnsupportedFields, field)
+	}
+	return coverage
+}
+
+func contains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func removeField(values []string, remove string) []string {
+	out := values[:0]
+	for _, value := range values {
+		if value != remove {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
 func appendPresent(present map[string]bool, field string, enabled bool) {
 	if enabled {
 		present[field] = true

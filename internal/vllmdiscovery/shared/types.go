@@ -5,6 +5,7 @@ import "time"
 type Candidate struct {
 	Source          string    `json:"source"`
 	PID             int32     `json:"pid,omitempty"`
+	InternalPID     int32     `json:"internal_pid,omitempty"`
 	Executable      string    `json:"executable,omitempty"`
 	RawCommandLine  string    `json:"raw_command_line,omitempty"`
 	MetricsEndpoint string    `json:"metrics_endpoint,omitempty"`

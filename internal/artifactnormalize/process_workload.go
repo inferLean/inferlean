@@ -1,38 +1,68 @@
 package artifactnormalize
 
 import (
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 func normalizeProcessInspection(input Input) contracts.ProcessInspection {
-	startedAt := input.Job.StartedAt
-	if startedAt.IsZero() {
-		startedAt = time.Now().UTC()
-	}
 	target := contracts.TargetProcess{
 		PID:            input.Target.PID,
-		Executable:     firstNonEmpty(input.Target.Executable, inferExecutable(input.Target.RawCommandLine)),
+		Executable:     strings.TrimSpace(input.Target.Executable),
 		RawCommandLine: strings.TrimSpace(input.Target.RawCommandLine),
-		StartedAt:      &startedAt,
 	}
-	observed := contracts.ObservedProcess{
-		PID:            target.PID,
-		Executable:     target.Executable,
-		RawCommandLine: target.RawCommandLine,
-		StartedAt:      target.StartedAt,
-	}
+	related := relatedProcessesFromNvidiaSMI(input.Configurations.NvidiaSMIStaticText)
+	present := map[string]bool{}
+	appendPresent(present, "raw_command_line", target.RawCommandLine != "")
+	appendPresent(present, "target_pid", target.PID > 0)
+	appendPresent(present, "executable_identity", target.Executable != "")
+	appendPresent(present, "related_process_identities", len(related) > 0)
 	return contracts.ProcessInspection{
 		TargetProcess:    target,
-		RelatedProcesses: []contracts.ObservedProcess{observed},
-		Coverage: contracts.SourceCoverage{PresentFields: []string{
-			"raw_command_line",
-			"target_pid",
-			"executable_identity",
-			"related_process_identities",
-		}},
+		RelatedProcesses: related,
+		Coverage:         newCoverage(present, processInspectionRequiredFields()),
+	}
+}
+
+func relatedProcessesFromNvidiaSMI(raw string) []contracts.ObservedProcess {
+	processes := []contracts.ObservedProcess{}
+	for _, line := range strings.Split(raw, "\n") {
+		normalized := strings.ToLower(line)
+		if !strings.Contains(normalized, "vllm") || !strings.Contains(line, "MiB") {
+			continue
+		}
+		fields := strings.Fields(strings.ReplaceAll(line, "|", " "))
+		for idx, field := range fields {
+			if field != "C" && field != "G" {
+				continue
+			}
+			if idx == 0 || idx+1 >= len(fields) {
+				continue
+			}
+			pid, err := strconv.ParseInt(fields[idx-1], 10, 32)
+			if err != nil || pid <= 0 {
+				continue
+			}
+			executable := strings.Join(fields[idx+1:len(fields)-1], " ")
+			processes = append(processes, contracts.ObservedProcess{
+				PID:            int32(pid),
+				Executable:     strings.TrimSpace(executable),
+				RawCommandLine: strings.TrimSpace(executable),
+			})
+			break
+		}
+	}
+	return processes
+}
+
+func processInspectionRequiredFields() []string {
+	return []string{
+		"raw_command_line",
+		"target_pid",
+		"executable_identity",
+		"related_process_identities",
 	}
 }
 
@@ -85,12 +115,4 @@ func repeatedMultimodalMediaState(value bool) string {
 		return "high"
 	}
 	return "low"
-}
-
-func inferExecutable(raw string) string {
-	fields := strings.Fields(strings.TrimSpace(raw))
-	if len(fields) == 0 {
-		return ""
-	}
-	return fields[0]
 }

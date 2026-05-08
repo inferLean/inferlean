@@ -68,6 +68,7 @@ func TestCandidatesFromRecordsUsesEnvMetricsPort(t *testing.T) {
 				"9100/tcp": {{HostIP: "0.0.0.0", HostPort: "19100"}},
 			},
 		},
+		internalPID: 17,
 	}})
 	if err != nil {
 		t.Fatalf("candidatesFromRecords returned error: %v", err)
@@ -77,6 +78,9 @@ func TestCandidatesFromRecordsUsesEnvMetricsPort(t *testing.T) {
 	}
 	if got, want := candidates[0].MetricsEndpoint, "http://127.0.0.1:19100/metrics"; got != want {
 		t.Fatalf("MetricsEndpoint = %q, want %q", got, want)
+	}
+	if got := candidates[0].InternalPID; got != 17 {
+		t.Fatalf("InternalPID = %d, want 17", got)
 	}
 }
 

@@ -1,6 +1,9 @@
 package artifactnormalize
 
 import (
+	"strconv"
+	"strings"
+
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
@@ -10,11 +13,12 @@ func normalizeMetrics(input Input) contracts.Metrics {
 	vllm := prom["vllm"]
 	node := prom["node_exporter"]
 	nvml := prom["nvml_bridge"]
+	dcgm := prom["dcgm_exporter"]
 	return contracts.Metrics{
 		VLLM:      normalizeVLLMMetrics(vllm),
 		Host:      normalizeHostMetrics(node, vllm),
-		GPU:       normalizeGPUMetrics(nvml),
-		NvidiaSmi: normalizeNvidiaSMIMetrics(nvml),
+		GPU:       normalizeGPUMetrics(nvml, dcgm),
+		NvidiaSmi: normalizeNvidiaSMIMetrics(nvml, dcgm, input.Configurations.NvidiaSMIStaticText),
 	}
 }
 
@@ -37,38 +41,115 @@ func normalizeHostMetrics(node, vllm []promcollector.Sample) contracts.HostMetri
 	return host
 }
 
-func normalizeGPUMetrics(samples []promcollector.Sample) contracts.GPUTelemetry {
-	gpuUtil := windowFromMetric(samples, "inferlean_nvml_gpu_utilization_percent")
-	memoryUsed := mbToBytesWindow(windowFromMetric(samples, "inferlean_nvml_memory_used_mb"))
-	memoryTotal := mbToBytesWindow(windowFromMetric(samples, "inferlean_nvml_memory_total_mb"))
+func normalizeGPUMetrics(nvml, dcgm []promcollector.Sample) contracts.GPUTelemetry {
+	gpuUtil := firstWindow(
+		windowFromMetric(dcgm, "DCGM_FI_PROF_GR_ENGINE_ACTIVE"),
+		windowFromMetric(dcgm, "DCGM_FI_DEV_GPU_UTIL"),
+		windowFromMetric(nvml, "inferlean_nvml_gpu_utilization_percent"),
+	)
+	memoryUsed := firstWindow(
+		mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_used_mb")),
+		mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_USED")),
+	)
+	memoryTotal := mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_total_mb"))
 	gpu := contracts.GPUTelemetry{
 		GPUUtilizationOrSMActivity: gpuUtil,
 		FramebufferMemory:          memoryWindows(memoryUsed, memoryTotal),
-		MemoryBandwidth:            contracts.MetricWindow{},
-		Clocks:                     contracts.ClockMetrics{},
-		Power:                      windowFromMetric(samples, "inferlean_nvml_power_draw_watts"),
-		Temperature:                windowFromMetric(samples, "inferlean_nvml_temperature_celsius"),
-		PCIeThroughput:             contracts.ThroughputMetrics{},
-		NVLinkThroughput:           contracts.ThroughputMetrics{},
-		ReliabilityErrors:          contracts.ReliabilityMetrics{},
+		MemoryBandwidth:            windowFromMetric(dcgm, "DCGM_FI_PROF_DRAM_ACTIVE"),
+		Clocks: contracts.ClockMetrics{
+			SM:     windowFromMetric(dcgm, "DCGM_FI_DEV_SM_CLOCK"),
+			Memory: windowFromMetric(dcgm, "DCGM_FI_DEV_MEM_CLOCK"),
+		},
+		Power: firstWindow(
+			windowFromMetric(dcgm, "DCGM_FI_DEV_POWER_USAGE"),
+			windowFromMetric(nvml, "inferlean_nvml_power_draw_watts"),
+		),
+		Temperature: firstWindow(
+			windowFromMetric(dcgm, "DCGM_FI_DEV_GPU_TEMP"),
+			windowFromMetric(nvml, "inferlean_nvml_temperature_celsius"),
+		),
+		PCIeThroughput: contracts.ThroughputMetrics{
+			RX: deltaRateWindow(dcgm, "DCGM_FI_PROF_PCIE_RX_BYTES", 1),
+			TX: deltaRateWindow(dcgm, "DCGM_FI_PROF_PCIE_TX_BYTES", 1),
+		},
+		NVLinkThroughput: contracts.ThroughputMetrics{
+			RX: deltaRateWindow(dcgm, "DCGM_FI_PROF_NVLINK_RX_BYTES", 1),
+			TX: deltaRateWindow(dcgm, "DCGM_FI_PROF_NVLINK_TX_BYTES", 1),
+		},
+		ReliabilityErrors: contracts.ReliabilityMetrics{
+			XID: windowFromMetric(dcgm, "DCGM_FI_DEV_XID_ERRORS"),
+			ECC: firstWindow(
+				windowFromMetric(dcgm, "DCGM_FI_DEV_ECC_DBE_VOL_TOTAL"),
+				windowFromMetric(dcgm, "DCGM_FI_DEV_ECC_SBE_VOL_TOTAL"),
+			),
+		},
 	}
-	gpu.Coverage = gpuCoverage(gpu)
+	gpu.Coverage = gpuCoverage(gpu, len(dcgm) > 0)
 	return gpu
 }
 
-func normalizeNvidiaSMIMetrics(samples []promcollector.Sample) contracts.NvidiaSMIMetrics {
+func normalizeNvidiaSMIMetrics(nvml, dcgm []promcollector.Sample, staticSMI string) contracts.NvidiaSMIMetrics {
 	metrics := contracts.NvidiaSMIMetrics{
-		GPUUtilization:   windowFromMetric(samples, "inferlean_nvml_gpu_utilization_percent"),
-		MemoryUsed:       mbToBytesWindow(windowFromMetric(samples, "inferlean_nvml_memory_used_mb")),
-		MemoryTotal:      mbToBytesWindow(windowFromMetric(samples, "inferlean_nvml_memory_total_mb")),
-		PowerDraw:        windowFromMetric(samples, "inferlean_nvml_power_draw_watts"),
-		Temperature:      windowFromMetric(samples, "inferlean_nvml_temperature_celsius"),
-		SMClock:          contracts.MetricWindow{},
-		MemClock:         contracts.MetricWindow{},
-		ProcessGPUMemory: contracts.MetricWindow{},
+		GPUUtilization: windowFromMetric(nvml, "inferlean_nvml_gpu_utilization_percent"),
+		MemoryUsed:     mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_used_mb")),
+		MemoryTotal:    mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_total_mb")),
+		PowerDraw:      windowFromMetric(nvml, "inferlean_nvml_power_draw_watts"),
+		Temperature:    windowFromMetric(nvml, "inferlean_nvml_temperature_celsius"),
+		SMClock: firstWindow(
+			windowFromMetric(nvml, "inferlean_nvml_sm_clock_mhz"),
+			windowFromMetric(dcgm, "DCGM_FI_DEV_SM_CLOCK"),
+		),
+		MemClock: firstWindow(
+			windowFromMetric(nvml, "inferlean_nvml_memory_clock_mhz"),
+			windowFromMetric(dcgm, "DCGM_FI_DEV_MEM_CLOCK"),
+		),
+		ProcessGPUMemory: processGPUMemoryFromNvidiaSMI(staticSMI),
 	}
 	metrics.Coverage = nvidiaCoverage(metrics)
 	return metrics
+}
+
+func firstWindow(windows ...contracts.MetricWindow) contracts.MetricWindow {
+	for _, window := range windows {
+		if window.HasData() {
+			return window
+		}
+	}
+	return contracts.MetricWindow{}
+}
+
+func scalarWindow(value float64) contracts.MetricWindow {
+	return contracts.MetricWindow{
+		Latest: floatPtr(value),
+		Min:    floatPtr(value),
+		Max:    floatPtr(value),
+		Avg:    floatPtr(value),
+	}
+}
+
+func processGPUMemoryFromNvidiaSMI(raw string) contracts.MetricWindow {
+	totalMiB := 0.0
+	for _, line := range strings.Split(raw, "\n") {
+		normalized := strings.ToLower(line)
+		if !strings.Contains(line, "MiB") || !strings.Contains(normalized, "vllm") {
+			continue
+		}
+		fields := strings.Fields(strings.ReplaceAll(line, "|", " "))
+		for _, field := range fields {
+			if !strings.HasSuffix(field, "MiB") {
+				continue
+			}
+			value := strings.TrimSuffix(field, "MiB")
+			parsed, err := strconv.ParseFloat(value, 64)
+			if err == nil {
+				totalMiB += parsed
+			}
+		}
+	}
+	if totalMiB <= 0 {
+		return contracts.MetricWindow{}
+	}
+	return scalarWindow(totalMiB * 1024 * 1024)
 }
 
 func nodeCPUUtilization(samples []promcollector.Sample) contracts.MetricWindow {
@@ -149,7 +230,7 @@ func hostCoverage(metrics contracts.HostMetrics) contracts.SourceCoverage {
 	return newCoverage(present, hostRequiredFields())
 }
 
-func gpuCoverage(metrics contracts.GPUTelemetry) contracts.SourceCoverage {
+func gpuCoverage(metrics contracts.GPUTelemetry, dcgmAvailable bool) contracts.SourceCoverage {
 	present := map[string]bool{}
 	appendPresent(present, "gpu_utilization_or_sm_activity", metrics.GPUUtilizationOrSMActivity.HasData())
 	appendPresent(present, "framebuffer_memory", metrics.FramebufferMemory.HasData())
@@ -160,7 +241,17 @@ func gpuCoverage(metrics contracts.GPUTelemetry) contracts.SourceCoverage {
 	appendPresent(present, "pcie_throughput", metrics.PCIeThroughput.HasData())
 	appendPresent(present, "nvlink_throughput", metrics.NVLinkThroughput.HasData())
 	appendPresent(present, "reliability_errors", metrics.ReliabilityErrors.HasData())
-	return newCoverage(present, gpuRequiredFields())
+	coverage := newCoverage(present, gpuRequiredFields())
+	if dcgmAvailable {
+		coverage = markUnsupported(
+			coverage,
+			"memory_bandwidth",
+			"pcie_throughput",
+			"nvlink_throughput",
+			"reliability_errors",
+		)
+	}
+	return coverage
 }
 
 func nvidiaCoverage(metrics contracts.NvidiaSMIMetrics) contracts.SourceCoverage {
