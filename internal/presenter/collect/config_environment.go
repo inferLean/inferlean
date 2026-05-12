@@ -3,7 +3,6 @@ package collect
 import (
 	"context"
 	"encoding/csv"
-	"fmt"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -24,8 +23,6 @@ import (
 var (
 	driverVersionPattern = regexp.MustCompile(`Driver Version:\s*([0-9.]+)`)
 	cudaVersionPattern   = regexp.MustCompile(`CUDA Version:\s*([0-9.]+)`)
-	pinnedVLLMPattern    = regexp.MustCompile(`(?i)vllm(?:==|~=|>=|<=|>|<)\s*v?(\d+\.\d+(?:\.\d+)?(?:rc\d+|post\d+)?)`)
-	imageVLLMPattern     = regexp.MustCompile(`(?i)(?:^|[/:_-])vllm(?:[-_a-z]*)?:v?(\d+\.\d+(?:\.\d+)?(?:rc\d+|post\d+)?)`)
 )
 
 type gpuSnapshot struct {
@@ -38,6 +35,7 @@ type gpuSnapshot struct {
 func collectConfigEnvironment(
 	ctx context.Context,
 	target vllmdiscovery.Candidate,
+	vllmEndpoint string,
 	processIODir string,
 	staticNvidiaSMI string,
 	promRes promcollector.Result,
@@ -51,7 +49,12 @@ func collectConfigEnvironment(
 	fillHostConfig(ctx, &cfg)
 	gpu := collectGPUSnapshot(ctx, promRes, staticNvidiaSMI)
 	applyGPUSnapshot(&cfg, gpu, staticNvidiaSMI)
-	applyVLLMDefaults(ctx, &cfg, target, processIODir, rawCommandLine, inferVLLMVersionHint(ctx, target), gpu)
+	liveVersion := applyLiveVLLMVersionHint(ctx, &cfg, vllmEndpoint)
+	versionHint := strings.TrimSpace(liveVersion)
+	if versionHint == "" {
+		versionHint = inferVLLMVersionHint(ctx, target)
+	}
+	applyVLLMDefaults(ctx, &cfg, target, processIODir, rawCommandLine, versionHint, liveVersion, gpu)
 	return cfg
 }
 
@@ -115,6 +118,7 @@ func applyVLLMDefaults(
 	processIODir string,
 	rawCommandLine string,
 	versionHint string,
+	liveVersion string,
 	snapshot gpuSnapshot,
 ) {
 	dumpPath := ""
@@ -160,7 +164,9 @@ func applyVLLMDefaults(
 		hints = withHint(hints, "vllm_defaults_runtime_errors", resolved.RuntimeErrors)
 	}
 	effectiveVersionHint := strings.TrimSpace(resolved.ResolvedVersion)
-	if effectiveVersionHint == "" {
+	if strings.TrimSpace(liveVersion) != "" {
+		effectiveVersionHint = strings.TrimSpace(liveVersion)
+	} else if effectiveVersionHint == "" {
 		effectiveVersionHint = strings.TrimSpace(versionHint)
 	}
 	if effectiveVersionHint != "" {
@@ -170,44 +176,6 @@ func applyVLLMDefaults(
 		hints = withHint(hints, "vllm_model", resolved.SelectedModel)
 	}
 	cfg.EnvironmentHints = hints
-}
-
-func inferVLLMVersionHint(ctx context.Context, target vllmdiscovery.Candidate) string {
-	if version := parseVLLMVersionText(target.RawCommandLine); version != "" {
-		return version
-	}
-	containerID := strings.TrimSpace(target.ContainerID)
-	if containerID == "" {
-		return ""
-	}
-	image, err := inspectDockerImage(ctx, containerID)
-	if err != nil {
-		return ""
-	}
-	return parseVLLMVersionText(image)
-}
-
-func inspectDockerImage(ctx context.Context, containerID string) (string, error) {
-	cmd := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.Config.Image}}", containerID)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	image := strings.TrimSpace(string(out))
-	if image == "" {
-		return "", fmt.Errorf("empty docker image for container %s", containerID)
-	}
-	return image, nil
-}
-
-func parseVLLMVersionText(text string) string {
-	if matches := pinnedVLLMPattern.FindStringSubmatch(text); len(matches) == 2 {
-		return strings.TrimSpace(matches[1])
-	}
-	if matches := imageVLLMPattern.FindStringSubmatch(text); len(matches) == 2 {
-		return strings.TrimSpace(matches[1])
-	}
-	return ""
 }
 
 func withHint(hints map[string]string, key, value string) map[string]string {

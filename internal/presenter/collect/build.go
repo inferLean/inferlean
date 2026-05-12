@@ -27,7 +27,7 @@ type buildInput struct {
 }
 
 func buildArtifact(ctx context.Context, in buildInput) (contracts.RunArtifact, error) {
-	env := collectConfigEnvironment(ctx, in.Target, in.ProcessIODir, in.StaticNvidiaSMI, in.PromResult)
+	env := collectConfigEnvironment(ctx, in.Target, in.Sources.vllmEndpoint, in.ProcessIODir, in.StaticNvidiaSMI, in.PromResult)
 	quality := buildQuality(in)
 	return artifactnormalize.Build(artifactnormalize.Input{
 		Job: artifactnormalize.JobInput{
