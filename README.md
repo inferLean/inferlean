@@ -1,6 +1,6 @@
 # InferLean CLI
 
-InferLean is a CLI-first optimizer for self-hosted LLM inference. The CLI discovers a running vLLM target, collects local evidence, uploads one artifact to the InferLean backend, and renders the backend report.
+InferLean is a CLI-first optimization copilot for self-hosted LLM inference. The CLI discovers a running vLLM target, collects local evidence, uploads one artifact to the InferLean backend, and renders the backend report.
 
 The CLI is intentionally thin: it collects configurations, raw observations, and explicit workload intent. Optimization decisions, entitlement, diagnosis, and canonical report shaping live in the backend.
 
