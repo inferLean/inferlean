@@ -234,7 +234,12 @@ func nodeSwapWindows(samples []promcollector.Sample) (contracts.MetricWindow, co
 	for _, sample := range samples {
 		total, okTotal := metricValue(sample.Metrics, "node_memory_SwapTotal_bytes")
 		free, okFree := metricValue(sample.Metrics, "node_memory_SwapFree_bytes")
-		if !okTotal || !okFree || total <= 0 {
+		if !okTotal || !okFree {
+			continue
+		}
+		if total <= 0 {
+			pressure = append(pressure, contracts.MetricSample{Timestamp: sample.Timestamp, Value: 0})
+			used = append(used, contracts.MetricSample{Timestamp: sample.Timestamp, Value: 0})
 			continue
 		}
 		usedBytes := total - free

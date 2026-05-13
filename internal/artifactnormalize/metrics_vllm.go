@@ -1,11 +1,18 @@
 package artifactnormalize
 
 import (
+	"strings"
+
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
 	"github.com/inferLean/inferlean-main/cli/pkg/contracts"
 )
 
 func normalizeVLLMMetrics(samples []promcollector.Sample) contracts.VLLMMetrics {
+	cpuKVBlocks, derivedCPUKVBlocks := cpuKVBlocksWindow(samples)
+	gpuKVUsage, derivedGPUKVUsage := gpuKVCacheUsageWindow(samples)
+	cpuKVUsage, derivedCPUKVUsage := cpuKVCacheUsageWindow(samples, derivedCPUKVBlocks)
+	swappedRequests, derivedSwappedRequests := swappedRequestsWindow(samples, derivedCPUKVBlocks)
+	kvOffloadActivity, derivedKVOffloadActivity := kvOffloadActivityWindow(samples, swappedRequests, cpuKVUsage, derivedCPUKVUsage || derivedSwappedRequests)
 	metrics := contracts.VLLMMetrics{
 		RequestsRunning:           windowFromMetric(samples, "vllm:num_requests_running"),
 		RequestsWaiting:           windowFromMetric(samples, "vllm:num_requests_waiting"),
@@ -30,20 +37,17 @@ func normalizeVLLMMetrics(samples []promcollector.Sample) contracts.VLLMMetrics 
 			"vllm:kv_cache_usage_perc",
 			"vllm:gpu_cache_usage_perc",
 		),
-		GPUKVCacheUsage: windowFromMetric(samples, "vllm:gpu_cache_usage_perc"),
-		CPUKVCacheUsage: windowFromMetric(samples, "vllm:cpu_cache_usage_perc"),
-		CPUKVBlocks:     windowFromInfoLabel(samples, "vllm:cache_config_info", "num_cpu_blocks"),
+		GPUKVCacheUsage: gpuKVUsage,
+		CPUKVCacheUsage: cpuKVUsage,
+		CPUKVBlocks:     cpuKVBlocks,
 		Preemptions: windowFromAnyMetric(
 			samples,
 			"vllm:num_preemptions_total",
 			"vllm:num_preemptions",
 		),
-		SwappedRequests:        windowFromMetric(samples, "vllm:num_requests_swapped"),
+		SwappedRequests:        swappedRequests,
 		RecomputedPromptTokens: windowFromMetric(samples, "vllm:prompt_tokens_recomputed_total"),
-		KVOffloadActivity: firstWindow(
-			windowFromMetric(samples, "vllm:num_requests_swapped"),
-			windowFromMetric(samples, "vllm:cpu_cache_usage_perc"),
-		),
+		KVOffloadActivity:      kvOffloadActivity,
 		PrefixCache: cacheSnapshot(
 			samples,
 			"vllm:prefix_cache_hits_total",
@@ -56,7 +60,95 @@ func normalizeVLLMMetrics(samples []promcollector.Sample) contracts.VLLMMetrics 
 		),
 	}
 	metrics.Coverage = vllmCoverage(metrics, len(samples) > 0 && !hasMetric(samples, "vllm:prompt_tokens_recomputed_total"))
+	metrics.Coverage.DerivedFields = derivedVLLMFields(
+		derivedCPUKVBlocks,
+		derivedGPUKVUsage,
+		derivedCPUKVUsage,
+		derivedSwappedRequests,
+		derivedKVOffloadActivity,
+	)
 	return metrics
+}
+
+func gpuKVCacheUsageWindow(samples []promcollector.Sample) (contracts.MetricWindow, bool) {
+	window := windowFromMetric(samples, "vllm:gpu_cache_usage_perc")
+	if window.HasData() {
+		return window, false
+	}
+	window = windowFromMetric(samples, "vllm:kv_cache_usage_perc")
+	if window.HasData() {
+		return window, true
+	}
+	return contracts.MetricWindow{}, false
+}
+
+func cpuKVBlocksWindow(samples []promcollector.Sample) (contracts.MetricWindow, bool) {
+	window := windowFromInfoLabel(samples, "vllm:cache_config_info", "num_cpu_blocks")
+	if window.HasData() {
+		return window, false
+	}
+	if cacheInfoLabelIsNone(samples, "num_cpu_blocks") {
+		return zeroWindowForMetricPresence(samples, "vllm:cache_config_info"), true
+	}
+	return contracts.MetricWindow{}, false
+}
+
+func cpuKVCacheUsageWindow(samples []promcollector.Sample, noCPUBlocks bool) (contracts.MetricWindow, bool) {
+	window := windowFromMetric(samples, "vllm:cpu_cache_usage_perc")
+	if window.HasData() {
+		return window, false
+	}
+	if noCPUBlocks {
+		return zeroWindowForMetricPresence(samples, "vllm:cache_config_info"), true
+	}
+	return contracts.MetricWindow{}, false
+}
+
+func swappedRequestsWindow(samples []promcollector.Sample, noCPUBlocks bool) (contracts.MetricWindow, bool) {
+	window := windowFromMetric(samples, "vllm:num_requests_swapped")
+	if window.HasData() {
+		return window, false
+	}
+	if noCPUBlocks {
+		return zeroWindowForMetricPresence(samples, "vllm:cache_config_info"), true
+	}
+	return contracts.MetricWindow{}, false
+}
+
+func kvOffloadActivityWindow(samples []promcollector.Sample, swapped, cpuUsage contracts.MetricWindow, derivedFromNoCPUBlocks bool) (contracts.MetricWindow, bool) {
+	window := firstWindow(swapped, cpuUsage)
+	if window.HasData() {
+		return window, derivedFromNoCPUBlocks
+	}
+	if derivedFromNoCPUBlocks {
+		return zeroWindowForMetricPresence(samples, "vllm:cache_config_info"), true
+	}
+	return contracts.MetricWindow{}, false
+}
+
+func cacheInfoLabelIsNone(samples []promcollector.Sample, label string) bool {
+	value := strings.TrimSpace(strings.ToLower(latestInfoLabel(samples, "vllm:cache_config_info", label)))
+	return value == "none" || value == "null" || value == "0"
+}
+
+func derivedVLLMFields(cpuBlocks, gpuUsage, cpuUsage, swappedRequests, offloadActivity bool) []string {
+	fields := []string{}
+	if cpuBlocks {
+		fields = append(fields, "cpu_kv_blocks")
+	}
+	if gpuUsage {
+		fields = append(fields, "gpu_kv_cache_usage")
+	}
+	if cpuUsage {
+		fields = append(fields, "cpu_kv_cache_usage")
+	}
+	if swappedRequests {
+		fields = append(fields, "swapped_requests")
+	}
+	if offloadActivity {
+		fields = append(fields, "kv_offload_activity")
+	}
+	return fields
 }
 
 func vllmCoverage(metrics contracts.VLLMMetrics, recomputedUnsupported bool) contracts.SourceCoverage {

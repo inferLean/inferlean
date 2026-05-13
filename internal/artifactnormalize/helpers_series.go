@@ -55,6 +55,31 @@ func windowFromInfoLabel(samples []promcollector.Sample, metricName, label strin
 	return contracts.MetricWindow{}
 }
 
+func zeroWindowForMetricPresence(samples []promcollector.Sample, metricName string) contracts.MetricWindow {
+	points := make([]contracts.MetricSample, 0, len(samples))
+	for _, sample := range samples {
+		if !sampleHasMetric(sample, metricName) {
+			continue
+		}
+		points = append(points, contracts.MetricSample{Timestamp: sample.Timestamp, Value: 0})
+	}
+	return withSamples(points)
+}
+
+func latestInfoLabel(samples []promcollector.Sample, metricName, label string) string {
+	for idx := len(samples) - 1; idx >= 0; idx-- {
+		for _, metric := range samples[idx].Metrics {
+			if metric.Name != metricName {
+				continue
+			}
+			if value := strings.TrimSpace(metric.Labels[label]); value != "" {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
 func histogramMeanWindow(samples []promcollector.Sample, prefix string) contracts.MetricWindow {
 	sumMetric := prefix + "_sum"
 	countMetric := prefix + "_count"

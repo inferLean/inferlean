@@ -170,6 +170,29 @@ func TestNormalizeMetricsCapturesCriticalHostAndGPUMetrics(t *testing.T) {
 	}
 }
 
+func TestNormalizeHostMetricsDerivesZeroSwapWhenNoSwapConfigured(t *testing.T) {
+	now := time.Unix(30, 0).UTC()
+	metrics := normalizeHostMetrics([]promcollector.Sample{
+		{
+			Timestamp: now,
+			Metrics: []promcollector.MetricPoint{
+				{Name: "node_memory_SwapTotal_bytes", Value: 0},
+				{Name: "node_memory_SwapFree_bytes", Value: 0},
+			},
+		},
+	}, nil)
+
+	if got, want := *metrics.SwapPressure.Latest, 0.0; got != want {
+		t.Fatalf("swap pressure = %f, want %f", got, want)
+	}
+	if got, want := *metrics.SwapUsed.Latest, 0.0; got != want {
+		t.Fatalf("swap used = %f, want %f", got, want)
+	}
+	if !metrics.Coverage.HasField("swap_used") {
+		t.Fatalf("coverage missing swap_used: %+v", metrics.Coverage)
+	}
+}
+
 func hostMetricSample(ts time.Time, idleCPU, diskRead, networkRX, throttled float64) promcollector.Sample {
 	return promcollector.Sample{
 		Timestamp: ts,
