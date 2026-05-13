@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -32,7 +33,7 @@ func runDumpOnHost(ctx context.Context, target shared.Candidate, scriptPath, dum
 	if err != nil {
 		return runtimeExecution{}, err
 	}
-	if err := runPythonLocal(ctx, scriptPath, pid, dumpPath); err != nil {
+	if err := runPythonLocal(ctx, target, scriptPath, pid, dumpPath); err != nil {
 		return runtimeExecution{}, err
 	}
 	return runtimeExecution{Source: "process", PID: pid}, nil
@@ -52,7 +53,7 @@ func runDumpInDocker(ctx context.Context, target shared.Candidate, scriptPath, d
 		return runtimeExecution{}, fmt.Errorf("copy defaults script into container: %w", err)
 	}
 
-	if err := runPythonInDocker(ctx, containerID, pid); err != nil {
+	if err := runPythonInDocker(ctx, target, containerID, pid); err != nil {
 		return runtimeExecution{}, err
 	}
 	if _, err := runCommand(ctx, "docker", "cp", containerID+":"+remoteDumpPath, dumpPath); err != nil {
@@ -62,8 +63,8 @@ func runDumpInDocker(ctx context.Context, target shared.Candidate, scriptPath, d
 	return runtimeExecution{Source: "docker", PID: pid}, nil
 }
 
-func runPythonInDocker(ctx context.Context, containerID string, pid int32) error {
-	return runPythonCandidates(ctx, "in container", pythonCandidates(pid), func(py string) (string, []string) {
+func runPythonInDocker(ctx context.Context, target shared.Candidate, containerID string, pid int32) error {
+	return runPythonCandidates(ctx, "in container", pythonCandidates(target, pid), func(py string) (string, []string) {
 		return "docker", []string{
 			"exec",
 			containerID,
@@ -93,7 +94,7 @@ func runDumpInPod(ctx context.Context, target shared.Candidate, scriptPath, dump
 		return runtimeExecution{}, fmt.Errorf("copy defaults script into pod: %w", err)
 	}
 
-	if err := runPythonInPod(ctx, namespace, podName, container, pid); err != nil {
+	if err := runPythonInPod(ctx, target, namespace, podName, container, pid); err != nil {
 		return runtimeExecution{}, err
 	}
 	if _, err := runCommand(ctx, "kubectl", kubectlCopyFromArgs(namespace, podName, container, remoteDumpPath, dumpPath)...); err != nil {
@@ -113,8 +114,8 @@ func podContainerName(executable string) string {
 	return strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
 }
 
-func runPythonInPod(ctx context.Context, namespace, podName, container string, pid int32) error {
-	return runPythonCandidates(ctx, "in pod", pythonCandidates(pid), func(py string) (string, []string) {
+func runPythonInPod(ctx context.Context, target shared.Candidate, namespace, podName, container string, pid int32) error {
+	return runPythonCandidates(ctx, "in pod", pythonCandidates(target, pid), func(py string) (string, []string) {
 		return "kubectl", kubectlExecArgs(
 			namespace,
 			podName,
@@ -178,8 +179,8 @@ func runtimePID(target shared.Candidate, source string) (int32, error) {
 	return 0, fmt.Errorf("cannot run defaults script for %s target without internal pid", source)
 }
 
-func runPythonLocal(ctx context.Context, scriptPath string, pid int32, dumpPath string) error {
-	return runPythonCandidates(ctx, "on host", pythonCandidates(pid), func(py string) (string, []string) {
+func runPythonLocal(ctx context.Context, target shared.Candidate, scriptPath string, pid int32, dumpPath string) error {
+	return runPythonCandidates(ctx, "on host", pythonCandidates(target, pid), func(py string) (string, []string) {
 		return py, []string{
 			scriptPath,
 			"--pid",
@@ -190,8 +191,29 @@ func runPythonLocal(ctx context.Context, scriptPath string, pid int32, dumpPath 
 	})
 }
 
-func pythonCandidates(pid int32) []string {
-	return []string{fmt.Sprintf("/proc/%d/exe", pid)}
+func pythonCandidates(target shared.Candidate, pid int32) []string {
+	candidates := pythonCandidatesFromCommandLine(target.RawCommandLine)
+	candidates = append(candidates, fmt.Sprintf("/proc/%d/exe", pid))
+	return dedupeInterpreters(candidates)
+}
+
+func pythonCandidatesFromCommandLine(raw string) []string {
+	argv := strings.Fields(strings.TrimSpace(raw))
+	if len(argv) == 0 {
+		return nil
+	}
+	executable := strings.Trim(argv[0], `"'`)
+	if !isPythonInterpreter(executable) {
+		return nil
+	}
+	return []string{executable}
+}
+
+func isPythonInterpreter(path string) bool {
+	base := filepath.Base(strings.TrimSpace(path))
+	return base == "python" ||
+		strings.HasPrefix(base, "python2") ||
+		strings.HasPrefix(base, "python3")
 }
 
 func runPythonCandidates(ctx context.Context, label string, interpreters []string, command func(py string) (string, []string)) error {

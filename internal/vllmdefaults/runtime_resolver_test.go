@@ -183,9 +183,44 @@ func TestRuntimePIDRequiresInternalPIDForDocker(t *testing.T) {
 	}
 }
 
-func TestPythonCandidatesPreferTargetProcessExe(t *testing.T) {
+func TestPythonCandidatesPreferCommandLinePython(t *testing.T) {
 	t.Parallel()
-	got := pythonCandidates(17)
+	got := pythonCandidates(shared.Candidate{
+		RawCommandLine: "/home/bale1/gemma4/.venv/bin/python3 /home/bale1/gemma4/.venv/bin/vllm serve google/gemma-4-26B-A4B-it --max-model-len 32768",
+	}, 331110)
+	want := []string{
+		"/home/bale1/gemma4/.venv/bin/python3",
+		"/proc/331110/exe",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("len(pythonCandidates()) = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("pythonCandidates()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestPythonCandidatesFallbackToTargetProcessExe(t *testing.T) {
+	t.Parallel()
+	got := pythonCandidates(shared.Candidate{}, 17)
+	want := []string{"/proc/17/exe"}
+	if len(got) != len(want) {
+		t.Fatalf("len(pythonCandidates()) = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("pythonCandidates()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestPythonCandidatesIgnoreVLLMConsoleScript(t *testing.T) {
+	t.Parallel()
+	got := pythonCandidates(shared.Candidate{
+		RawCommandLine: "/home/bale1/gemma4/.venv/bin/vllm serve google/gemma-4-26B-A4B-it",
+	}, 17)
 	want := []string{"/proc/17/exe"}
 	if len(got) != len(want) {
 		t.Fatalf("len(pythonCandidates()) = %d, want %d", len(got), len(want))
