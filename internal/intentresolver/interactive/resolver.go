@@ -96,10 +96,12 @@ func targetQuestion() question {
 		key:    keyDeclaredWorkloadTarget,
 		prompt: "Declared optimization target",
 		options: []questionOption{
+			{title: "extreme latency", description: "Protect the lowest practical latency.", value: "extreme_latency"},
 			{title: "latency", description: "Prioritize response and tail latency.", value: "latency"},
 			{title: "throughput", description: "Prioritize tokens/sec and total volume.", value: "throughput"},
+			{title: "extreme throughput", description: "Push useful throughput hardest.", value: "extreme_throughput"},
 		},
-		defaultIndex: 1,
+		defaultIndex: 2,
 	}
 }
 

@@ -15,10 +15,10 @@ func TestReportModelDefaultExpandedState(t *testing.T) {
 	vm := buildReportViewModel(fullReportFixture(), reportIdentity{runID: "run-123", installationID: "inst-123"}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 	model := newReportModel(vm)
 
-	if !model.expanded["verdict"] || !model.expanded["primary-recommendation"] || !model.expanded["frontier"] || !model.expanded["issues"] {
+	if !model.expanded["verdict"] || !model.expanded["primary-recommendation"] || !model.expanded["issues"] {
 		t.Fatal("expected primary cards to start expanded")
 	}
-	if model.expanded["quantization"] || model.expanded["secondary-opportunity"] {
+	if model.expanded["quantization"] || model.expanded["opportunities"] {
 		t.Fatal("expected optional opportunity cards to start collapsed")
 	}
 }
@@ -77,7 +77,6 @@ func TestRenderReportContentHandlesNarrowWidth(t *testing.T) {
 	content, _ := renderReportContent(vm, 0, map[string]bool{
 		"verdict":                true,
 		"primary-recommendation": true,
-		"frontier":               true,
 		"issues":                 true,
 		"evidence":               true,
 		"collection-quality":     true,
@@ -99,7 +98,6 @@ func TestRenderReportContentShowsValidationWarning(t *testing.T) {
 	content, _ := renderReportContent(vm, 0, map[string]bool{
 		"verdict":                true,
 		"primary-recommendation": true,
-		"frontier":               true,
 		"issues":                 true,
 		"evidence":               true,
 		"collection-quality":     true,
@@ -118,7 +116,6 @@ func TestRenderReportContentIncludesAllIssueRows(t *testing.T) {
 			ID:         "issue:test",
 			Rank:       i,
 			Label:      "Issue",
-			Summary:    "summary row",
 			Confidence: "medium",
 		})
 	}
@@ -126,9 +123,8 @@ func TestRenderReportContentIncludesAllIssueRows(t *testing.T) {
 	content, _ := renderReportContent(vm, 5, map[string]bool{
 		"verdict":                true,
 		"primary-recommendation": true,
-		"frontier":               true,
 		"quantization":           false,
-		"secondary-opportunity":  false,
+		"opportunities":          false,
 		"issues":                 true,
 		"evidence":               false,
 		"collection-quality":     false,
@@ -144,9 +140,8 @@ func TestRenderReportContentHighlightsActions(t *testing.T) {
 	content, _ := renderReportContent(vm, 1, map[string]bool{
 		"verdict":                true,
 		"primary-recommendation": true,
-		"frontier":               false,
 		"quantization":           false,
-		"secondary-opportunity":  false,
+		"opportunities":          false,
 		"issues":                 false,
 		"evidence":               false,
 		"collection-quality":     false,

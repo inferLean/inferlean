@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultCollectFor  = 30 * time.Second
+	defaultCollectFor  = 60 * time.Second
 	defaultScrapeEvery = time.Second
 )
 

@@ -2,7 +2,7 @@ package contracts
 
 import "time"
 
-const ReportSchemaVersion = "report-v2"
+const ReportSchemaVersion = "report-v4"
 
 type FinalReport struct {
 	SchemaVersion      string                  `json:"schema_version"`
@@ -11,11 +11,9 @@ type FinalReport struct {
 	Environment        ReportEnvironment       `json:"environment"`
 	Diagnosis          DiagnosisSection        `json:"diagnosis"`
 	DiagnosticCoverage DiagnosticCoverage      `json:"diagnostic_coverage"`
-	DiagnosticLenses   DiagnosticLenses        `json:"diagnostic_lenses,omitempty"`
 	Issues             []Issue                 `json:"issues,omitempty"`
-	Evidence           Evidence                `json:"evidence,omitempty"`
+	Opportunities      []Opportunity           `json:"opportunities,omitempty"`
 	CollectionQuality  ReportCollectionQuality `json:"collection_quality"`
-	UIHints            UIHints                 `json:"ui_hints"`
 }
 
 type ReportJob struct {
@@ -53,22 +51,16 @@ type ReportEnvironment struct {
 }
 
 type DiagnosisSection struct {
-	BaseDiagnosis BaseDiagnosis   `json:"base_diagnosis"`
-	TargetOverlay ScenarioOverlay `json:"target_overlay"`
+	BaseDiagnosis BaseDiagnosis `json:"base_diagnosis"`
 }
 
 type BaseDiagnosis struct {
-	ID                         string            `json:"id,omitempty"`
-	WorkloadSummary            WorkloadSummary   `json:"workload_summary"`
-	CurrentLimiter             CurrentLimiter    `json:"current_limiter"`
-	RealLoadSummary            RealLoadSummary   `json:"real_load_summary"`
-	CapacitySnapshot           *CapacitySnapshot `json:"capacity_snapshot,omitempty"`
-	Situation                  Situation         `json:"situation"`
-	Frontier                   FrontierBundle    `json:"frontier"`
-	Recommendation             *Recommendation   `json:"recommendation,omitempty"`
-	Confidence                 string            `json:"confidence,omitempty"`
-	Caveats                    []string          `json:"caveats,omitempty"`
-	NoSafeRecommendationReason string            `json:"no_safe_recommendation_reason,omitempty"`
+	ID                         string          `json:"id,omitempty"`
+	WorkloadSummary            WorkloadSummary `json:"workload_summary"`
+	RealLoadSummary            RealLoadSummary `json:"real_load_summary"`
+	Confidence                 string          `json:"confidence,omitempty"`
+	Caveats                    []string        `json:"caveats,omitempty"`
+	NoSafeRecommendationReason string          `json:"no_safe_recommendation_reason,omitempty"`
 }
 
 type WorkloadSummary struct {
@@ -77,12 +69,6 @@ type WorkloadSummary struct {
 	ConfiguredPosture     string `json:"configured_posture,omitempty"`
 	Multimodal            bool   `json:"multimodal,omitempty"`
 	Summary               string `json:"summary,omitempty"`
-}
-
-type CurrentLimiter struct {
-	Family  string `json:"family,omitempty"`
-	Label   string `json:"label,omitempty"`
-	Summary string `json:"summary,omitempty"`
 }
 
 type RealLoadSummary struct {
@@ -94,110 +80,37 @@ type RealLoadSummary struct {
 	Summary                 string `json:"summary,omitempty"`
 }
 
-type CapacitySnapshot struct {
-	Pressures       CapacityPressures `json:"pressures,omitempty"`
-	Observed        CapacityRates     `json:"observed,omitempty"`
-	CurrentFrontier CapacityRates     `json:"current_frontier,omitempty"`
-	Confidence      string            `json:"confidence,omitempty"`
-	Summary         string            `json:"summary,omitempty"`
-	Notes           []string          `json:"notes,omitempty"`
-}
-
-type CapacityPressures struct {
-	Compute         string `json:"compute,omitempty"`
-	MemoryBandwidth string `json:"memory_bandwidth,omitempty"`
-	KV              string `json:"kv,omitempty"`
-	Queue           string `json:"queue,omitempty"`
-	Host            string `json:"host,omitempty"`
-}
-
-type CapacityRates struct {
-	PromptTokensPerSecond     *float64 `json:"prompt_tokens_per_second,omitempty"`
-	GenerationTokensPerSecond *float64 `json:"generation_tokens_per_second,omitempty"`
-	RequestThroughput         *float64 `json:"request_throughput,omitempty"`
-}
-
-type Situation struct {
-	Headline    string `json:"headline,omitempty"`
-	Summary     string `json:"summary,omitempty"`
-	KeyTradeoff string `json:"key_tradeoff,omitempty"`
-}
-
-type FrontierBundle struct {
-	CurrentPracticalFrontier                    FrontierEstimate `json:"current_practical_frontier"`
-	SafeHeadroom                                FrontierEstimate `json:"safe_headroom"`
-	ProjectedFrontierAfterPrimaryRecommendation FrontierEstimate `json:"projected_frontier_after_primary_recommendation"`
-	LikelyGainRange                             GainRange        `json:"likely_gain_range"`
-}
-
-type FrontierEstimate struct {
-	Target          string          `json:"target,omitempty"`
-	WorkloadContext WorkloadContext `json:"workload_context,omitempty"`
-	EstimateSummary string          `json:"estimate_summary,omitempty"`
-	Value           EstimateValue   `json:"value,omitempty"`
-	Confidence      string          `json:"confidence,omitempty"`
-	Notes           []string        `json:"notes,omitempty"`
-}
-
-type GainRange struct {
-	Target      string   `json:"target,omitempty"`
-	Metric      string   `json:"metric,omitempty"`
-	Summary     string   `json:"summary,omitempty"`
-	Estimate    *float64 `json:"estimate,omitempty"`
-	RangeLow    *float64 `json:"range_low,omitempty"`
-	RangeHigh   *float64 `json:"range_high,omitempty"`
-	PercentLow  *float64 `json:"percent_low,omitempty"`
-	PercentHigh *float64 `json:"percent_high,omitempty"`
-	Confidence  string   `json:"confidence,omitempty"`
-	Notes       []string `json:"notes,omitempty"`
-}
-
-type WorkloadContext struct {
-	DeclaredWorkloadMode  string `json:"declared_workload_mode,omitempty"`
-	ObservedWorkloadShape string `json:"observed_workload_shape,omitempty"`
-}
-
-type EstimateValue struct {
-	Metric    string   `json:"metric,omitempty"`
-	Estimate  *float64 `json:"estimate,omitempty"`
-	RangeLow  *float64 `json:"range_low,omitempty"`
-	RangeHigh *float64 `json:"range_high,omitempty"`
-}
-
-type CrossMetricValues struct {
-	LatencyE2ESeconds         *float64 `json:"latency_e2e_seconds,omitempty"`
-	GenerationTokensPerSecond *float64 `json:"generation_tokens_per_second,omitempty"`
-	RequestThroughput         *float64 `json:"request_throughput,omitempty"`
-}
-
-type CrossMetricProjection struct {
-	Current   CrossMetricValues `json:"current,omitempty"`
-	Projected CrossMetricValues `json:"projected,omitempty"`
-}
-
 type Recommendation struct {
-	Decision       string                 `json:"decision"`
-	Title          string                 `json:"title"`
-	Rationale      string                 `json:"rationale,omitempty"`
-	Mechanism      string                 `json:"mechanism,omitempty"`
-	ExpectedEffect RecommendationEffect   `json:"expected_effect,omitempty"`
-	Tradeoff       RecommendationTradeoff `json:"tradeoff,omitempty"`
-	Effort         string                 `json:"effort,omitempty"`
-	Risk           string                 `json:"risk,omitempty"`
-	Reversibility  string                 `json:"reversibility,omitempty"`
-	Confidence     string                 `json:"confidence,omitempty"`
-	Actions        []Action               `json:"actions,omitempty"`
-	FollowUpSteps  []FollowUpStep         `json:"follow_up_steps,omitempty"`
+	Decision        string          `json:"decision"`
+	Title           string          `json:"title"`
+	Rationale       string          `json:"rationale,omitempty"`
+	ProjectedEffect ProjectedEffect `json:"projected_effect"`
+	Confidence      string          `json:"confidence,omitempty"`
+	Actions         []Action        `json:"actions,omitempty"`
+	FollowUpSteps   []FollowUpStep  `json:"follow_up_steps,omitempty"`
 }
 
-type RecommendationEffect struct {
-	PrimaryMetric          string `json:"primary_metric,omitempty"`
-	Summary                string `json:"summary,omitempty"`
-	ProjectedFrontierDelta string `json:"projected_frontier_delta,omitempty"`
+type ProjectedEffect struct {
+	Summary    string                    `json:"summary,omitempty"`
+	Latency    ProjectedMetricEffect     `json:"latency"`
+	Throughput ProjectedThroughputEffect `json:"throughput"`
 }
 
-type RecommendationTradeoff struct {
-	Summary string `json:"summary,omitempty"`
+type ProjectedThroughputEffect struct {
+	Requests     ProjectedMetricEffect `json:"requests"`
+	OutputTokens ProjectedMetricEffect `json:"output_tokens"`
+}
+
+type ProjectedMetricEffect struct {
+	Metric       string   `json:"metric,omitempty"`
+	Unit         string   `json:"unit,omitempty"`
+	Current      *float64 `json:"current"`
+	Projected    *float64 `json:"projected"`
+	Delta        *float64 `json:"delta"`
+	PercentDelta *float64 `json:"percent_delta"`
+	Direction    string   `json:"direction,omitempty"`
+	Confidence   string   `json:"confidence,omitempty"`
+	Reason       string   `json:"reason,omitempty"`
 }
 
 type Action struct {
@@ -208,6 +121,7 @@ type Action struct {
 	CurrentValue         string `json:"current_value,omitempty"`
 	ProposedValue        string `json:"proposed_value,omitempty"`
 	ValueKind            string `json:"value_kind,omitempty"`
+	ValueRequired        bool   `json:"value_required,omitempty"`
 	ExpectedSignalChange string `json:"expected_signal_change,omitempty"`
 	Risk                 string `json:"risk,omitempty"`
 	Confidence           string `json:"confidence,omitempty"`
@@ -221,17 +135,6 @@ type FollowUpStep struct {
 	ExpectedSignalChange string `json:"expected_signal_change,omitempty"`
 	Risk                 string `json:"risk,omitempty"`
 	Confidence           string `json:"confidence,omitempty"`
-}
-
-type ScenarioOverlay struct {
-	Target         string                 `json:"target,omitempty"`
-	Summary        string                 `json:"summary,omitempty"`
-	Frontier       FrontierBundle         `json:"frontier"`
-	CrossMetric    CrossMetricProjection  `json:"cross_metric,omitempty"`
-	Recommendation *Recommendation        `json:"recommendation,omitempty"`
-	Tradeoff       RecommendationTradeoff `json:"tradeoff,omitempty"`
-	Confidence     string                 `json:"confidence,omitempty"`
-	Caveats        []string               `json:"caveats,omitempty"`
 }
 
 type DiagnosticCoverage struct {
@@ -256,6 +159,7 @@ type DiagnosticCoverageSummary struct {
 
 type DetectorResult struct {
 	DetectorID           string   `json:"detector_id"`
+	Rank                 int      `json:"rank"`
 	Status               string   `json:"status"`
 	Reason               string   `json:"reason,omitempty"`
 	RequiredEvidenceRefs []string `json:"required_evidence_refs,omitempty"`
@@ -263,31 +167,25 @@ type DetectorResult struct {
 }
 
 type Issue struct {
-	ID                string      `json:"id"`
-	Rank              int         `json:"rank"`
-	Family            string      `json:"family,omitempty"`
-	Label             string      `json:"label,omitempty"`
-	Summary           string      `json:"summary,omitempty"`
-	Impact            IssueImpact `json:"impact,omitempty"`
-	EvidenceRefs      []string    `json:"evidence_refs,omitempty"`
-	RecommendationRef string      `json:"recommendation_ref,omitempty"`
-	Confidence        string      `json:"confidence,omitempty"`
+	ID             string          `json:"id"`
+	Rank           int             `json:"rank"`
+	DetectorID     string          `json:"detector_id,omitempty"`
+	Family         string          `json:"family,omitempty"`
+	Label          string          `json:"label,omitempty"`
+	EvidenceRefs   []string        `json:"evidence_refs,omitempty"`
+	Recommendation *Recommendation `json:"recommendation,omitempty"`
+	Confidence     string          `json:"confidence,omitempty"`
 }
 
-type IssueImpact struct {
-	Summary string `json:"summary,omitempty"`
-}
-
-type Evidence struct {
-	Highlights []EvidenceHighlight `json:"highlights,omitempty"`
-}
-
-type EvidenceHighlight struct {
-	ID         string `json:"id"`
-	Title      string `json:"title,omitempty"`
-	Summary    string `json:"summary,omitempty"`
-	DetectorID string `json:"detector_id,omitempty"`
-	Confidence string `json:"confidence,omitempty"`
+type Opportunity struct {
+	ID             string          `json:"id"`
+	Rank           int             `json:"rank"`
+	DetectorID     string          `json:"detector_id,omitempty"`
+	Category       string          `json:"category,omitempty"`
+	Title          string          `json:"title,omitempty"`
+	EvidenceRefs   []string        `json:"evidence_refs,omitempty"`
+	Recommendation *Recommendation `json:"recommendation,omitempty"`
+	Confidence     string          `json:"confidence,omitempty"`
 }
 
 type ReportCollectionQuality struct {
@@ -304,23 +202,8 @@ type ReportCollectionQuality struct {
 	ConfidenceImpactSummary   string                 `json:"confidence_impact_summary,omitempty"`
 }
 
-type UIHints struct {
-	AvailableModes       []string              `json:"available_modes,omitempty"`
-	DefaultMode          string                `json:"default_mode,omitempty"`
-	HighlightIssueIDs    []string              `json:"highlight_issue_ids,omitempty"`
-	SecondaryOpportunity *SecondaryOpportunity `json:"secondary_opportunity,omitempty"`
-}
-
-type SecondaryOpportunity struct {
-	IssueID        string          `json:"issue_id,omitempty"`
-	IssueFamily    string          `json:"issue_family,omitempty"`
-	PriorityNote   string          `json:"priority_note,omitempty"`
-	Recommendation *Recommendation `json:"recommendation,omitempty"`
-}
-
 type SummaryPreview struct {
 	Headline              string `json:"headline,omitempty"`
-	CurrentLimiterLabel   string `json:"current_limiter_label,omitempty"`
 	PrimaryRecommendation string `json:"primary_recommendation,omitempty"`
 	KeyTradeoff           string `json:"key_tradeoff,omitempty"`
 	Confidence            string `json:"confidence,omitempty"`

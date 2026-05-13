@@ -20,7 +20,7 @@ func TestRunArtifactValidateRejectsBalancedTarget(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want invalid target failure")
 	}
-	if !strings.Contains(err.Error(), "workload_observations.declared_workload_target must be one of latency, throughput, unknown") {
+	if !strings.Contains(err.Error(), "workload_observations.declared_workload_target must be one of extreme_latency, latency, throughput, extreme_throughput, unknown") {
 		t.Fatalf("Validate() error = %v", err)
 	}
 }

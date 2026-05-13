@@ -66,8 +66,10 @@ func summaryLine(report contracts.FinalReport) string {
 	if tier := strings.TrimSpace(report.Entitlement.Tier); tier != "" {
 		parts = append(parts, "tier="+tier)
 	}
-	if limiter := strings.TrimSpace(report.Diagnosis.BaseDiagnosis.CurrentLimiter.Label); limiter != "" {
-		parts = append(parts, "limiter="+limiter)
+	if issue := primaryIssue(report); issue != nil {
+		if label := strings.TrimSpace(firstNonEmpty(issue.Label, issue.DetectorID)); label != "" {
+			parts = append(parts, "top_issue="+label)
+		}
 	}
 	if confidence := strings.TrimSpace(report.Diagnosis.BaseDiagnosis.Confidence); confidence != "" {
 		parts = append(parts, "confidence="+confidence)
@@ -98,29 +100,24 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 
 	writeSection(&b, "Diagnosis", useColor)
 	base := report.Diagnosis.BaseDiagnosis
-	writeKeyValue(&b, "Headline", fallback(base.Situation.Headline, "-"), useColor)
-	writeKeyValue(&b, "Limiter", limiterLabel(base.CurrentLimiter), useColor)
+	writeKeyValue(&b, "Headline", diagnosisHeadline(report), useColor)
+	writeKeyValue(&b, "Top Issue", issueLabel(primaryIssue(report)), useColor)
 	writeKeyValue(&b, "Confidence", fallback(base.Confidence, "-"), useColor)
-	writeKeyValue(&b, "Summary", fallback(base.Situation.Summary, "-"), useColor)
+	writeKeyValue(&b, "Summary", diagnosisSummary(report), useColor)
 	writeKeyValue(&b, "Workload", workloadSummary(base.WorkloadSummary), useColor)
-	if base.CapacitySnapshot != nil && base.CapacitySnapshot.HasData() {
-		writeSection(&b, "Capacity Snapshot", useColor)
-		renderCapacitySnapshot(&b, *base.CapacitySnapshot, useColor)
-	}
 
-	if base.Recommendation != nil {
+	if recommendation := primaryRecommendation(report); recommendation != nil {
 		writeSection(&b, "Primary Recommendation", useColor)
-		writeKeyValue(&b, "Primary Recommendation", fallback(base.Recommendation.Title, "-"), useColor)
-		writeKeyValue(&b, "Why this is next", fallback(base.Recommendation.Rationale, "-"), useColor)
-		writeKeyValue(&b, "Expected Gain Range", fallback(base.Recommendation.ExpectedEffect.Summary, "-"), useColor)
-		writeKeyValue(&b, "Risk", fallback(base.Recommendation.Risk, "-"), useColor)
-		writeKeyValue(&b, "Confidence", fallback(base.Recommendation.Confidence, "-"), useColor)
-		writeKeyValue(&b, "Tradeoff", fallback(base.Recommendation.Tradeoff.Summary, "-"), useColor)
-		if len(base.Recommendation.Actions) == 0 && len(base.Recommendation.FollowUpSteps) == 0 {
+		writeKeyValue(&b, "Primary Recommendation", fallback(recommendation.Title, "-"), useColor)
+		writeKeyValue(&b, "Why this is next", fallback(recommendation.Rationale, "-"), useColor)
+		writeKeyValue(&b, "Projected Effect", fallback(recommendation.ProjectedEffect.Summary, "-"), useColor)
+		renderProjectedEffect(&b, recommendation.ProjectedEffect, useColor)
+		writeKeyValue(&b, "Confidence", fallback(recommendation.Confidence, "-"), useColor)
+		if len(recommendation.Actions) == 0 && len(recommendation.FollowUpSteps) == 0 {
 			writeKeyValue(&b, "Actions", "-", useColor)
 		} else {
-			renderRecommendationActions(&b, base.Recommendation.Actions, useColor)
-			renderFollowUpSteps(&b, base.Recommendation.FollowUpSteps, useColor)
+			renderRecommendationActions(&b, recommendation.Actions, useColor)
+			renderFollowUpSteps(&b, recommendation.FollowUpSteps, useColor)
 		}
 	} else {
 		writeSection(&b, "Primary Recommendation", useColor)
@@ -128,9 +125,14 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 		writeKeyValue(&b, "Reason", fallback(base.NoSafeRecommendationReason, "-"), useColor)
 	}
 
-	if lens := report.DiagnosticLenses.Quantization; lens != nil {
-		writeSection(&b, "Quantization Opportunity", useColor)
-		renderQuantizationLens(&b, *lens, useColor)
+	writeSection(&b, "Opportunities", useColor)
+	if len(report.Opportunities) == 0 {
+		writeKeyValue(&b, "Top Opportunities", "-", useColor)
+	} else {
+		for _, opportunity := range report.Opportunities {
+			line := fmt.Sprintf("  [%d] %s", opportunity.Rank, fallback(opportunity.Title, opportunity.ID))
+			b.WriteString(colorize(useColor, reportBold+reportYellow, line) + "\n")
+		}
 	}
 
 	writeSection(&b, "Issues", useColor)
@@ -140,8 +142,9 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 		for _, issue := range report.Issues {
 			line := fmt.Sprintf("  [%d] %s", issue.Rank, fallback(issue.Label, issue.ID))
 			b.WriteString(colorize(useColor, reportBold+reportYellow, line) + "\n")
-			if summary := strings.TrimSpace(issue.Summary); summary != "" {
-				b.WriteString(colorize(useColor, reportDim, "      ") + summary + "\n")
+			if issue.Recommendation != nil {
+				recommendation := fallback(issue.Recommendation.Title, issue.Recommendation.Decision)
+				b.WriteString(colorize(useColor, reportDim, "      recommendation: ") + recommendation + "\n")
 			}
 		}
 	}
@@ -158,7 +161,7 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 	if len(coverage.DetectorResults) > 0 {
 		b.WriteString(colorize(useColor, reportCyan, "Detectors:") + "\n")
 		for _, detector := range coverage.DetectorResults {
-			b.WriteString(colorize(useColor, reportDim, fmt.Sprintf("  - %s: %s", detector.DetectorID, detector.Status)))
+			b.WriteString(colorize(useColor, reportDim, fmt.Sprintf("  - [%d] %s: %s", detector.Rank, detector.DetectorID, detector.Status)))
 			if reason := strings.TrimSpace(detector.Reason); reason != "" {
 				b.WriteString(" (" + reason + ")")
 			}
@@ -173,21 +176,6 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 	writeKeyValue(&b, "Summary", fallback(quality.Summary, "-"), useColor)
 	writeKeyValue(&b, "Missing Evidence", joinOrDash(quality.MissingEvidence), useColor)
 	writeKeyValue(&b, "Degraded Evidence", joinOrDash(quality.DegradedEvidence), useColor)
-
-	writeSection(&b, "Evidence Highlights", useColor)
-	if len(report.Evidence.Highlights) == 0 {
-		writeKeyValue(&b, "Highlights", "-", useColor)
-	} else {
-		for i, highlight := range report.Evidence.Highlights {
-			b.WriteString(colorize(useColor, reportBold+reportYellow, fmt.Sprintf("  %d. %s", i+1, fallback(highlight.Title, highlight.ID))) + "\n")
-			if summary := strings.TrimSpace(highlight.Summary); summary != "" {
-				b.WriteString(colorize(useColor, reportDim, "     ") + summary + "\n")
-			}
-		}
-	}
-
-	writeSection(&b, "Target Estimate", useColor)
-	renderOverlay(&b, report.Diagnosis.TargetOverlay, useColor)
 
 	return strings.TrimSpace(b.String())
 }
@@ -247,19 +235,24 @@ func environmentCPU(env contracts.ReportEnvironment) string {
 	return fmt.Sprintf("%s (%d cores)", model, env.CPUCores)
 }
 
-func limiterLabel(limiter contracts.CurrentLimiter) string {
-	label := strings.TrimSpace(limiter.Label)
-	family := strings.TrimSpace(limiter.Family)
-	if label == "" && family == "" {
-		return "-"
+func diagnosisHeadline(report contracts.FinalReport) string {
+	if issue := primaryIssue(report); issue != nil {
+		if label := strings.TrimSpace(issue.Label); label != "" {
+			return "Top issue: " + label
+		}
 	}
-	if label == "" {
-		return family
+	if recommendation := primaryRecommendation(report); recommendation != nil {
+		return fallback(recommendation.Title, recommendation.Decision)
 	}
-	if family == "" {
-		return label
+	return "No safe recommendation identified"
+}
+
+func diagnosisSummary(report contracts.FinalReport) string {
+	base := report.Diagnosis.BaseDiagnosis
+	if summary := strings.TrimSpace(base.RealLoadSummary.Summary); summary != "" {
+		return summary
 	}
-	return label + " [" + family + "]"
+	return "-"
 }
 
 func workloadSummary(workload contracts.WorkloadSummary) string {
@@ -285,71 +278,14 @@ func workloadSummary(workload contracts.WorkloadSummary) string {
 	return strings.Join(parts, ", ")
 }
 
-func renderCapacitySnapshot(b *strings.Builder, snapshot contracts.CapacitySnapshot, useColor bool) {
-	writeKeyValue(b, "Summary", fallback(snapshot.Summary, "-"), useColor)
-	writeKeyValue(b, "Confidence", fallback(snapshot.Confidence, "-"), useColor)
-	if snapshot.Pressures.HasData() {
-		writeKeyValue(b, "Pressures", pressureSummary(snapshot.Pressures), useColor)
-	}
-	if snapshot.Observed.HasData() {
-		writeKeyValue(b, "Observed Rates", rateSummary(snapshot.Observed), useColor)
-	}
-	if snapshot.CurrentFrontier.HasData() {
-		writeKeyValue(b, "Current Frontier", rateSummary(snapshot.CurrentFrontier), useColor)
-	}
-	if len(snapshot.Notes) > 0 {
-		writeKeyValue(b, "Notes", strings.Join(snapshot.Notes, " "), useColor)
-	}
-}
-
-func pressureSummary(pressures contracts.CapacityPressures) string {
-	parts := make([]string, 0, 5)
-	appendPressure := func(label, value string) {
-		if strings.TrimSpace(value) != "" {
-			parts = append(parts, label+"="+value)
-		}
-	}
-	appendPressure("compute", pressures.Compute)
-	appendPressure("memory_bw", pressures.MemoryBandwidth)
-	appendPressure("kv", pressures.KV)
-	appendPressure("queue", pressures.Queue)
-	appendPressure("host", pressures.Host)
-	if len(parts) == 0 {
-		return "-"
-	}
-	return strings.Join(parts, ", ")
-}
-
-func rateSummary(rates contracts.CapacityRates) string {
-	parts := make([]string, 0, 3)
-	appendRate := func(label string, value *float64) {
-		if value != nil {
-			parts = append(parts, fmt.Sprintf("%s=%.2f", label, *value))
-		}
-	}
-	appendRate("prompt_tok/s", rates.PromptTokensPerSecond)
-	appendRate("generation_tok/s", rates.GenerationTokensPerSecond)
-	appendRate("req/s", rates.RequestThroughput)
-	if len(parts) == 0 {
-		return "-"
-	}
-	return strings.Join(parts, ", ")
-}
-
-func renderOverlay(b *strings.Builder, overlay contracts.ScenarioOverlay, useColor bool) {
-	target := fallback(overlay.Target, "unknown")
-	recommendation := "-"
-	if overlay.Recommendation != nil {
-		recommendation = fallback(overlay.Recommendation.Title, overlay.Recommendation.Decision)
-	}
-	line := fmt.Sprintf("  - %s: %s", target, fallback(overlay.Summary, "-"))
-	b.WriteString(colorize(useColor, reportBold+reportCyan, line) + "\n")
-	b.WriteString(colorize(useColor, reportDim, "      recommendation: ") + recommendation + "\n")
-	b.WriteString(colorize(useColor, reportDim, "      confidence: ") + fallback(overlay.Confidence, "-") + "\n")
-}
-
 func actionChange(action contracts.Action) (string, string) {
 	return strings.TrimSpace(action.CurrentValue), strings.TrimSpace(action.ProposedValue)
+}
+
+func renderProjectedEffect(b *strings.Builder, effect contracts.ProjectedEffect, useColor bool) {
+	for _, line := range projectedEffectLines(effect) {
+		b.WriteString(colorize(useColor, reportDim, "  - ") + line + "\n")
+	}
 }
 
 func renderRecommendationActions(b *strings.Builder, actions []contracts.Action, useColor bool) {

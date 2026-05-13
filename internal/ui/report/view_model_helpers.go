@@ -41,124 +41,31 @@ func formatActionDelta(action contracts.Action) string {
 	return "Current: " + fallback(current, "-") + " -> Proposed: " + fallback(proposed, "-")
 }
 
-func frontierEstimateSummary(estimate contracts.FrontierEstimate) string {
-	parts := make([]string, 0, 4)
-	if summary := strings.TrimSpace(estimate.EstimateSummary); summary != "" {
-		parts = append(parts, summary)
-	}
-	if value := estimateValueSummary(estimate.Value); value != "" {
-		parts = append(parts, value)
-	}
-	if confidence := strings.TrimSpace(estimate.Confidence); confidence != "" {
-		parts = append(parts, "confidence="+confidence)
-	}
-	if len(parts) == 0 {
-		return fallback(estimate.Target, "-")
-	}
-	return strings.Join(parts, " | ")
-}
-
-func estimateValueSummary(value contracts.EstimateValue) string {
-	metric := fallback(value.Metric, "metric")
-	switch {
-	case value.Estimate != nil:
-		return fmt.Sprintf("%s=%.2f", metric, *value.Estimate)
-	case value.RangeLow != nil && value.RangeHigh != nil:
-		return fmt.Sprintf("%s=%.2f..%.2f", metric, *value.RangeLow, *value.RangeHigh)
-	case value.RangeLow != nil:
-		return fmt.Sprintf("%s>=%.2f", metric, *value.RangeLow)
-	case value.RangeHigh != nil:
-		return fmt.Sprintf("%s<=%.2f", metric, *value.RangeHigh)
-	default:
-		return ""
-	}
-}
-
-func gainRangeSummary(gain contracts.GainRange) string {
-	parts := make([]string, 0, 3)
-	if summary := strings.TrimSpace(gain.Summary); summary != "" {
-		parts = append(parts, summary)
-	}
-	if percent := formatPercentRange(gain.PercentLow, gain.PercentHigh); percent != "-" {
-		parts = append(parts, percent)
-	}
-	if confidence := strings.TrimSpace(gain.Confidence); confidence != "" {
-		parts = append(parts, "confidence="+confidence)
-	}
-	if len(parts) == 0 {
-		return "-"
-	}
-	return strings.Join(parts, " | ")
-}
-
-func scenarioOverlaySummary(overlay contracts.ScenarioOverlay) string {
-	parts := []string{fallback(overlay.Target, "unknown")}
-	if summary := strings.TrimSpace(overlay.Summary); summary != "" {
-		parts = append(parts, summary)
-	}
-	if confidence := strings.TrimSpace(overlay.Confidence); confidence != "" {
-		parts = append(parts, "confidence="+confidence)
-	}
-	return strings.Join(parts, " | ")
-}
-
-func buildTargetSummaryLines(overlay contracts.ScenarioOverlay) []string {
+func projectedEffectLines(effect contracts.ProjectedEffect) []string {
 	return []string{
-		"Latency: " + crossMetricLine(overlay.CrossMetric.Current.LatencyE2ESeconds, overlay.CrossMetric.Projected.LatencyE2ESeconds, "s"),
-		"Throughput: " + throughputProjectionLine(overlay.CrossMetric),
+		projectedMetricSummary("Latency", effect.Latency),
+		projectedMetricSummary("Request Throughput", effect.Throughput.Requests),
+		projectedMetricSummary("Output Token Throughput", effect.Throughput.OutputTokens),
 	}
 }
 
-func throughputProjectionLine(crossMetric contracts.CrossMetricProjection) string {
-	current, currentUnit := throughputValue(crossMetric.Current)
-	projected, projectedUnit := throughputValue(crossMetric.Projected)
-	unit := currentUnit
+func projectedMetricSummary(label string, metric contracts.ProjectedMetricEffect) string {
+	name := fallback(metric.Metric, "metric")
+	unit := strings.TrimSpace(metric.Unit)
+	if metric.Current == nil || metric.Projected == nil || metric.PercentDelta == nil {
+		reason := fallback(metric.Reason, "estimate unavailable")
+		return fmt.Sprintf("%s: %s unavailable (%s)", label, name, reason)
+	}
+	current := formatProjectedValue(*metric.Current, unit)
+	projected := formatProjectedValue(*metric.Projected, unit)
+	return fmt.Sprintf("%s: %s %s -> %s (%+.1f%%)", label, name, current, projected, *metric.PercentDelta)
+}
+
+func formatProjectedValue(value float64, unit string) string {
 	if unit == "" {
-		unit = projectedUnit
+		return fmt.Sprintf("%.2f", value)
 	}
-	return projectionLine(current, projected, unit)
-}
-
-func throughputValue(values contracts.CrossMetricValues) (*float64, string) {
-	if values.RequestThroughput != nil {
-		return values.RequestThroughput, "req/s"
-	}
-	if values.GenerationTokensPerSecond != nil {
-		return values.GenerationTokensPerSecond, "tok/s"
-	}
-	return nil, ""
-}
-
-func crossMetricLine(current, projected *float64, unit string) string {
-	return projectionLine(current, projected, unit)
-}
-
-func projectionLine(current, projected *float64, unit string) string {
-	switch {
-	case current == nil && projected == nil:
-		return "-"
-	case current != nil && projected != nil:
-		return fmt.Sprintf("current %.2f%s -> projected %.2f%s", *current, withUnit(unit), *projected, withUnit(unit))
-	case current != nil:
-		return fmt.Sprintf("current %.2f%s", *current, withUnit(unit))
-	default:
-		return fmt.Sprintf("projected %.2f%s", *projected, withUnit(unit))
-	}
-}
-
-func withUnit(unit string) string {
-	if strings.TrimSpace(unit) == "" {
-		return ""
-	}
-	return " " + unit
-}
-
-func quantizationOverlaySummary(overlay contracts.QuantizationScenarioOverlay) string {
-	parts := []string{fallback(overlay.Target, "unknown"), formatPercentRange(overlay.GainRange.PercentLow, overlay.GainRange.PercentHigh)}
-	if summary := strings.TrimSpace(overlay.Summary); summary != "" {
-		parts = append(parts, summary)
-	}
-	return strings.Join(parts, " | ")
+	return fmt.Sprintf("%.2f %s", value, unit)
 }
 
 func realLoadSummary(load contracts.RealLoadSummary) string {

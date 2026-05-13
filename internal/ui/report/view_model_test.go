@@ -21,9 +21,7 @@ func TestBuildReportViewModelIncludesDashboardParityCards(t *testing.T) {
 	want := []string{
 		"verdict",
 		"primary-recommendation",
-		"frontier",
-		"quantization",
-		"secondary-opportunity",
+		"opportunities",
 		"issues",
 		"evidence",
 		"collection-quality",
@@ -34,10 +32,10 @@ func TestBuildReportViewModelIncludesDashboardParityCards(t *testing.T) {
 	if vm.browserURL == "" {
 		t.Fatal("expected browser URL when identity is complete")
 	}
-	if got := vm.cards[5].sections[0].table; got == nil || len(got.rows) == 0 {
+	if got := vm.cards[3].sections[0].table; got == nil || len(got.rows) == 0 {
 		t.Fatal("issues card should include table rows")
 	}
-	if got := vm.cards[6].tabs; len(got) != 4 {
+	if got := vm.cards[4].tabs; len(got) != 4 {
 		t.Fatalf("evidence tabs = %d, want 4", len(got))
 	}
 }
@@ -45,12 +43,11 @@ func TestBuildReportViewModelIncludesDashboardParityCards(t *testing.T) {
 func TestBuildReportViewModelOmitsOptionalCardsWhenDataMissing(t *testing.T) {
 	t.Parallel()
 	report := fullReportFixture()
-	report.DiagnosticLenses.Quantization = nil
-	report.UIHints.SecondaryOpportunity = nil
+	report.Opportunities = nil
 
 	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 	for _, card := range vm.cards {
-		if card.id == "quantization" || card.id == "secondary-opportunity" {
+		if card.id == "opportunities" {
 			t.Fatalf("unexpected optional card present: %s", card.id)
 		}
 	}
@@ -81,9 +78,9 @@ func TestBuildReportViewModelKeepsVerdictCardConcise(t *testing.T) {
 
 	lines := vm.cards[0].sections[0].lines
 	want := []string{
-		"Headline: KV pressure is limiting throughput.",
-		"Limiter: KV cache pressure [kv_pressure]",
-		"Summary: Queue depth is stable but KV usage constrains headroom.",
+		"Headline: Top issue: KV pressure",
+		"Top Issue: KV pressure",
+		"Summary: The service is load-bearing enough to trust throughput guidance.",
 	}
 	if !slices.Equal(lines, want) {
 		t.Fatalf("verdict lines = %v, want %v", lines, want)
@@ -95,19 +92,23 @@ func TestBuildReportViewModelKeepsPrimaryRecommendationFocused(t *testing.T) {
 	report := fullReportFixture()
 	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 
-	if len(vm.cards[1].sections) != 2 {
-		t.Fatalf("primary recommendation sections = %d, want 2", len(vm.cards[1].sections))
+	if len(vm.cards[1].sections) != 3 {
+		t.Fatalf("primary recommendation sections = %d, want 3", len(vm.cards[1].sections))
 	}
 	lines := vm.cards[1].sections[0].lines
 	want := []string{
 		"Title: Reduce KV footprint",
 		"Rationale: This unlocks safer scheduler headroom before any throughput tuning.",
-		"Expected Gain: Likely improvement: +8% to +15% throughput.",
+		"Projected Effect: Likely improvement: +8% to +15% throughput.",
 	}
 	if !slices.Equal(lines, want) {
 		t.Fatalf("primary recommendation summary lines = %v, want %v", lines, want)
 	}
-	actionLines := vm.cards[1].sections[1].lines
+	projectedLines := vm.cards[1].sections[1].lines
+	if !slices.Contains(projectedLines, "Request Throughput: request_throughput 4.80 req/s -> 5.28 req/s (+10.0%)") {
+		t.Fatalf("projected effect lines = %v, want request throughput projection", projectedLines)
+	}
+	actionLines := vm.cards[1].sections[2].lines
 	if slices.Contains(actionLines, "   How: Keep prompt mix and concurrency stable.") {
 		t.Fatalf("action lines should not include how text: %v", actionLines)
 	}
@@ -116,49 +117,46 @@ func TestBuildReportViewModelKeepsPrimaryRecommendationFocused(t *testing.T) {
 	}
 }
 
-func TestBuildReportViewModelKeepsFrontierCardToTwoRows(t *testing.T) {
+func TestBuildReportViewModelUsesRecommendationProjectedEffect(t *testing.T) {
 	t.Parallel()
 	report := fullReportFixture()
 	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 
-	lines := vm.cards[2].sections[0].lines
+	lines := vm.cards[1].sections[1].lines
 	want := []string{
-		"Latency: current 0.82 s -> projected 0.71 s",
-		"Throughput: current 4.80 req/s -> projected 5.60 req/s",
+		"Latency: latency_e2e_seconds 1.40 s -> 1.40 s (+0.0%)",
+		"Request Throughput: request_throughput 4.80 req/s -> 5.28 req/s (+10.0%)",
+		"Output Token Throughput: generation_tokens_per_second 256.00 tok/s -> 281.60 tok/s (+10.0%)",
 	}
 	if !slices.Equal(lines, want) {
-		t.Fatalf("frontier lines = %v, want %v", lines, want)
+		t.Fatalf("projected effect lines = %v, want %v", lines, want)
 	}
 }
 
-func TestBuildReportViewModelKeepsQuantizationCardShort(t *testing.T) {
+func TestBuildReportViewModelKeepsQuantizationAsOpportunity(t *testing.T) {
 	t.Parallel()
 	report := fullReportFixture()
 	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 
-	card := vm.cards[3]
-	if len(card.sections) != 1 {
-		t.Fatalf("quantization sections = %d, want 1", len(card.sections))
+	card := vm.cards[2]
+	if got, want := card.id, "opportunities"; got != want {
+		t.Fatalf("card id = %q, want %q", got, want)
+	}
+	if len(card.sections) < 3 {
+		t.Fatalf("opportunity sections = %d, want recommendation detail", len(card.sections))
 	}
 	want := []string{
-		"Candidate: FP8 | Qwen/Qwen3-32B-FP8",
-		"Expected Gain: throughput | 8% to 15%",
-		"Why: Evaluate the FP8 candidate",
+		"Title: Evaluate quantization next",
+		"Rationale: Treat quantization as a ranked opportunity.",
 	}
-	if !slices.Equal(card.sections[0].lines, want) {
-		t.Fatalf("quantization lines = %v, want %v", card.sections[0].lines, want)
+	if !slices.Equal(card.sections[1].lines, want) {
+		t.Fatalf("opportunity recommendation lines = %v, want %v", card.sections[1].lines, want)
 	}
 }
 
 func fullReportFixture() contracts.FinalReport {
 	reportedAt := time.Unix(1700000100, 0).UTC()
 	collectedAt := time.Unix(1700000000, 0).UTC()
-	reqPerSec := 4.8
-	projReqPerSec := 5.6
-	latencySec := 0.82
-	projectedLatencySec := 0.71
-	low := 8.0
-	high := 15.0
 	return contracts.FinalReport{
 		SchemaVersion: contracts.ReportSchemaVersion,
 		Job: contracts.ReportJob{
@@ -195,117 +193,12 @@ func fullReportFixture() contracts.FinalReport {
 					ConfiguredPosture:     "conservative",
 					Summary:               "Observed batching remains conservative under sustained load.",
 				},
-				CurrentLimiter: contracts.CurrentLimiter{
-					Family:  "kv_pressure",
-					Label:   "KV cache pressure",
-					Summary: "KV pressure remains the dominant limiter.",
-				},
 				RealLoadSummary: contracts.RealLoadSummary{
 					ComputePressure: "medium",
 					KVPressure:      "high",
 					Summary:         "The service is load-bearing enough to trust throughput guidance.",
 				},
-				CapacitySnapshot: &contracts.CapacitySnapshot{
-					Summary:    "Snapshot gathered under representative load.",
-					Confidence: "medium",
-					Observed: contracts.CapacityRates{
-						RequestThroughput: &reqPerSec,
-					},
-				},
-				Situation: contracts.Situation{
-					Headline:    "KV pressure is limiting throughput.",
-					Summary:     "Queue depth is stable but KV usage constrains headroom.",
-					KeyTradeoff: "Lower max context can free KV headroom.",
-				},
-				Frontier: contracts.FrontierBundle{
-					CurrentPracticalFrontier: contracts.FrontierEstimate{
-						EstimateSummary: "Current throughput frontier",
-						Value:           contracts.EstimateValue{Metric: "req/s", Estimate: &reqPerSec},
-						Confidence:      "medium",
-					},
-					ProjectedFrontierAfterPrimaryRecommendation: contracts.FrontierEstimate{
-						EstimateSummary: "Projected frontier after KV reduction",
-						Value:           contracts.EstimateValue{Metric: "req/s", Estimate: &projReqPerSec},
-						Confidence:      "medium",
-					},
-					LikelyGainRange: contracts.GainRange{
-						Summary:     "Likely improvement under the observed workload.",
-						PercentLow:  &low,
-						PercentHigh: &high,
-						Confidence:  "medium",
-					},
-				},
-				Recommendation: &contracts.Recommendation{
-					Decision:      "reduce_kv_footprint",
-					Title:         "Reduce KV footprint",
-					Rationale:     "This unlocks safer scheduler headroom before any throughput tuning.",
-					Effort:        "low",
-					Risk:          "medium",
-					Reversibility: "high",
-					Confidence:    "high",
-					ExpectedEffect: contracts.RecommendationEffect{
-						Summary: "Likely improvement: +8% to +15% throughput.",
-					},
-					Tradeoff: contracts.RecommendationTradeoff{
-						Summary: "Some requests may need a shorter maximum context.",
-					},
-					Actions: []contracts.Action{{
-						ID:            "action:reduce-max-model-len",
-						Title:         "Reduce `--max-model-len`",
-						CurrentValue:  "8192",
-						ProposedValue: "4096",
-						Why:           "Free KV headroom before increasing scheduler aggressiveness.",
-						Risk:          "Shorter maximum context for some requests.",
-					}},
-					FollowUpSteps: []contracts.FollowUpStep{{
-						ID:    "action:rerun",
-						Title: "Rerun under the same load",
-						How:   "Keep prompt mix and concurrency stable.",
-					}},
-				},
 				Confidence: "high",
-			},
-			TargetOverlay: contracts.ScenarioOverlay{
-				Target:     "throughput",
-				Summary:    "A modest throughput win is plausible if KV pressure is reduced first.",
-				Confidence: "medium",
-				CrossMetric: contracts.CrossMetricProjection{
-					Current: contracts.CrossMetricValues{
-						LatencyE2ESeconds: &latencySec,
-						RequestThroughput: &reqPerSec,
-					},
-					Projected: contracts.CrossMetricValues{
-						LatencyE2ESeconds: &projectedLatencySec,
-						RequestThroughput: &projReqPerSec,
-					},
-				},
-			},
-		},
-		DiagnosticLenses: contracts.DiagnosticLenses{
-			Quantization: &contracts.QuantizationLens{
-				CurrentPosture: contracts.QuantizationCurrentPosture{
-					ModelID:      "Qwen/Qwen3-32B",
-					DType:        "bfloat16",
-					Quantization: "none",
-					KVCacheDType: "auto",
-					GPUFamily:    "hopper",
-				},
-				SelectedCandidate: contracts.QuantizationCandidate{
-					Family:     "fp8",
-					Repo:       "Qwen/Qwen3-32B-FP8",
-					Confidence: "medium",
-				},
-				Recommendation: &contracts.Recommendation{
-					Decision: "evaluate_quantization",
-					Title:    "Evaluate the FP8 candidate",
-				},
-				TargetOverlay: contracts.QuantizationScenarioOverlay{
-					Target: "throughput",
-					GainRange: contracts.GainRange{
-						PercentLow:  &low,
-						PercentHigh: &high,
-					},
-				},
 			},
 		},
 		DiagnosticCoverage: contracts.DiagnosticCoverage{
@@ -314,19 +207,46 @@ func fullReportFixture() contracts.FinalReport {
 			},
 		},
 		Issues: []contracts.Issue{{
-			ID:         "issue:kv_pressure",
+			ID:         "issue:kv_pressure_preemption_or_swap",
 			Rank:       1,
+			DetectorID: "kv_pressure_preemption_or_swap",
+			Family:     "kv_footprint_heavy",
 			Label:      "KV pressure",
-			Summary:    "KV usage remains the top constraint.",
 			Confidence: "high",
+			Recommendation: &contracts.Recommendation{
+				Decision:        "reduce_kv_footprint",
+				Title:           "Reduce KV footprint",
+				Rationale:       "This unlocks safer scheduler headroom before any throughput tuning.",
+				Confidence:      "high",
+				ProjectedEffect: projectedEffectFixture("Likely improvement: +8% to +15% throughput."),
+				Actions: []contracts.Action{{
+					ID:            "action:reduce-max-model-len",
+					Title:         "Reduce `--max-model-len`",
+					CurrentValue:  "8192",
+					ProposedValue: "4096",
+					Why:           "Free KV headroom before increasing scheduler aggressiveness.",
+					Risk:          "Shorter maximum context for some requests.",
+				}},
+				FollowUpSteps: []contracts.FollowUpStep{{
+					ID:    "action:rerun",
+					Title: "Rerun under the same load",
+					How:   "Keep prompt mix and concurrency stable.",
+				}},
+			},
 		}},
-		Evidence: contracts.Evidence{
-			Highlights: []contracts.EvidenceHighlight{{
-				ID:      "highlight:kv",
-				Title:   "KV cache utilization",
-				Summary: "The evidence points to sustained KV pressure.",
-			}},
-		},
+		Opportunities: []contracts.Opportunity{{
+			ID:         "opportunity:quantization",
+			Rank:       1,
+			DetectorID: "quantized_model_opportunity",
+			Category:   "model_optimization",
+			Title:      "Evaluate quantization next",
+			Recommendation: &contracts.Recommendation{
+				Decision:        "evaluate_quantization",
+				Title:           "Evaluate quantization next",
+				Rationale:       "Treat quantization as a ranked opportunity.",
+				ProjectedEffect: projectedEffectFixture("Likely improvement: +5% to +10% latency."),
+			},
+		}},
 		CollectionQuality: contracts.ReportCollectionQuality{
 			Completeness:            0.93,
 			TelemetryMode:           "prometheus",
@@ -338,14 +258,54 @@ func fullReportFixture() contracts.FinalReport {
 				"vllm_metrics": {Status: "ok"},
 			},
 		},
-		UIHints: contracts.UIHints{
-			SecondaryOpportunity: &contracts.SecondaryOpportunity{
-				IssueID:      "issue:quantization",
-				PriorityNote: "Lower priority than the KV reduction.",
-				Recommendation: &contracts.Recommendation{
-					Decision: "evaluate_quantization",
-					Title:    "Evaluate quantization next",
-				},
+	}
+}
+
+func projectedEffectFixture(summary string) contracts.ProjectedEffect {
+	currentLatency := 1.4
+	projectedLatency := 1.4
+	latencyDelta := 0.0
+	latencyPercent := 0.0
+	currentRequests := 4.8
+	projectedRequests := 5.28
+	requestDelta := projectedRequests - currentRequests
+	requestPercent := 10.0
+	currentOutput := 256.0
+	projectedOutput := 281.6
+	outputDelta := projectedOutput - currentOutput
+	outputPercent := 10.0
+	return contracts.ProjectedEffect{
+		Summary: summary,
+		Latency: contracts.ProjectedMetricEffect{
+			Metric:       "latency_e2e_seconds",
+			Unit:         "s",
+			Current:      &currentLatency,
+			Projected:    &projectedLatency,
+			Delta:        &latencyDelta,
+			PercentDelta: &latencyPercent,
+			Direction:    "lower_is_better",
+			Confidence:   "medium",
+		},
+		Throughput: contracts.ProjectedThroughputEffect{
+			Requests: contracts.ProjectedMetricEffect{
+				Metric:       "request_throughput",
+				Unit:         "req/s",
+				Current:      &currentRequests,
+				Projected:    &projectedRequests,
+				Delta:        &requestDelta,
+				PercentDelta: &requestPercent,
+				Direction:    "higher_is_better",
+				Confidence:   "medium",
+			},
+			OutputTokens: contracts.ProjectedMetricEffect{
+				Metric:       "generation_tokens_per_second",
+				Unit:         "tok/s",
+				Current:      &currentOutput,
+				Projected:    &projectedOutput,
+				Delta:        &outputDelta,
+				PercentDelta: &outputPercent,
+				Direction:    "higher_is_better",
+				Confidence:   "medium",
 			},
 		},
 	}

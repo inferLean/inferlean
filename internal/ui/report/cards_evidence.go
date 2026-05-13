@@ -43,20 +43,13 @@ func buildCollectionQualityCard(report contracts.FinalReport) reportCardViewMode
 }
 
 func buildMetricsTab(report contracts.FinalReport) reportTabViewModel {
-	base := report.Diagnosis.BaseDiagnosis
-	lines := []string{
-		"Current Frontier: " + frontierEstimateSummary(base.Frontier.CurrentPracticalFrontier),
-		"Safe Headroom: " + frontierEstimateSummary(base.Frontier.SafeHeadroom),
-		"Projected Frontier: " + frontierEstimateSummary(base.Frontier.ProjectedFrontierAfterPrimaryRecommendation),
-		"Likely Gain: " + gainRangeSummary(base.Frontier.LikelyGainRange),
-		"Target Overlay: " + scenarioOverlaySummary(report.Diagnosis.TargetOverlay),
-	}
-	if base.CapacitySnapshot != nil && base.CapacitySnapshot.HasData() {
-		lines = append(lines, "Observed Rates: "+rateSummary(base.CapacitySnapshot.Observed))
+	lines := []string{"No primary recommendation projected effect."}
+	if recommendation := primaryRecommendation(report); recommendation != nil {
+		lines = projectedEffectLines(recommendation.ProjectedEffect)
 	}
 	return reportTabViewModel{
 		title:    "metrics",
-		summary:  "Frontier and throughput evidence",
+		summary:  "Recommendation projection estimates",
 		sections: []reportSectionViewModel{{lines: lines}},
 	}
 }
@@ -68,17 +61,10 @@ func buildConfigTab(report contracts.FinalReport) reportTabViewModel {
 		{"torch", fallback(report.Environment.TorchVersion, "-"), ""},
 		{"cuda", fallback(report.Environment.CUDARuntimeVersion, "-"), ""},
 	}
-	if rec := report.Diagnosis.BaseDiagnosis.Recommendation; rec != nil {
+	if rec := primaryRecommendation(report); rec != nil {
 		for _, action := range rec.Actions {
 			rows = append(rows, []string{fallback(action.Title, action.ID), formatActionDelta(action), "recommended"})
 		}
-	}
-	if lens := report.DiagnosticLenses.Quantization; lens != nil {
-		rows = append(rows,
-			[]string{"quantization.model", fallback(lens.CurrentPosture.ModelID, "-"), "current"},
-			[]string{"quantization.dtype", fallback(lens.CurrentPosture.DType, "-"), "current"},
-			[]string{"quantization.candidate", fallback(firstNonEmpty(lens.SelectedCandidate.Repo, lens.SelectedCandidate.Family), "-"), "candidate"},
-		)
 	}
 	return reportTabViewModel{
 		title:   "config",
@@ -130,9 +116,6 @@ func buildQualityTab(report contracts.FinalReport) reportTabViewModel {
 		"Coverage: " + fallback(report.DiagnosticCoverage.Summary.CoverageStatus, "-"),
 		"Missing Evidence: " + joinOrDash(report.CollectionQuality.MissingEvidence),
 		"Degraded Evidence: " + joinOrDash(report.CollectionQuality.DegradedEvidence),
-	}
-	for _, highlight := range report.Evidence.Highlights {
-		lines = append(lines, "Highlight: "+fallback(firstNonEmpty(highlight.Title, highlight.ID), "-")+" | "+fallback(highlight.Summary, "-"))
 	}
 	sections := []reportSectionViewModel{{lines: lines}}
 	if len(rows) > 0 {

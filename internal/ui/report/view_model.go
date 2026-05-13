@@ -85,12 +85,8 @@ func buildReportCards(report contracts.FinalReport) []reportCardViewModel {
 	cards := []reportCardViewModel{
 		buildVerdictCard(report),
 		buildRecommendationCard(report),
-		buildFrontierCard(report),
 	}
-	if card, ok := buildQuantizationCard(report); ok {
-		cards = append(cards, card)
-	}
-	if card, ok := buildSecondaryOpportunityCard(report); ok {
+	if card, ok := buildOpportunitiesCard(report); ok {
 		cards = append(cards, card)
 	}
 	cards = append(cards, buildIssuesCard(report))
