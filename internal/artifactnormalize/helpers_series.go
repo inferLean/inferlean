@@ -3,6 +3,7 @@ package artifactnormalize
 import (
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
@@ -19,6 +20,39 @@ func windowFromMetric(samples []promcollector.Sample, metricName string) contrac
 		points = append(points, contracts.MetricSample{Timestamp: sample.Timestamp, Value: value})
 	}
 	return withSamples(points)
+}
+
+func windowFromAnyMetric(samples []promcollector.Sample, metricNames ...string) contracts.MetricWindow {
+	for _, metricName := range metricNames {
+		window := windowFromMetric(samples, metricName)
+		if window.HasData() {
+			return window
+		}
+	}
+	return contracts.MetricWindow{}
+}
+
+func windowFromInfoLabel(samples []promcollector.Sample, metricName, label string) contracts.MetricWindow {
+	for idx := len(samples) - 1; idx >= 0; idx-- {
+		for _, metric := range samples[idx].Metrics {
+			if metric.Name != metricName {
+				continue
+			}
+			raw := strings.TrimSpace(metric.Labels[label])
+			if raw == "" {
+				continue
+			}
+			value, err := strconv.ParseFloat(raw, 64)
+			if err != nil {
+				continue
+			}
+			return withSamples([]contracts.MetricSample{{
+				Timestamp: samples[idx].Timestamp,
+				Value:     value,
+			}})
+		}
+	}
+	return contracts.MetricWindow{}
 }
 
 func histogramMeanWindow(samples []promcollector.Sample, prefix string) contracts.MetricWindow {

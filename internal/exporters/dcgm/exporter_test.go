@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -85,5 +86,41 @@ func TestStartRejectsInvalidExplicitEndpoint(t *testing.T) {
 	}
 	if res.Reason != "invalid dcgm-exporter endpoint" {
 		t.Fatalf("Reason = %q", res.Reason)
+	}
+}
+
+func TestDefaultCollectorsCSVIncludesCriticalMetrics(t *testing.T) {
+	csv := defaultCollectorsCSV()
+	for _, metric := range []string{
+		"DCGM_FI_DEV_GPU_UTIL",
+		"DCGM_FI_DEV_FB_USED",
+		"DCGM_FI_DEV_FB_FREE",
+		"DCGM_FI_PROF_SM_ACTIVE",
+		"DCGM_FI_PROF_SM_OCCUPANCY",
+		"DCGM_FI_PROF_PIPE_TENSOR_ACTIVE",
+		"DCGM_FI_PROF_DRAM_ACTIVE",
+		"DCGM_FI_PROF_PCIE_RX_BYTES",
+		"DCGM_FI_PROF_PCIE_TX_BYTES",
+		"DCGM_FI_PROF_NVLINK_RX_BYTES",
+		"DCGM_FI_PROF_NVLINK_TX_BYTES",
+		"DCGM_FI_DEV_POWER_USAGE",
+		"DCGM_FI_DEV_GPU_TEMP",
+		"DCGM_FI_DEV_SM_CLOCK",
+		"DCGM_FI_DEV_MEM_CLOCK",
+		"DCGM_FI_DEV_CLOCK_THROTTLE_REASONS",
+	} {
+		if !strings.Contains(csv, metric) {
+			t.Fatalf("collectors CSV missing %s:\n%s", metric, csv)
+		}
+	}
+}
+
+func TestDCGMArgsPreferCollectorsWhenAvailable(t *testing.T) {
+	args := dcgmArgs("127.0.0.1:9400", "/tmp/collectors.csv")
+	if got, want := strings.Join(args[0], " "), "-a 127.0.0.1:9400 -f /tmp/collectors.csv"; got != want {
+		t.Fatalf("first args = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(args[len(args)-1], " "), "--web.listen-address=127.0.0.1:9400"; got != want {
+		t.Fatalf("fallback args = %q, want %q", got, want)
 	}
 }

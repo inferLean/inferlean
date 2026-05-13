@@ -24,18 +24,26 @@ func normalizeMetrics(input Input) contracts.Metrics {
 
 func normalizeHostMetrics(node, vllm []promcollector.Sample) contracts.HostMetrics {
 	cpuUtil := nodeCPUUtilization(node)
-	memoryUsed, memoryAvail := nodeMemoryWindows(node)
-	swap := nodeSwapPressure(node)
+	memoryUsed, memoryAvail, memoryTotal := nodeMemoryWindows(node)
+	swapPressure, swapUsed := nodeSwapWindows(node)
 	host := contracts.HostMetrics{
 		CPUUtilization:  cpuUtil,
 		CPULoad:         windowFromMetric(node, "node_load1"),
+		CPULoadAverages: loadWindows(node),
 		MemoryUsed:      memoryUsed,
 		MemoryAvailable: memoryAvail,
-		SwapPressure:    swap,
+		MemoryTotal:     memoryTotal,
+		SwapPressure:    swapPressure,
+		SwapUsed:        swapUsed,
 		ProcessCPU:      deltaRateWindow(vllm, "process_cpu_seconds_total", 100),
 		ProcessMemory:   windowFromMetric(vllm, "process_resident_memory_bytes"),
-		NetworkRX:       deltaRateWindow(node, "node_network_receive_bytes_total", 1),
-		NetworkTX:       deltaRateWindow(node, "node_network_transmit_bytes_total", 1),
+		DiskIO: contracts.DiskIOMetrics{
+			ReadBytes:  deltaRateWindow(node, "node_disk_read_bytes_total", 1),
+			WriteBytes: deltaRateWindow(node, "node_disk_written_bytes_total", 1),
+		},
+		NetworkRX:               deltaRateWindow(node, "node_network_receive_bytes_total", 1),
+		NetworkTX:               deltaRateWindow(node, "node_network_transmit_bytes_total", 1),
+		KubernetesCPUThrottling: deltaRateWindow(node, "container_cpu_cfs_throttled_seconds_total", 1),
 	}
 	host.Coverage = hostCoverage(host)
 	return host
@@ -43,10 +51,12 @@ func normalizeHostMetrics(node, vllm []promcollector.Sample) contracts.HostMetri
 
 func normalizeGPUMetrics(nvml, dcgm []promcollector.Sample) contracts.GPUTelemetry {
 	gpuUtil := firstWindow(
-		windowFromMetric(dcgm, "DCGM_FI_PROF_GR_ENGINE_ACTIVE"),
 		windowFromMetric(dcgm, "DCGM_FI_DEV_GPU_UTIL"),
 		windowFromMetric(nvml, "inferlean_nvml_gpu_utilization_percent"),
 	)
+	smActive := ratioToPercentWindow(windowFromMetric(dcgm, "DCGM_FI_PROF_SM_ACTIVE"))
+	grEngineActive := ratioToPercentWindow(windowFromMetric(dcgm, "DCGM_FI_PROF_GR_ENGINE_ACTIVE"))
+	dramActive := ratioToPercentWindow(windowFromMetric(dcgm, "DCGM_FI_PROF_DRAM_ACTIVE"))
 	memoryUsed := firstWindow(
 		mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_USED")),
 		mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_used_mb")),
@@ -58,9 +68,14 @@ func normalizeGPUMetrics(nvml, dcgm []promcollector.Sample) contracts.GPUTelemet
 		mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_total_mb")),
 	)
 	gpu := contracts.GPUTelemetry{
-		GPUUtilizationOrSMActivity: gpuUtil,
+		GPUUtilizationOrSMActivity: firstWindow(gpuUtil, smActive, grEngineActive),
+		GPUUtilization:             gpuUtil,
+		SMActive:                   smActive,
+		SMOccupancy:                ratioToPercentWindow(windowFromMetric(dcgm, "DCGM_FI_PROF_SM_OCCUPANCY")),
+		TensorCoreActive:           ratioToPercentWindow(windowFromMetric(dcgm, "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE")),
+		DRAMActive:                 dramActive,
 		FramebufferMemory:          memoryWindows(memoryUsed, memoryFree, memoryReserved, memoryTotal),
-		MemoryBandwidth:            windowFromMetric(dcgm, "DCGM_FI_PROF_DRAM_ACTIVE"),
+		MemoryBandwidth:            dramActive,
 		Clocks: contracts.ClockMetrics{
 			SM:     windowFromMetric(dcgm, "DCGM_FI_DEV_SM_CLOCK"),
 			Memory: windowFromMetric(dcgm, "DCGM_FI_DEV_MEM_CLOCK"),
@@ -73,6 +88,7 @@ func normalizeGPUMetrics(nvml, dcgm []promcollector.Sample) contracts.GPUTelemet
 			windowFromMetric(dcgm, "DCGM_FI_DEV_GPU_TEMP"),
 			windowFromMetric(nvml, "inferlean_nvml_temperature_celsius"),
 		),
+		ClockThrottleReasons: windowFromMetric(dcgm, "DCGM_FI_DEV_CLOCK_THROTTLE_REASONS"),
 		PCIeThroughput: contracts.ThroughputMetrics{
 			RX: deltaRateWindow(dcgm, "DCGM_FI_PROF_PCIE_RX_BYTES", 1),
 			TX: deltaRateWindow(dcgm, "DCGM_FI_PROF_PCIE_TX_BYTES", 1),
@@ -124,6 +140,14 @@ func firstWindow(windows ...contracts.MetricWindow) contracts.MetricWindow {
 		}
 	}
 	return contracts.MetricWindow{}
+}
+
+func loadWindows(samples []promcollector.Sample) contracts.LoadMetrics {
+	return contracts.LoadMetrics{
+		Load1:  windowFromMetric(samples, "node_load1"),
+		Load5:  windowFromMetric(samples, "node_load5"),
+		Load15: windowFromMetric(samples, "node_load15"),
+	}
 }
 
 func scalarWindow(value float64) contracts.MetricWindow {
@@ -187,9 +211,10 @@ func nodeCPUUtilization(samples []promcollector.Sample) contracts.MetricWindow {
 	return withSamples(points)
 }
 
-func nodeMemoryWindows(samples []promcollector.Sample) (contracts.MetricWindow, contracts.MetricWindow) {
+func nodeMemoryWindows(samples []promcollector.Sample) (contracts.MetricWindow, contracts.MetricWindow, contracts.MetricWindow) {
 	used := make([]contracts.MetricSample, 0, len(samples))
 	available := make([]contracts.MetricSample, 0, len(samples))
+	totalPoints := make([]contracts.MetricSample, 0, len(samples))
 	for _, sample := range samples {
 		total, okTotal := metricValue(sample.Metrics, "node_memory_MemTotal_bytes")
 		avail, okAvail := metricValue(sample.Metrics, "node_memory_MemAvailable_bytes")
@@ -198,22 +223,26 @@ func nodeMemoryWindows(samples []promcollector.Sample) (contracts.MetricWindow, 
 		}
 		used = append(used, contracts.MetricSample{Timestamp: sample.Timestamp, Value: total - avail})
 		available = append(available, contracts.MetricSample{Timestamp: sample.Timestamp, Value: avail})
+		totalPoints = append(totalPoints, contracts.MetricSample{Timestamp: sample.Timestamp, Value: total})
 	}
-	return withSamples(used), withSamples(available)
+	return withSamples(used), withSamples(available), withSamples(totalPoints)
 }
 
-func nodeSwapPressure(samples []promcollector.Sample) contracts.MetricWindow {
-	points := make([]contracts.MetricSample, 0, len(samples))
+func nodeSwapWindows(samples []promcollector.Sample) (contracts.MetricWindow, contracts.MetricWindow) {
+	pressure := make([]contracts.MetricSample, 0, len(samples))
+	used := make([]contracts.MetricSample, 0, len(samples))
 	for _, sample := range samples {
 		total, okTotal := metricValue(sample.Metrics, "node_memory_SwapTotal_bytes")
 		free, okFree := metricValue(sample.Metrics, "node_memory_SwapFree_bytes")
 		if !okTotal || !okFree || total <= 0 {
 			continue
 		}
-		usedPerc := ((total - free) / total) * 100
-		points = append(points, contracts.MetricSample{Timestamp: sample.Timestamp, Value: usedPerc})
+		usedBytes := total - free
+		usedPerc := (usedBytes / total) * 100
+		pressure = append(pressure, contracts.MetricSample{Timestamp: sample.Timestamp, Value: usedPerc})
+		used = append(used, contracts.MetricSample{Timestamp: sample.Timestamp, Value: usedBytes})
 	}
-	return withSamples(points)
+	return withSamples(pressure), withSamples(used)
 }
 
 func mbToBytesWindow(window contracts.MetricWindow) contracts.MetricWindow {
@@ -224,97 +253,14 @@ func mbToBytesWindow(window contracts.MetricWindow) contracts.MetricWindow {
 	return withSamples(samples)
 }
 
-func hostCoverage(metrics contracts.HostMetrics) contracts.SourceCoverage {
-	present := map[string]bool{}
-	appendPresent(present, "cpu_utilization", metrics.CPUUtilization.HasData())
-	appendPresent(present, "cpu_load", metrics.CPULoad.HasData())
-	appendPresent(present, "memory_used", metrics.MemoryUsed.HasData())
-	appendPresent(present, "memory_available", metrics.MemoryAvailable.HasData())
-	appendPresent(present, "swap_pressure", metrics.SwapPressure.HasData())
-	appendPresent(present, "process_cpu", metrics.ProcessCPU.HasData())
-	appendPresent(present, "process_memory", metrics.ProcessMemory.HasData())
-	appendPresent(present, "network_rx", metrics.NetworkRX.HasData())
-	appendPresent(present, "network_tx", metrics.NetworkTX.HasData())
-	return newCoverage(present, hostRequiredFields())
-}
-
-func gpuCoverage(metrics contracts.GPUTelemetry) contracts.SourceCoverage {
-	present := map[string]bool{}
-	appendPresent(present, "gpu_utilization_or_sm_activity", metrics.GPUUtilizationOrSMActivity.HasData())
-	appendPresent(present, "framebuffer_memory", metrics.FramebufferMemory.HasData())
-	appendPresent(present, "memory_bandwidth", metrics.MemoryBandwidth.HasData())
-	appendPresent(present, "clocks", metrics.Clocks.HasData())
-	appendPresent(present, "power", metrics.Power.HasData())
-	appendPresent(present, "temperature", metrics.Temperature.HasData())
-	appendPresent(present, "pcie_throughput", metrics.PCIeThroughput.HasData())
-	appendPresent(present, "nvlink_throughput", metrics.NVLinkThroughput.HasData())
-	appendPresent(present, "reliability_errors", metrics.ReliabilityErrors.HasData())
-	coverage := newCoverage(present, gpuRequiredFields())
-	return markUnsupported(
-		coverage,
-		"memory_bandwidth",
-		"pcie_throughput",
-		"nvlink_throughput",
-		"reliability_errors",
-	)
-}
-
-func nvidiaCoverage(metrics contracts.NvidiaSMIMetrics) contracts.SourceCoverage {
-	present := map[string]bool{}
-	appendPresent(present, "gpu_utilization", metrics.GPUUtilization.HasData())
-	appendPresent(present, "memory_used", metrics.MemoryUsed.HasData())
-	appendPresent(present, "memory_total", metrics.MemoryTotal.HasData())
-	appendPresent(present, "power_draw", metrics.PowerDraw.HasData())
-	appendPresent(present, "power_limit", metrics.PowerLimit.HasData())
-	appendPresent(present, "temperature", metrics.Temperature.HasData())
-	appendPresent(present, "sm_clock", metrics.SMClock.HasData())
-	appendPresent(present, "mem_clock", metrics.MemClock.HasData())
-	appendPresent(present, "process_gpu_memory", metrics.ProcessGPUMemory.HasData())
-	appendPresent(present, "performance_state", metrics.PerformanceState != "")
-	appendPresent(present, "throttle_reasons", len(metrics.ThrottleReasons) > 0)
-	return newCoverage(present, nvidiaRequiredFields())
-}
-
-func hostRequiredFields() []string {
-	return []string{
-		"cpu_utilization",
-		"cpu_load",
-		"memory_used",
-		"memory_available",
-		"swap_pressure",
-		"process_cpu",
-		"process_memory",
-		"network_rx",
-		"network_tx",
+func ratioToPercentWindow(window contracts.MetricWindow) contracts.MetricWindow {
+	samples := make([]contracts.MetricSample, 0, len(window.Samples))
+	for _, sample := range window.Samples {
+		value := sample.Value
+		if value >= 0 && value <= 1 {
+			value *= 100
+		}
+		samples = append(samples, contracts.MetricSample{Timestamp: sample.Timestamp, Value: value})
 	}
-}
-
-func gpuRequiredFields() []string {
-	return []string{
-		"gpu_utilization_or_sm_activity",
-		"framebuffer_memory",
-		"memory_bandwidth",
-		"clocks",
-		"power",
-		"temperature",
-		"pcie_throughput",
-		"nvlink_throughput",
-		"reliability_errors",
-	}
-}
-
-func nvidiaRequiredFields() []string {
-	return []string{
-		"gpu_utilization",
-		"memory_used",
-		"memory_total",
-		"power_draw",
-		"power_limit",
-		"temperature",
-		"sm_clock",
-		"mem_clock",
-		"process_gpu_memory",
-		"performance_state",
-		"throttle_reasons",
-	}
+	return withSamples(samples)
 }

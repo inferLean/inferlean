@@ -25,9 +25,25 @@ func normalizeVLLMMetrics(samples []promcollector.Sample) contracts.VLLMMetrics 
 		GenerationTokensProcessed: deltaSnapshot(samples, "vllm:generation_tokens_total"),
 		PromptLength:              histogramDistribution(samples, "vllm:request_prompt_tokens"),
 		GenerationLength:          histogramDistribution(samples, "vllm:request_generation_tokens"),
-		KVCacheUsage:              windowFromMetric(samples, "vllm:kv_cache_usage_perc"),
-		Preemptions:               windowFromMetric(samples, "vllm:num_preemptions_total"),
-		RecomputedPromptTokens:    windowFromMetric(samples, "vllm:prompt_tokens_recomputed_total"),
+		KVCacheUsage: windowFromAnyMetric(
+			samples,
+			"vllm:kv_cache_usage_perc",
+			"vllm:gpu_cache_usage_perc",
+		),
+		GPUKVCacheUsage: windowFromMetric(samples, "vllm:gpu_cache_usage_perc"),
+		CPUKVCacheUsage: windowFromMetric(samples, "vllm:cpu_cache_usage_perc"),
+		CPUKVBlocks:     windowFromInfoLabel(samples, "vllm:cache_config_info", "num_cpu_blocks"),
+		Preemptions: windowFromAnyMetric(
+			samples,
+			"vllm:num_preemptions_total",
+			"vllm:num_preemptions",
+		),
+		SwappedRequests:        windowFromMetric(samples, "vllm:num_requests_swapped"),
+		RecomputedPromptTokens: windowFromMetric(samples, "vllm:prompt_tokens_recomputed_total"),
+		KVOffloadActivity: firstWindow(
+			windowFromMetric(samples, "vllm:num_requests_swapped"),
+			windowFromMetric(samples, "vllm:cpu_cache_usage_perc"),
+		),
 		PrefixCache: cacheSnapshot(
 			samples,
 			"vllm:prefix_cache_hits_total",
@@ -64,8 +80,13 @@ func vllmCoverage(metrics contracts.VLLMMetrics, recomputedUnsupported bool) con
 	appendPresent(present, "prompt_length", metrics.PromptLength.HasData())
 	appendPresent(present, "generation_length", metrics.GenerationLength.HasData())
 	appendPresent(present, "kv_cache_usage", metrics.KVCacheUsage.HasData())
+	appendPresent(present, "gpu_kv_cache_usage", metrics.GPUKVCacheUsage.HasData())
+	appendPresent(present, "cpu_kv_cache_usage", metrics.CPUKVCacheUsage.HasData())
+	appendPresent(present, "cpu_kv_blocks", metrics.CPUKVBlocks.HasData())
 	appendPresent(present, "preemptions", metrics.Preemptions.HasData())
+	appendPresent(present, "swapped_requests", metrics.SwappedRequests.HasData())
 	appendPresent(present, "recomputed_prompt_tokens", metrics.RecomputedPromptTokens.HasData())
+	appendPresent(present, "kv_offload_activity", metrics.KVOffloadActivity.HasData())
 	appendPresent(present, "prefix_cache", metrics.PrefixCache.HasData())
 	appendPresent(present, "multimodal_cache", metrics.MultimodalCache.HasData())
 	coverage := newCoverage(present, vllmRequiredFields())
@@ -100,8 +121,13 @@ func vllmRequiredFields() []string {
 		"prompt_length",
 		"generation_length",
 		"kv_cache_usage",
+		"gpu_kv_cache_usage",
+		"cpu_kv_cache_usage",
+		"cpu_kv_blocks",
 		"preemptions",
+		"swapped_requests",
 		"recomputed_prompt_tokens",
+		"kv_offload_activity",
 		"prefix_cache",
 		"multimodal_cache",
 	}

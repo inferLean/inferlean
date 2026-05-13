@@ -20,10 +20,11 @@ type Result struct {
 }
 
 type Session struct {
-	Endpoint string
-	cmd      *exec.Cmd
-	stdout   bytes.Buffer
-	stderr   bytes.Buffer
+	Endpoint       string
+	cmd            *exec.Cmd
+	stdout         bytes.Buffer
+	stderr         bytes.Buffer
+	collectorsPath string
 }
 
 type StartResult struct {
@@ -65,16 +66,36 @@ func Start(ctx context.Context, endpoint string) StartResult {
 		return StartResult{Available: false, Reason: err.Error()}
 	}
 	address := fmt.Sprintf("127.0.0.1:%d", port)
-	candidates := [][]string{
-		{"-a", address},
-		{"--web.listen-address=" + address},
-	}
+	collectorsPath, _ := writeCollectorsFile()
+	collectorsClaimed := false
+	defer func() {
+		if !collectorsClaimed && collectorsPath != "" {
+			_ = os.Remove(collectorsPath)
+		}
+	}()
+	candidates := dcgmArgs(address, collectorsPath)
 	for _, args := range candidates {
-		if result := startAttempt(ctx, path, args, address); result.Available {
+		usedCollectors := containsArg(args, collectorsPath)
+		if result := startAttempt(ctx, path, args, address, collectorsPathForSession(collectorsPath, usedCollectors)); result.Available {
+			collectorsClaimed = usedCollectors
 			return result
 		}
 	}
 	return StartResult{Available: false, Reason: "dcgm-exporter failed to start"}
+}
+
+func dcgmArgs(address, collectorsPath string) [][]string {
+	candidates := [][]string{}
+	if strings.TrimSpace(collectorsPath) != "" {
+		candidates = append(candidates,
+			[]string{"-a", address, "-f", collectorsPath},
+			[]string{"--web.listen-address=" + address, "-f", collectorsPath},
+		)
+	}
+	return append(candidates,
+		[]string{"-a", address},
+		[]string{"--web.listen-address=" + address},
+	)
 }
 
 func detectExistingEndpoint(ctx context.Context) string {
@@ -121,10 +142,10 @@ func normalizeEndpoint(raw string) string {
 	return parsed.String()
 }
 
-func startAttempt(ctx context.Context, path string, args []string, address string) StartResult {
+func startAttempt(ctx context.Context, path string, args []string, address, collectorsPath string) StartResult {
 	endpoint := fmt.Sprintf("http://%s/metrics", address)
 	cmd := exec.CommandContext(ctx, path, args...)
-	session := &Session{Endpoint: endpoint, cmd: cmd}
+	session := &Session{Endpoint: endpoint, cmd: cmd, collectorsPath: collectorsPath}
 	cmd.Stdout = &session.stdout
 	cmd.Stderr = &session.stderr
 	if err := cmd.Start(); err != nil {
@@ -135,6 +156,25 @@ func startAttempt(ctx context.Context, path string, args []string, address strin
 		return StartResult{Available: false, Reason: "dcgm-exporter failed readiness"}
 	}
 	return StartResult{Available: true, Endpoint: endpoint, Session: session}
+}
+
+func containsArg(args []string, want string) bool {
+	if strings.TrimSpace(want) == "" {
+		return false
+	}
+	for _, arg := range args {
+		if arg == want {
+			return true
+		}
+	}
+	return false
+}
+
+func collectorsPathForSession(path string, used bool) string {
+	if used {
+		return path
+	}
+	return ""
 }
 
 func reservePort() (int, error) {
@@ -179,6 +219,7 @@ func (s *Session) Stop(ctx context.Context) error {
 	if s == nil || s.cmd == nil || s.cmd.Process == nil {
 		return nil
 	}
+	defer s.cleanupCollectors()
 	_ = s.cmd.Process.Signal(os.Interrupt)
 	done := make(chan error, 1)
 	go func() {
@@ -194,6 +235,14 @@ func (s *Session) Stop(ctx context.Context) error {
 		_ = s.cmd.Process.Kill()
 		return normalizeWaitErr(<-done)
 	}
+}
+
+func (s *Session) cleanupCollectors() {
+	if s == nil || strings.TrimSpace(s.collectorsPath) == "" {
+		return
+	}
+	_ = os.Remove(s.collectorsPath)
+	s.collectorsPath = ""
 }
 
 func normalizeWaitErr(err error) error {

@@ -183,6 +183,7 @@ The CLI writes a single artifact with:
 - `target`: selected vLLM process, command line, metrics endpoint, container or pod identity when present
 - `configurations`: vLLM args, selected environment, OS, CPU, RAM, GPU, CUDA/runtime, and `nvidia-smi` facts
 - `observations`: raw metric samples from vLLM, host, GPU, and local Prometheus collection when available
+- `metrics`: normalized vLLM, host, GPU/DCGM, and `nvidia-smi` metric windows with explicit coverage accounting
 - `raw_process_io`: raw command or helper output such as `nvidia-smi`
 - `user_intent`: explicit workload intent values
 - `collection_quality`: source status, fallbacks, missing/degraded sources, duration, and scrape interval

@@ -24,8 +24,16 @@ func (c ClockMetrics) HasData() bool {
 	return c.SM.HasData() || c.Memory.HasData()
 }
 
+func (l LoadMetrics) HasData() bool {
+	return l.Load1.HasData() || l.Load5.HasData() || l.Load15.HasData()
+}
+
 func (t ThroughputMetrics) HasData() bool {
 	return t.RX.HasData() || t.TX.HasData()
+}
+
+func (d DiskIOMetrics) HasData() bool {
+	return d.ReadBytes.HasData() || d.WriteBytes.HasData()
 }
 
 func (r ReliabilityMetrics) HasData() bool {

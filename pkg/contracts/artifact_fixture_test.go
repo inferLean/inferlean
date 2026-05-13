@@ -111,8 +111,13 @@ func validVLLMMetrics(now time.Time) VLLMMetrics {
 		PromptLength:              histogram(),
 		GenerationLength:          histogram(),
 		KVCacheUsage:              window,
+		GPUKVCacheUsage:           window,
+		CPUKVCacheUsage:           window,
+		CPUKVBlocks:               window,
 		Preemptions:               window,
+		SwappedRequests:           window,
 		RecomputedPromptTokens:    window,
+		KVOffloadActivity:         window,
 		PrefixCache:               cacheSnapshot(),
 		MultimodalCache:           cacheSnapshot(),
 		Coverage:                  coverage(vllmRequiredFields()...),
@@ -122,16 +127,25 @@ func validVLLMMetrics(now time.Time) VLLMMetrics {
 func validHostMetrics(now time.Time) HostMetrics {
 	window := metricWindow(now, 1)
 	return HostMetrics{
-		CPUUtilization:  window,
-		CPULoad:         window,
-		MemoryUsed:      window,
-		MemoryAvailable: window,
-		SwapPressure:    window,
-		ProcessCPU:      window,
-		ProcessMemory:   window,
-		NetworkRX:       window,
-		NetworkTX:       window,
-		Coverage:        coverage(hostRequiredFields()...),
+		CPUUtilization: window,
+		CPULoad:        window,
+		CPULoadAverages: LoadMetrics{
+			Load1:  window,
+			Load5:  window,
+			Load15: window,
+		},
+		MemoryUsed:              window,
+		MemoryAvailable:         window,
+		MemoryTotal:             window,
+		SwapPressure:            window,
+		SwapUsed:                window,
+		ProcessCPU:              window,
+		ProcessMemory:           window,
+		DiskIO:                  diskIOMetrics(now),
+		NetworkRX:               window,
+		NetworkTX:               window,
+		KubernetesCPUThrottling: window,
+		Coverage:                coverage(hostRequiredFields()...),
 	}
 }
 
@@ -139,11 +153,17 @@ func validGPUTelemetry(now time.Time) GPUTelemetry {
 	window := metricWindow(now, 1)
 	return GPUTelemetry{
 		GPUUtilizationOrSMActivity: window,
+		GPUUtilization:             window,
+		SMActive:                   window,
+		SMOccupancy:                window,
+		TensorCoreActive:           window,
+		DRAMActive:                 window,
 		FramebufferMemory:          memoryMetrics(now),
 		MemoryBandwidth:            window,
 		Clocks:                     clockMetrics(now),
 		Power:                      window,
 		Temperature:                window,
+		ClockThrottleReasons:       window,
 		PCIeThroughput:             throughputMetrics(now),
 		NVLinkThroughput:           throughputMetrics(now),
 		ReliabilityErrors:          reliabilityMetrics(now),
@@ -267,6 +287,13 @@ func throughputMetrics(ts time.Time) ThroughputMetrics {
 	return ThroughputMetrics{
 		RX: metricWindow(ts, 100),
 		TX: metricWindow(ts, 150),
+	}
+}
+
+func diskIOMetrics(ts time.Time) DiskIOMetrics {
+	return DiskIOMetrics{
+		ReadBytes:  metricWindow(ts, 100),
+		WriteBytes: metricWindow(ts, 150),
 	}
 }
 
