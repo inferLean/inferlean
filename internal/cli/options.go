@@ -17,6 +17,7 @@ type CollectFlags struct {
 	ScrapeEvery             time.Duration
 	OutputPath              string
 	DCGMEndpoint            string
+	AllowDCGMEstimation     bool
 	DeclaredWorkloadMode    string
 	DeclaredWorkloadTarget  string
 	PrefixHeavy             string

@@ -104,9 +104,11 @@ Default output path:
 
 Collection flags:
 
-- `--collect-for`: metrics collection duration, default `30s`
+- `--collect-for`: metrics collection duration, default `60s`
 - `--scrape-every`: metrics scrape interval, default `1s`
 - `--output`: artifact output path
+- `--dcgm-endpoint`: existing `dcgm-exporter` metrics endpoint
+- `--no-dcgm-use-estimation`: continue with estimated/fallback GPU telemetry when `dcgm-exporter` or required DCGM profiler metrics are unavailable
 - `--workload-mode`: declared workload mode, required with `--non-interactive`
 - `--workload-target`: declared optimization target, required with `--non-interactive`
 - `--prefix-heavy`: `true`, `false`, or `auto`; explicit `true`/`false` required with `--non-interactive`
@@ -205,14 +207,15 @@ InferLean stores local state under `~/.inferlean`:
 
 `~/.inferlean/config` contains the installation ID and auth tokens. Run artifacts and reports are written with user-only file permissions.
 
-## Optional Local Tools
+## Local Tools
 
-The collector can use local Prometheus-compatible tooling when available:
+The collector uses local Prometheus-compatible tooling when available:
 
 - `prometheus`
 - `node_exporter`
-- `dcgm-exporter`
 - `nvidia-smi`
+
+`dcgm-exporter` is required by default for GPU bottleneck evidence. Install it on the target host or pass `--dcgm-endpoint <url>` for an existing exporter. If DCGM is unavailable or the exporter cannot emit the required profiler metrics on the host GPU, pass `--no-dcgm-use-estimation` to continue with explicit estimated/fallback GPU telemetry.
 
 The CLI resolves tools from `~/.inferlean/tools`, bundled release tools next to the installed `inferlean` binary, and then `PATH`. Set `INFERLEAN_TOOLS_DIR` to point at a different tool directory.
 

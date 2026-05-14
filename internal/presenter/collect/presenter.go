@@ -30,6 +30,7 @@ type Options struct {
 	ScrapeEvery             time.Duration
 	OutputPath              string
 	DCGMEndpoint            string
+	AllowDCGMEstimation     bool
 	CollectorVersion        string
 	DeclaredWorkloadMode    string
 	DeclaredWorkloadTarget  string
@@ -179,6 +180,9 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 		}
 	}
 	defer stopAllSources()
+	if err := requireDCGMSource(opts, sources); err != nil {
+		return evidence{}, err
+	}
 	if ctx.Err() != nil {
 		return evidence{}, fmt.Errorf("collection interrupted")
 	}
@@ -201,6 +205,9 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	close(stopCountdown)
 	stopListening()
 	savePrometheusObservations(p, paths, promRes)
+	if err := requireDCGMMetrics(opts, promRes); err != nil {
+		return evidence{}, err
+	}
 	if ctx.Err() != nil {
 		return evidence{}, fmt.Errorf("collection interrupted")
 	}

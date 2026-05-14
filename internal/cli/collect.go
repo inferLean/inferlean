@@ -41,6 +41,7 @@ func newCollectCommand() *cobra.Command {
 				ScrapeEvery:             opts.ScrapeEvery,
 				OutputPath:              opts.OutputPath,
 				DCGMEndpoint:            opts.DCGMEndpoint,
+				AllowDCGMEstimation:     opts.AllowDCGMEstimation,
 				CollectorVersion:        version,
 				DeclaredWorkloadMode:    opts.DeclaredWorkloadMode,
 				DeclaredWorkloadTarget:  opts.DeclaredWorkloadTarget,
@@ -66,6 +67,7 @@ func bindCollectFlags(cmd *cobra.Command, opts *CollectFlags) {
 	cmd.Flags().DurationVar(&opts.ScrapeEvery, "scrape-every", defaultScrapeEvery, "scrape interval")
 	cmd.Flags().StringVar(&opts.OutputPath, "output", "", "artifact output path")
 	cmd.Flags().StringVar(&opts.DCGMEndpoint, "dcgm-endpoint", "", "existing dcgm-exporter metrics endpoint")
+	cmd.Flags().BoolVar(&opts.AllowDCGMEstimation, "no-dcgm-use-estimation", false, "allow estimated/fallback GPU telemetry when dcgm-exporter or required DCGM metrics are unavailable")
 	cmd.Flags().StringVar(&opts.DeclaredWorkloadMode, "workload-mode", "", "declared workload mode, required with --non-interactive")
 	cmd.Flags().StringVar(&opts.DeclaredWorkloadTarget, "workload-target", "", "declared optimization target, required with --non-interactive")
 	cmd.Flags().StringVar(&opts.PrefixHeavy, "prefix-heavy", "auto", "prefix heavy (true|false|auto), explicit true/false required with --non-interactive")
