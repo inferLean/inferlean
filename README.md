@@ -37,10 +37,10 @@ inferlean version
 Start from a host where your vLLM server is already running:
 
 ```sh
-inferlean run
+inferlean
 ```
 
-`inferlean run` performs:
+`inferlean` is an alias for `inferlean run` and performs:
 
 1. discovers a vLLM target
 2. collects local configuration and metrics evidence
@@ -52,7 +52,7 @@ inferlean run
 For scripted use, provide the target and required intent up front:
 
 ```sh
-inferlean run \
+inferlean \
   --pid 12345 \
   --non-interactive \
   --workload-mode online \
@@ -143,12 +143,13 @@ Upload flags:
 Run the full workflow in one command:
 
 ```sh
+inferlean
 inferlean run
 inferlean run --container vllm-server --collect-for 90s
 inferlean run --require-upload
 ```
 
-`run` accepts target discovery flags, collection flags, workload intent flags, and:
+The root `inferlean` command and `inferlean run` accept the same target discovery flags, collection flags, workload intent flags, and:
 
 - `--backend-url`: backend base URL, default `https://app.inferlean.com`
 - `--require-upload`: fail the command when upload or report retrieval fails
@@ -215,7 +216,7 @@ The collector uses local Prometheus-compatible tooling when available:
 - `node_exporter`
 - `nvidia-smi`
 
-`dcgm-exporter` is required by default for GPU bottleneck evidence. Install it on the target host or pass `--dcgm-endpoint <url>` for an existing exporter. If DCGM is unavailable or the exporter cannot emit the required profiler metrics on the host GPU, pass `--no-dcgm-use-estimation` to continue with explicit estimated/fallback GPU telemetry.
+`dcgm-exporter` is required by default for GPU bottleneck evidence. Before the timed collection window starts, the CLI checks that DCGM is reachable and emitting the required profiler metrics. Install it on the target host or pass `--dcgm-endpoint <url>` for an existing exporter. If DCGM is unavailable or the exporter cannot emit the required profiler metrics on the host GPU, pass `--no-dcgm-use-estimation` to continue with explicit estimated/fallback GPU telemetry.
 
 InferLean bridges local `nvidia-smi` facts through its NVML Prometheus bridge when a metric has no native exporter, including PCIe throughput plus PCIe/NVLink capacity estimates used by backend saturation scoring.
 

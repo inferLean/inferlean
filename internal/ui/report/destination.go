@@ -38,6 +38,4 @@ func isIdentityComplete(identity reportIdentity) bool {
 	return identity.installationID != "" && identity.runID != ""
 }
 
-func openBrowser(url string) error {
-	return browser.Open(url)
-}
+var openBrowser = browser.Open

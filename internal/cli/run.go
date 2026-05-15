@@ -15,6 +15,7 @@ import (
 const (
 	defaultCollectFor  = 60 * time.Second
 	defaultScrapeEvery = time.Second
+	runShort           = "Run discover -> collect -> upload -> report"
 )
 
 type runCommandOptions struct {
@@ -23,38 +24,38 @@ type runCommandOptions struct {
 	requireUpload bool
 }
 
+type runFlags struct {
+	target        DiscoverFlags
+	collect       CollectFlags
+	requireUpload bool
+}
+
 func newRunCommand() *cobra.Command {
-	target := &DiscoverFlags{}
-	collect := &CollectFlags{}
-	var requireUpload bool
+	flags := &runFlags{}
 
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Run discover -> collect -> upload -> report",
+		Short: runShort,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runWithOptions(cmd, runCommandOptions{
-				target:        *target,
-				collect:       *collect,
-				requireUpload: requireUpload,
-			})
+			return runWithOptions(cmd, flags.options())
 		},
 	}
-	bindDiscoverFlags(cmd, target)
-	bindCollectFlags(cmd, collect)
-	cmd.Flags().BoolVar(&requireUpload, "require-upload", false, "fail run when upload/report fails")
+	bindRunFlags(cmd, flags)
 	return cmd
 }
 
-func runWithDefaultOptions(cmd *cobra.Command) error {
-	return runWithOptions(cmd, runCommandOptions{
-		collect: CollectFlags{
-			CollectFor:              defaultCollectFor,
-			ScrapeEvery:             defaultScrapeEvery,
-			PrefixHeavy:             "auto",
-			Multimodal:              "auto",
-			RepeatedMultimodalMedia: "auto",
-		},
-	})
+func bindRunFlags(cmd *cobra.Command, flags *runFlags) {
+	bindDiscoverFlags(cmd, &flags.target)
+	bindCollectFlags(cmd, &flags.collect)
+	cmd.Flags().BoolVar(&flags.requireUpload, "require-upload", false, "fail run when upload/report fails")
+}
+
+func (flags *runFlags) options() runCommandOptions {
+	return runCommandOptions{
+		target:        flags.target,
+		collect:       flags.collect,
+		requireUpload: flags.requireUpload,
+	}
 }
 
 func runWithOptions(cmd *cobra.Command, opts runCommandOptions) error {

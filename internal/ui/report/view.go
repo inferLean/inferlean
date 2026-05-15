@@ -42,11 +42,8 @@ func (View) Render(report map[string]any, opts RenderOptions) {
 			fmt.Println("[report] browser view unavailable (missing run_id or installation_id), showing terminal report")
 		} else {
 			reportURL, _ := ReportURL(opts.BackendURL, identity.installationID, identity.runID)
-			if err := openBrowser(reportURL); err == nil {
-				fmt.Printf("[report] opened in browser: %s\n", reportURL)
-				return
-			}
-			fmt.Println("[report] failed to open browser, showing terminal report")
+			openReportInBrowser(reportURL)
+			return
 		}
 	}
 
@@ -64,6 +61,14 @@ func (View) Render(report map[string]any, opts RenderOptions) {
 func printReport(content string) {
 	fmt.Println("[report] parsed report")
 	fmt.Println(content)
+}
+
+func openReportInBrowser(reportURL string) {
+	if err := openBrowser(reportURL); err == nil {
+		fmt.Printf("[report] opened in browser: %s\n", reportURL)
+		return
+	}
+	fmt.Printf("[report] failed to open browser. Open this link in your browser: %s\n", reportURL)
 }
 
 type reportIdentity struct {

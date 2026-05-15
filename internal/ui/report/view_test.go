@@ -1,6 +1,7 @@
 package report
 
 import (
+	"errors"
 	"io"
 	"os"
 	"strings"
@@ -161,6 +162,23 @@ func TestRenderNonInteractivePrintsPlainReport(t *testing.T) {
 	}
 	if strings.Contains(output, "\x1b[?1049h") || strings.Contains(output, "\x1b[?1049l") {
 		t.Fatalf("non-interactive output must not use the alternate screen: %q", output)
+	}
+}
+
+func TestOpenReportInBrowserFailurePrintsManualURLOnly(t *testing.T) {
+	original := openBrowser
+	openBrowser = func(string) error { return errors.New("no browser") }
+	t.Cleanup(func() { openBrowser = original })
+
+	output := captureStdout(t, func() {
+		openReportInBrowser("https://app.inferlean.com/inst_123/run_456")
+	})
+
+	if !strings.Contains(output, "Open this link in your browser: https://app.inferlean.com/inst_123/run_456") {
+		t.Fatalf("missing manual browser URL message: %s", output)
+	}
+	if strings.Contains(output, "[report] parsed report") || strings.Contains(output, "showing terminal report") {
+		t.Fatalf("browser failure should not fall back to terminal report: %s", output)
 	}
 }
 

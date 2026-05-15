@@ -186,6 +186,12 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	if ctx.Err() != nil {
 		return evidence{}, fmt.Errorf("collection interrupted")
 	}
+	if !opts.AllowDCGMEstimation {
+		p.collectView.ShowStep("checking dcgm-exporter profiler metrics")
+	}
+	if err := requireDCGMPreflight(collectCtx, opts, sources); err != nil {
+		return evidence{}, err
+	}
 	p.collectView.ShowMetricsCollectionStart(opts.CollectFor)
 
 	targets := buildPromTargets(sources)

@@ -1,6 +1,9 @@
 package collect
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -70,6 +73,53 @@ func TestRequireDCGMMetricsAllowsExplicitEstimation(t *testing.T) {
 
 	if err := requireDCGMMetrics(Options{AllowDCGMEstimation: true}, res); err != nil {
 		t.Fatalf("expected estimation override to allow missing profiler metrics: %v", err)
+	}
+}
+
+func TestRequireDCGMPreflightFailsBeforeCollectionWhenCriticalMetricsMissing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`
+DCGM_FI_DEV_GPU_UTIL 70
+DCGM_FI_DEV_FB_USED 1024
+DCGM_FI_DEV_FB_FREE 2048
+`))
+	}))
+	t.Cleanup(server.Close)
+
+	err := requireDCGMPreflight(context.Background(), Options{}, collectionSources{
+		dcgm: dcgm.StartResult{Available: true, Endpoint: server.URL},
+	})
+	if err == nil {
+		t.Fatal("expected preflight missing profiler metrics error")
+	}
+	if !strings.Contains(err.Error(), "preflight failed before collection") {
+		t.Fatalf("error does not mention preflight timing: %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "DCGM_FI_PROF_SM_ACTIVE") {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestRequireDCGMPreflightAcceptsCriticalMetrics(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		for _, name := range requiredDCGMMetrics {
+			_, _ = w.Write([]byte(name + " 1\n"))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	err := requireDCGMPreflight(context.Background(), Options{}, collectionSources{
+		dcgm: dcgm.StartResult{Available: true, Endpoint: server.URL},
+	})
+	if err != nil {
+		t.Fatalf("expected preflight to pass with critical metrics: %v", err)
+	}
+}
+
+func TestRequireDCGMPreflightAllowsExplicitEstimation(t *testing.T) {
+	err := requireDCGMPreflight(context.Background(), Options{AllowDCGMEstimation: true}, collectionSources{})
+	if err != nil {
+		t.Fatalf("expected estimation override to skip preflight: %v", err)
 	}
 }
 

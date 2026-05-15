@@ -1,6 +1,7 @@
 package report
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -68,6 +69,22 @@ func TestReportModelBrowserOpenAvailabilityDependsOnIdentity(t *testing.T) {
 	withoutBrowser := newReportModel(buildReportViewModel(report, reportIdentity{runID: "run-123"}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), ""))
 	if withoutBrowser.canOpenBrowser() {
 		t.Fatal("expected browser action to be unavailable")
+	}
+}
+
+func TestReportModelBrowserOpenFailureShowsManualURL(t *testing.T) {
+	original := openBrowser
+	openBrowser = func(string) error { return errors.New("no browser") }
+	t.Cleanup(func() { openBrowser = original })
+
+	model := newReportModel(buildReportViewModel(fullReportFixture(), reportIdentity{runID: "run-123", installationID: "inst-123"}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), ""))
+	updated, _ := model.handleOpenBrowser()
+	reportModel, ok := updated.(*reportModel)
+	if !ok {
+		t.Fatalf("updated model = %T, want *reportModel", updated)
+	}
+	if !strings.Contains(reportModel.statusMessage, "failed to open browser; open https://app.inferlean.com/inst-123/run-123") {
+		t.Fatalf("status message = %q", reportModel.statusMessage)
 	}
 }
 

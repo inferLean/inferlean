@@ -47,6 +47,35 @@ func TestCollectTargets(t *testing.T) {
 	}
 }
 
+func TestScrapeTargetsOnce(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("test_metric 1\n"))
+	}))
+	defer server.Close()
+
+	result := NewCollector().ScrapeTargetsOnce(context.Background(), []Target{
+		{Name: "good", Endpoint: server.URL, Required: true},
+		{Name: "missing", Endpoint: "http://127.0.0.1:1/metrics"},
+	})
+
+	if result.SourceStatus["good"] != "ok" {
+		t.Fatalf("good source status = %q", result.SourceStatus["good"])
+	}
+	if result.SourceStatus["missing"] != "missing" {
+		t.Fatalf("missing source status = %q", result.SourceStatus["missing"])
+	}
+	if len(result.Samples["good"]) != 1 {
+		t.Fatalf("good sample count = %d, want 1", len(result.Samples["good"]))
+	}
+	if result.StartedAt.IsZero() || result.FinishedAt.IsZero() {
+		t.Fatalf("expected scrape timestamps, got started=%s finished=%s", result.StartedAt, result.FinishedAt)
+	}
+	if _, ok := result.SourceStatus["prometheus_runtime"]; ok {
+		t.Fatalf("one-shot scrape should not start prometheus runtime: %+v", result.SourceStatus)
+	}
+}
+
 func TestParseMetricsUsesPrometheusTextParser(t *testing.T) {
 	t.Parallel()
 	points, err := parseMetrics("test_metric{label=\"hello world\",escaped=\"a\\\"b\"} 42 1710000000000\n")

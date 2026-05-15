@@ -169,7 +169,7 @@ func (m *reportModel) handleOpenBrowser() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if err := openBrowser(m.vm.browserURL); err != nil {
-		m.statusMessage = "failed to open browser view"
+		m.statusMessage = "failed to open browser; open " + m.vm.browserURL
 		return m, nil
 	}
 	m.statusMessage = "opened browser view"

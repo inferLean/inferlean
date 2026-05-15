@@ -56,13 +56,14 @@ func Execute() error {
 
 func newRootCommand(ctx context.Context) *cobra.Command {
 	opts := &rootOptions{}
+	runFlags := &runFlags{}
 	cmd := &cobra.Command{
 		Use:           "inferlean",
-		Short:         "The optimization copilot for self-hosted LLM inference",
+		Short:         runShort,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runWithDefaultOptions(cmd)
+			return runWithOptions(cmd, runFlags.options())
 		},
 	}
 	cmd.SetContext(ctx)
@@ -90,6 +91,8 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 			_ = application.closeLoggerFn()
 		}
 	}
+
+	bindRunFlags(cmd, runFlags)
 
 	cmd.AddCommand(newDiscoverCommand())
 	cmd.AddCommand(newCollectCommand())

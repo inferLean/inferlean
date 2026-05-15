@@ -1,6 +1,7 @@
 package collect
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -26,6 +27,19 @@ func requireDCGMSource(opts Options, sources collectionSources) error {
 		message += ": " + reason
 	}
 	return fmt.Errorf("%s. Install dcgm-exporter, pass --dcgm-endpoint <url>, or pass --no-dcgm-use-estimation to allow estimated/fallback GPU telemetry", message)
+}
+
+func requireDCGMPreflight(ctx context.Context, opts Options, sources collectionSources) error {
+	if opts.AllowDCGMEstimation {
+		return nil
+	}
+	res := promcollector.NewCollector().ScrapeTargetsOnce(ctx, []promcollector.Target{
+		{Name: "dcgm_exporter", Endpoint: sources.dcgm.Endpoint, Required: true},
+	})
+	if err := requireDCGMMetrics(opts, res); err != nil {
+		return fmt.Errorf("\n\ndcgm-exporter preflight failed before collection: %w", err)
+	}
+	return nil
 }
 
 func requireDCGMMetricsStatus(promRes promcollector.Result) error {
