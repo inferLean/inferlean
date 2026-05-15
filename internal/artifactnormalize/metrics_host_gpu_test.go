@@ -126,6 +126,10 @@ func TestNormalizeMetricsCapturesCriticalHostAndGPUMetrics(t *testing.T) {
 					gpuMetricSample(now, 100, 200, 300, 400),
 					gpuMetricSample(now.Add(2*time.Second), 120, 230, 360, 480),
 				},
+				"nvml_bridge": {
+					gpuCapacitySample(now, 32_000_000_000, 50_000_000_000),
+					gpuCapacitySample(now.Add(2*time.Second), 32_000_000_000, 50_000_000_000),
+				},
 			},
 		},
 	}
@@ -164,6 +168,15 @@ func TestNormalizeMetricsCapturesCriticalHostAndGPUMetrics(t *testing.T) {
 	}
 	if got, want := *metrics.GPU.NVLinkThroughput.TX.Avg, 40.0; got != want {
 		t.Fatalf("NVLink TX bytes/sec = %f, want %f", got, want)
+	}
+	if got, want := *metrics.GPU.PCIeBandwidthCapacity.RX.Latest, 32_000_000_000.0; got != want {
+		t.Fatalf("PCIe RX capacity = %f, want %f", got, want)
+	}
+	if got, want := *metrics.GPU.NVLinkBandwidthCapacity.TX.Latest, 50_000_000_000.0; got != want {
+		t.Fatalf("NVLink TX capacity = %f, want %f", got, want)
+	}
+	if got, want := *metrics.GPU.FramebufferMemory.Total.Latest, 170.0*1024*1024; got != want {
+		t.Fatalf("GPU derived total memory = %f, want %f", got, want)
 	}
 	if !metrics.GPU.Coverage.HasField("tensor_core_active") {
 		t.Fatalf("GPU coverage missing tensor_core_active: %+v", metrics.GPU.Coverage)
@@ -235,6 +248,18 @@ func gpuMetricSample(ts time.Time, pcieRX, pcieTX, nvlinkRX, nvlinkTX float64) p
 			{Name: "DCGM_FI_DEV_SM_CLOCK", Value: 1200},
 			{Name: "DCGM_FI_DEV_MEM_CLOCK", Value: 1800},
 			{Name: "DCGM_FI_DEV_CLOCK_THROTTLE_REASONS", Value: 4},
+		},
+	}
+}
+
+func gpuCapacitySample(ts time.Time, pcie, nvlink float64) promcollector.Sample {
+	return promcollector.Sample{
+		Timestamp: ts,
+		Metrics: []promcollector.MetricPoint{
+			{Name: "inferlean_nvml_pcie_rx_capacity_bytes_per_second", Value: pcie},
+			{Name: "inferlean_nvml_pcie_tx_capacity_bytes_per_second", Value: pcie},
+			{Name: "inferlean_nvml_nvlink_rx_capacity_bytes_per_second", Value: nvlink},
+			{Name: "inferlean_nvml_nvlink_tx_capacity_bytes_per_second", Value: nvlink},
 		},
 	}
 }

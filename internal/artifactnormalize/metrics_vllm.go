@@ -14,16 +14,22 @@ func normalizeVLLMMetrics(samples []promcollector.Sample) contracts.VLLMMetrics 
 	swappedRequests, derivedSwappedRequests := swappedRequestsWindow(samples, derivedCPUKVBlocks)
 	kvOffloadActivity, derivedKVOffloadActivity := kvOffloadActivityWindow(samples, swappedRequests, cpuKVUsage, derivedCPUKVUsage || derivedSwappedRequests)
 	metrics := contracts.VLLMMetrics{
-		RequestsRunning:           windowFromMetric(samples, "vllm:num_requests_running"),
-		RequestsWaiting:           windowFromMetric(samples, "vllm:num_requests_waiting"),
-		RequestsWaitingByReason:   windowsByLabel(samples, "vllm:num_requests_waiting_by_reason", "reason"),
-		RequestThroughput:         deltaRateWindow(samples, "vllm:request_success_total", 1),
-		CompletedRequests:         deltaSnapshot(samples, "vllm:request_success_total"),
-		LatencyE2E:                histogramMeanWindow(samples, "vllm:e2e_request_latency_seconds"),
-		LatencyTTFT:               histogramMeanWindow(samples, "vllm:time_to_first_token_seconds"),
-		LatencyQueue:              histogramMeanWindow(samples, "vllm:request_queue_time_seconds"),
-		LatencyPrefill:            histogramMeanWindow(samples, "vllm:request_prefill_time_seconds"),
-		LatencyDecode:             histogramMeanWindow(samples, "vllm:request_decode_time_seconds"),
+		RequestsRunning:         windowFromMetric(samples, "vllm:num_requests_running"),
+		RequestsWaiting:         windowFromMetric(samples, "vllm:num_requests_waiting"),
+		RequestsWaitingByReason: windowsByLabel(samples, "vllm:num_requests_waiting_by_reason", "reason"),
+		RequestThroughput:       deltaRateWindow(samples, "vllm:request_success_total", 1),
+		CompletedRequests:       deltaSnapshot(samples, "vllm:request_success_total"),
+		LatencyE2E:              histogramMeanWindow(samples, "vllm:e2e_request_latency_seconds"),
+		LatencyTTFT:             histogramMeanWindow(samples, "vllm:time_to_first_token_seconds"),
+		LatencyQueue:            histogramMeanWindow(samples, "vllm:request_queue_time_seconds"),
+		LatencyPrefill:          histogramMeanWindow(samples, "vllm:request_prefill_time_seconds"),
+		LatencyDecode:           histogramMeanWindow(samples, "vllm:request_decode_time_seconds"),
+		LatencyITL: histogramMeanWindowFromAny(
+			samples,
+			"vllm:inter_token_latency_seconds",
+			"vllm:request_time_per_output_token_seconds",
+			"vllm:time_per_output_token_seconds",
+		),
 		PromptTokens:              histogramMeanWindow(samples, "vllm:request_prompt_tokens"),
 		PromptTokensProcessed:     deltaSnapshot(samples, "vllm:prompt_tokens_total"),
 		PromptTokensBySource:      deltaSnapshot(samples, "vllm:prompt_tokens_by_source_total"),
@@ -163,6 +169,7 @@ func vllmCoverage(metrics contracts.VLLMMetrics, recomputedUnsupported bool) con
 	appendPresent(present, "latency_queue", metrics.LatencyQueue.HasData())
 	appendPresent(present, "latency_prefill", metrics.LatencyPrefill.HasData())
 	appendPresent(present, "latency_decode", metrics.LatencyDecode.HasData())
+	appendPresent(present, "latency_itl", metrics.LatencyITL.HasData())
 	appendPresent(present, "prompt_tokens", metrics.PromptTokens.HasData())
 	appendPresent(present, "prompt_tokens_processed", metrics.PromptTokensProcessed.HasData())
 	appendPresent(present, "prompt_tokens_by_source", metrics.PromptTokensBySource.HasData())
@@ -204,6 +211,7 @@ func vllmRequiredFields() []string {
 		"latency_queue",
 		"latency_prefill",
 		"latency_decode",
+		"latency_itl",
 		"prompt_tokens",
 		"prompt_tokens_processed",
 		"prompt_tokens_by_source",

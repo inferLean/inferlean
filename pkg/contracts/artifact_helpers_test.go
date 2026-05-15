@@ -37,6 +37,7 @@ func vllmRequiredFields() []string {
 		"latency_queue",
 		"latency_prefill",
 		"latency_decode",
+		"latency_itl",
 		"prompt_tokens",
 		"prompt_tokens_processed",
 		"prompt_tokens_by_source",
@@ -77,6 +78,8 @@ func gpuRequiredFields() []string {
 		"temperature",
 		"pcie_throughput",
 		"nvlink_throughput",
+		"pcie_bandwidth_capacity",
+		"nvlink_bandwidth_capacity",
 		"reliability_errors",
 	}
 }

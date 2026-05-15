@@ -101,6 +101,7 @@ type VLLMMetrics struct {
 	LatencyQueue              MetricWindow            `json:"latency_queue,omitempty"`
 	LatencyPrefill            MetricWindow            `json:"latency_prefill,omitempty"`
 	LatencyDecode             MetricWindow            `json:"latency_decode,omitempty"`
+	LatencyITL                MetricWindow            `json:"latency_itl,omitempty"`
 	PromptTokens              MetricWindow            `json:"prompt_tokens,omitempty"`
 	PromptTokensProcessed     DeltaSnapshot           `json:"prompt_tokens_processed,omitempty"`
 	PromptTokensBySource      DeltaSnapshot           `json:"prompt_tokens_by_source,omitempty"`
@@ -155,6 +156,8 @@ type GPUTelemetry struct {
 	ClockThrottleReasons       MetricWindow       `json:"clock_throttle_reasons,omitempty"`
 	PCIeThroughput             ThroughputMetrics  `json:"pcie_throughput,omitempty"`
 	NVLinkThroughput           ThroughputMetrics  `json:"nvlink_throughput,omitempty"`
+	PCIeBandwidthCapacity      ThroughputMetrics  `json:"pcie_bandwidth_capacity,omitempty"`
+	NVLinkBandwidthCapacity    ThroughputMetrics  `json:"nvlink_bandwidth_capacity,omitempty"`
 	ReliabilityErrors          ReliabilityMetrics `json:"reliability_errors,omitempty"`
 	Coverage                   SourceCoverage     `json:"coverage,omitempty"`
 }

@@ -185,7 +185,7 @@ The CLI writes a single artifact with:
 - `target`: selected vLLM process, command line, metrics endpoint, container or pod identity when present
 - `configurations`: vLLM args, selected environment, OS, CPU, RAM, GPU, CUDA/runtime, and `nvidia-smi` facts
 - `observations`: raw metric samples from vLLM, host, GPU, and local Prometheus collection when available
-- `metrics`: normalized vLLM, host, GPU/DCGM, and `nvidia-smi` metric windows with explicit coverage accounting
+- `metrics`: normalized vLLM, host, GPU/DCGM, link-capacity, and `nvidia-smi` metric windows with explicit coverage accounting
 - `raw_process_io`: raw command or helper output such as `nvidia-smi`
 - `user_intent`: explicit workload intent values
 - `collection_quality`: source status, fallbacks, missing/degraded sources, duration, and scrape interval
@@ -216,6 +216,8 @@ The collector uses local Prometheus-compatible tooling when available:
 - `nvidia-smi`
 
 `dcgm-exporter` is required by default for GPU bottleneck evidence. Install it on the target host or pass `--dcgm-endpoint <url>` for an existing exporter. If DCGM is unavailable or the exporter cannot emit the required profiler metrics on the host GPU, pass `--no-dcgm-use-estimation` to continue with explicit estimated/fallback GPU telemetry.
+
+InferLean bridges local `nvidia-smi` facts through its NVML Prometheus bridge when a metric has no native exporter, including PCIe throughput plus PCIe/NVLink capacity estimates used by backend saturation scoring.
 
 The CLI resolves tools from `~/.inferlean/tools`, bundled release tools next to the installed `inferlean` binary, and then `PATH`. Set `INFERLEAN_TOOLS_DIR` to point at a different tool directory.
 

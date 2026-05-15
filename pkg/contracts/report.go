@@ -2,7 +2,7 @@ package contracts
 
 import "time"
 
-const ReportSchemaVersion = "report-v4"
+const ReportSchemaVersion = "report-v5"
 
 type FinalReport struct {
 	SchemaVersion      string                  `json:"schema_version"`
@@ -10,6 +10,7 @@ type FinalReport struct {
 	Entitlement        ReportEntitlement       `json:"entitlement"`
 	Environment        ReportEnvironment       `json:"environment"`
 	Diagnosis          DiagnosisSection        `json:"diagnosis"`
+	Saturation         SaturationReport        `json:"saturation"`
 	DiagnosticCoverage DiagnosticCoverage      `json:"diagnostic_coverage"`
 	Issues             []Issue                 `json:"issues,omitempty"`
 	Opportunities      []Opportunity           `json:"opportunities,omitempty"`
@@ -78,6 +79,25 @@ type RealLoadSummary struct {
 	QueuePressure           string `json:"queue_pressure,omitempty"`
 	HostPipelinePressure    string `json:"host_pipeline_pressure,omitempty"`
 	Summary                 string `json:"summary,omitempty"`
+}
+
+type SaturationReport struct {
+	Version    string             `json:"version,omitempty"`
+	Generic    SaturationMetric   `json:"generic,omitempty"`
+	Dimensions []SaturationMetric `json:"dimensions,omitempty"`
+}
+
+type SaturationMetric struct {
+	ID                           string       `json:"id,omitempty"`
+	Label                        string       `json:"label,omitempty"`
+	BottleneckType               string       `json:"bottleneck_type,omitempty"`
+	Status                       string       `json:"status,omitempty"`
+	Score                        MetricWindow `json:"score,omitempty"`
+	HeadroomPercent              *float64     `json:"headroom_percent,omitempty"`
+	WorstObservedHeadroomPercent *float64     `json:"worst_observed_headroom_percent,omitempty"`
+	EvidenceRefs                 []string     `json:"evidence_refs,omitempty"`
+	MissingEvidence              []string     `json:"missing_evidence,omitempty"`
+	Reason                       string       `json:"reason,omitempty"`
 }
 
 type Recommendation struct {

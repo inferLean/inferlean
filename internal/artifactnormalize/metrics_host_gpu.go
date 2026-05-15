@@ -57,14 +57,18 @@ func normalizeGPUMetrics(nvml, dcgm []promcollector.Sample) contracts.GPUTelemet
 	smActive := ratioToPercentWindow(windowFromMetric(dcgm, "DCGM_FI_PROF_SM_ACTIVE"))
 	grEngineActive := ratioToPercentWindow(windowFromMetric(dcgm, "DCGM_FI_PROF_GR_ENGINE_ACTIVE"))
 	dramActive := ratioToPercentWindow(windowFromMetric(dcgm, "DCGM_FI_PROF_DRAM_ACTIVE"))
+	dcgmMemoryUsed := mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_USED"))
+	dcgmMemoryFree := mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_FREE"))
+	dcgmMemoryReserved := mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_RESERVED"))
 	memoryUsed := firstWindow(
-		mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_USED")),
+		dcgmMemoryUsed,
 		mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_used_mb")),
 	)
-	memoryFree := mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_FREE"))
-	memoryReserved := mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_RESERVED"))
+	memoryFree := dcgmMemoryFree
+	memoryReserved := dcgmMemoryReserved
 	memoryTotal := firstWindow(
 		mbToBytesWindow(windowFromMetric(dcgm, "DCGM_FI_DEV_FB_TOTAL")),
+		derivedTotalMemoryWindow(dcgmMemoryUsed.Samples, dcgmMemoryFree.Samples, dcgmMemoryReserved.Samples),
 		mbToBytesWindow(windowFromMetric(nvml, "inferlean_nvml_memory_total_mb")),
 	)
 	gpu := contracts.GPUTelemetry{
@@ -90,12 +94,26 @@ func normalizeGPUMetrics(nvml, dcgm []promcollector.Sample) contracts.GPUTelemet
 		),
 		ClockThrottleReasons: windowFromMetric(dcgm, "DCGM_FI_DEV_CLOCK_THROTTLE_REASONS"),
 		PCIeThroughput: contracts.ThroughputMetrics{
-			RX: deltaRateWindow(dcgm, "DCGM_FI_PROF_PCIE_RX_BYTES", 1),
-			TX: deltaRateWindow(dcgm, "DCGM_FI_PROF_PCIE_TX_BYTES", 1),
+			RX: firstWindow(
+				deltaRateWindow(dcgm, "DCGM_FI_PROF_PCIE_RX_BYTES", 1),
+				windowFromMetric(nvml, "inferlean_nvml_pcie_rx_throughput_bytes_per_second"),
+			),
+			TX: firstWindow(
+				deltaRateWindow(dcgm, "DCGM_FI_PROF_PCIE_TX_BYTES", 1),
+				windowFromMetric(nvml, "inferlean_nvml_pcie_tx_throughput_bytes_per_second"),
+			),
 		},
 		NVLinkThroughput: contracts.ThroughputMetrics{
 			RX: deltaRateWindow(dcgm, "DCGM_FI_PROF_NVLINK_RX_BYTES", 1),
 			TX: deltaRateWindow(dcgm, "DCGM_FI_PROF_NVLINK_TX_BYTES", 1),
+		},
+		PCIeBandwidthCapacity: contracts.ThroughputMetrics{
+			RX: windowFromMetric(nvml, "inferlean_nvml_pcie_rx_capacity_bytes_per_second"),
+			TX: windowFromMetric(nvml, "inferlean_nvml_pcie_tx_capacity_bytes_per_second"),
+		},
+		NVLinkBandwidthCapacity: contracts.ThroughputMetrics{
+			RX: windowFromMetric(nvml, "inferlean_nvml_nvlink_rx_capacity_bytes_per_second"),
+			TX: windowFromMetric(nvml, "inferlean_nvml_nvlink_tx_capacity_bytes_per_second"),
 		},
 		ReliabilityErrors: contracts.ReliabilityMetrics{
 			XID: windowFromMetric(dcgm, "DCGM_FI_DEV_XID_ERRORS"),

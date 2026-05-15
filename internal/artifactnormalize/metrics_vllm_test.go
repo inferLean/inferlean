@@ -39,6 +39,60 @@ func TestNormalizeVLLMMetricsDerivesRequestThroughputFromSuccessCounter(t *testi
 	}
 }
 
+func TestNormalizeVLLMMetricsUsesWindowedHistogramDeltas(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	samples := []promcollector.Sample{
+		vllmHistogramSample(now, "vllm:e2e_request_latency_seconds", 20, 100),
+		vllmHistogramSample(now.Add(time.Second), "vllm:e2e_request_latency_seconds", 22, 106),
+	}
+
+	metrics := normalizeVLLMMetrics(samples)
+	if metrics.LatencyE2E.Avg == nil {
+		t.Fatal("LatencyE2E.Avg is nil")
+	}
+	if got, want := *metrics.LatencyE2E.Avg, 3.0; got != want {
+		t.Fatalf("LatencyE2E.Avg = %v, want windowed mean %v", got, want)
+	}
+}
+
+func TestNormalizeVLLMMetricsCapturesInterTokenLatency(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	samples := []promcollector.Sample{
+		vllmHistogramSample(now, "vllm:inter_token_latency_seconds", 10, 100),
+		vllmHistogramSample(now.Add(time.Second), "vllm:inter_token_latency_seconds", 12, 140),
+	}
+
+	metrics := normalizeVLLMMetrics(samples)
+	if metrics.LatencyITL.Avg == nil {
+		t.Fatal("LatencyITL.Avg is nil")
+	}
+	if got, want := *metrics.LatencyITL.Avg, 20.0; got != want {
+		t.Fatalf("LatencyITL.Avg = %v, want %v", got, want)
+	}
+	if !metrics.Coverage.HasField("latency_itl") {
+		t.Fatalf("coverage missing latency_itl: %+v", metrics.Coverage)
+	}
+}
+
+func TestNormalizeVLLMMetricsCapturesDeprecatedTokenLatency(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	samples := []promcollector.Sample{
+		vllmHistogramSample(now, "vllm:time_per_output_token_seconds", 10, 100),
+		vllmHistogramSample(now.Add(time.Second), "vllm:time_per_output_token_seconds", 15, 160),
+	}
+
+	metrics := normalizeVLLMMetrics(samples)
+	if metrics.LatencyITL.Avg == nil {
+		t.Fatal("LatencyITL.Avg is nil")
+	}
+	if got, want := *metrics.LatencyITL.Avg, 12.0; got != want {
+		t.Fatalf("LatencyITL.Avg = %v, want %v", got, want)
+	}
+	if !metrics.Coverage.HasField("latency_itl") {
+		t.Fatalf("coverage missing latency_itl: %+v", metrics.Coverage)
+	}
+}
+
 func TestNormalizeVLLMMetricsCapturesWindowedCountersAndQueueReasons(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	samples := []promcollector.Sample{
@@ -162,6 +216,16 @@ func vllmNoCPUBlocksSample(ts time.Time, kvUsage float64) promcollector.Sample {
 		Metrics: []promcollector.MetricPoint{
 			{Name: "vllm:kv_cache_usage_perc", Value: kvUsage},
 			{Name: "vllm:cache_config_info", Labels: map[string]string{"num_cpu_blocks": "None"}, Value: 1},
+		},
+	}
+}
+
+func vllmHistogramSample(ts time.Time, prefix string, count, sum float64) promcollector.Sample {
+	return promcollector.Sample{
+		Timestamp: ts,
+		Metrics: []promcollector.MetricPoint{
+			{Name: prefix + "_count", Value: count},
+			{Name: prefix + "_sum", Value: sum},
 		},
 	}
 }

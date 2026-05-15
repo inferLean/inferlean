@@ -37,6 +37,8 @@ func gpuCoverage(metrics contracts.GPUTelemetry) contracts.SourceCoverage {
 	appendPresent(present, "clock_throttle_reasons", metrics.ClockThrottleReasons.HasData())
 	appendPresent(present, "pcie_throughput", metrics.PCIeThroughput.HasData())
 	appendPresent(present, "nvlink_throughput", metrics.NVLinkThroughput.HasData())
+	appendPresent(present, "pcie_bandwidth_capacity", metrics.PCIeBandwidthCapacity.HasData())
+	appendPresent(present, "nvlink_bandwidth_capacity", metrics.NVLinkBandwidthCapacity.HasData())
 	appendPresent(present, "reliability_errors", metrics.ReliabilityErrors.HasData())
 	return newCoverage(present, gpuRequiredFields())
 }
@@ -92,6 +94,8 @@ func gpuRequiredFields() []string {
 		"clock_throttle_reasons",
 		"pcie_throughput",
 		"nvlink_throughput",
+		"pcie_bandwidth_capacity",
+		"nvlink_bandwidth_capacity",
 		"reliability_errors",
 	}
 }

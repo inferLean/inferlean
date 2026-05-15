@@ -102,6 +102,7 @@ func validVLLMMetrics(now time.Time) VLLMMetrics {
 		LatencyQueue:              window,
 		LatencyPrefill:            window,
 		LatencyDecode:             window,
+		LatencyITL:                window,
 		PromptTokens:              window,
 		PromptTokensProcessed:     deltaSnapshot(),
 		PromptTokensBySource:      deltaSnapshot(),
@@ -166,6 +167,8 @@ func validGPUTelemetry(now time.Time) GPUTelemetry {
 		ClockThrottleReasons:       window,
 		PCIeThroughput:             throughputMetrics(now),
 		NVLinkThroughput:           throughputMetrics(now),
+		PCIeBandwidthCapacity:      throughputMetrics(now),
+		NVLinkBandwidthCapacity:    throughputMetrics(now),
 		ReliabilityErrors:          reliabilityMetrics(now),
 		Coverage:                   coverage(gpuRequiredFields()...),
 	}

@@ -12,7 +12,7 @@ import (
 func TestFormatReportForDisplayStructured(t *testing.T) {
 	t.Parallel()
 	content, summary, err := formatReportForDisplay(map[string]any{
-		"schema_version": "report-v4",
+		"schema_version": "report-v5",
 		"job": map[string]any{
 			"run_id": "run_123",
 		},
@@ -27,6 +27,7 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 				"required_total": 1,
 			},
 		},
+		"saturation": saturationPayload(),
 		"opportunities": []map[string]any{{
 			"id":          "opportunity:quantized_model_opportunity",
 			"rank":        1,
@@ -119,7 +120,7 @@ func TestFormatReportForDisplayFallback(t *testing.T) {
 
 func TestRenderNonInteractivePrintsPlainReport(t *testing.T) {
 	payload := map[string]any{
-		"schema_version": "report-v4",
+		"schema_version": "report-v5",
 		"job": map[string]any{
 			"run_id": "run_123",
 		},
@@ -130,6 +131,7 @@ func TestRenderNonInteractivePrintsPlainReport(t *testing.T) {
 			},
 		},
 		"diagnostic_coverage": map[string]any{},
+		"saturation":          saturationPayload(),
 		"issues": []map[string]any{{
 			"id":          "issue:gpu_memory_pressure",
 			"rank":        1,
@@ -159,6 +161,27 @@ func TestRenderNonInteractivePrintsPlainReport(t *testing.T) {
 	}
 	if strings.Contains(output, "\x1b[?1049h") || strings.Contains(output, "\x1b[?1049l") {
 		t.Fatalf("non-interactive output must not use the alternate screen: %q", output)
+	}
+}
+
+func saturationPayload() map[string]any {
+	return map[string]any{
+		"version": "saturation-v1",
+		"generic": map[string]any{
+			"id":     "generic",
+			"label":  "Generic saturation",
+			"status": "ok",
+			"score":  map[string]any{"latest": 75, "avg": 75},
+			"reason": "Maximum observed saturation across evaluated dimensions.",
+		},
+		"dimensions": []map[string]any{{
+			"id":              "compute",
+			"label":           "Compute / SM saturation",
+			"bottleneck_type": "compute",
+			"status":          "ok",
+			"score":           map[string]any{"latest": 75, "avg": 75},
+			"reason":          "compute saturation estimated from collected metrics.",
+		}},
 	}
 }
 

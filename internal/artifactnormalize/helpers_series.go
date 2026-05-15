@@ -84,15 +84,32 @@ func histogramMeanWindow(samples []promcollector.Sample, prefix string) contract
 	sumMetric := prefix + "_sum"
 	countMetric := prefix + "_count"
 	points := make([]contracts.MetricSample, 0, len(samples))
-	for _, sample := range samples {
-		sum, okSum := metricValue(sample.Metrics, sumMetric)
-		count, okCount := metricValue(sample.Metrics, countMetric)
-		if !okSum || !okCount || count <= 0 {
+	for idx := 1; idx < len(samples); idx++ {
+		currentSum, okCurrentSum := metricValue(samples[idx].Metrics, sumMetric)
+		currentCount, okCurrentCount := metricValue(samples[idx].Metrics, countMetric)
+		previousSum, okPreviousSum := metricValue(samples[idx-1].Metrics, sumMetric)
+		previousCount, okPreviousCount := metricValue(samples[idx-1].Metrics, countMetric)
+		if !(okCurrentSum && okCurrentCount && okPreviousSum && okPreviousCount) {
 			continue
 		}
-		points = append(points, contracts.MetricSample{Timestamp: sample.Timestamp, Value: sum / count})
+		sumDelta := currentSum - previousSum
+		countDelta := currentCount - previousCount
+		if sumDelta < 0 || countDelta <= 0 {
+			continue
+		}
+		points = append(points, contracts.MetricSample{Timestamp: samples[idx].Timestamp, Value: sumDelta / countDelta})
 	}
 	return withSamples(points)
+}
+
+func histogramMeanWindowFromAny(samples []promcollector.Sample, prefixes ...string) contracts.MetricWindow {
+	for _, prefix := range prefixes {
+		window := histogramMeanWindow(samples, prefix)
+		if window.HasData() {
+			return window
+		}
+	}
+	return contracts.MetricWindow{}
 }
 
 func histogramDistribution(samples []promcollector.Sample, prefix string) contracts.DistributionSnapshot {
@@ -258,7 +275,34 @@ func memoryWindows(usedBytes, freeBytes, reservedBytes, totalBytes contracts.Met
 	if !memory.Free.HasData() {
 		memory.Free = derivedFreeMemoryWindow(usedBytes.Samples, totalBytes.Samples)
 	}
+	if !memory.Total.HasData() {
+		memory.Total = derivedTotalMemoryWindow(usedBytes.Samples, freeBytes.Samples, reservedBytes.Samples)
+	}
 	return memory
+}
+
+func derivedTotalMemoryWindow(usedSamples, freeSamples, reservedSamples []contracts.MetricSample) contracts.MetricWindow {
+	freeByTimestamp := make(map[int64]float64, len(freeSamples))
+	for _, sample := range freeSamples {
+		freeByTimestamp[sample.Timestamp.UnixNano()] = sample.Value
+	}
+	reservedByTimestamp := make(map[int64]float64, len(reservedSamples))
+	for _, sample := range reservedSamples {
+		reservedByTimestamp[sample.Timestamp.UnixNano()] = sample.Value
+	}
+	totalSamples := make([]contracts.MetricSample, 0, len(usedSamples))
+	for _, used := range usedSamples {
+		free, ok := freeByTimestamp[used.Timestamp.UnixNano()]
+		if !ok {
+			continue
+		}
+		reserved := reservedByTimestamp[used.Timestamp.UnixNano()]
+		totalSamples = append(totalSamples, contracts.MetricSample{
+			Timestamp: used.Timestamp,
+			Value:     used.Value + free + reserved,
+		})
+	}
+	return withSamples(totalSamples)
 }
 
 func derivedFreeMemoryWindow(usedSamples, totalSamples []contracts.MetricSample) contracts.MetricWindow {

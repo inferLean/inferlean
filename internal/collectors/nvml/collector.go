@@ -22,6 +22,10 @@ type Sample struct {
 	MemoryClock float64   `json:"memory_clock"`
 	PState      string    `json:"pstate,omitempty"`
 	Throttle    string    `json:"throttle,omitempty"`
+	PCIeRXCap   *float64  `json:"pcie_rx_capacity_bytes_per_second,omitempty"`
+	PCIeTXCap   *float64  `json:"pcie_tx_capacity_bytes_per_second,omitempty"`
+	PCIeRX      *float64  `json:"pcie_rx_bytes_per_second,omitempty"`
+	PCIeTX      *float64  `json:"pcie_tx_bytes_per_second,omitempty"`
 }
 
 type Result struct {
@@ -45,68 +49,25 @@ func Collect(ctx context.Context) Result {
 	return Result{RawText: raw, SourceState: "ok", Samples: samples}
 }
 
-func BuildPromMetrics(ctx context.Context) (string, string, error) {
-	samples, raw, err := querySamples(ctx)
-	if err != nil {
-		return "", "", err
-	}
-	lines := make([]string, 0, 8+len(samples)*5)
-	lines = append(lines, "# HELP inferlean_nvml_gpu_utilization_percent GPU utilization percentage")
-	lines = append(lines, "# TYPE inferlean_nvml_gpu_utilization_percent gauge")
-	lines = append(lines, "# HELP inferlean_nvml_memory_used_mb GPU memory used in MB")
-	lines = append(lines, "# TYPE inferlean_nvml_memory_used_mb gauge")
-	lines = append(lines, "# HELP inferlean_nvml_memory_total_mb GPU memory total in MB")
-	lines = append(lines, "# TYPE inferlean_nvml_memory_total_mb gauge")
-	lines = append(lines, "# HELP inferlean_nvml_power_draw_watts GPU power draw in watts")
-	lines = append(lines, "# TYPE inferlean_nvml_power_draw_watts gauge")
-	lines = append(lines, "# HELP inferlean_nvml_power_limit_watts GPU enforced power limit in watts")
-	lines = append(lines, "# TYPE inferlean_nvml_power_limit_watts gauge")
-	lines = append(lines, "# HELP inferlean_nvml_temperature_celsius GPU temperature in celsius")
-	lines = append(lines, "# TYPE inferlean_nvml_temperature_celsius gauge")
-	lines = append(lines, "# HELP inferlean_nvml_sm_clock_mhz GPU SM clock in MHz")
-	lines = append(lines, "# TYPE inferlean_nvml_sm_clock_mhz gauge")
-	lines = append(lines, "# HELP inferlean_nvml_memory_clock_mhz GPU memory clock in MHz")
-	lines = append(lines, "# TYPE inferlean_nvml_memory_clock_mhz gauge")
-	lines = append(lines, "# HELP inferlean_nvml_performance_state_info GPU performance state label")
-	lines = append(lines, "# TYPE inferlean_nvml_performance_state_info gauge")
-	lines = append(lines, "# HELP inferlean_nvml_throttle_reason_active Active GPU clocks throttle reason label")
-	lines = append(lines, "# TYPE inferlean_nvml_throttle_reason_active gauge")
-	for _, sample := range samples {
-		label := fmt.Sprintf("{gpu=\"%s\"}", promLabelValue(sample.GPU))
-		lines = append(lines, fmt.Sprintf("inferlean_nvml_gpu_utilization_percent%s %f", label, sample.Utilization))
-		lines = append(lines, fmt.Sprintf("inferlean_nvml_memory_used_mb%s %f", label, sample.MemoryUsed))
-		lines = append(lines, fmt.Sprintf("inferlean_nvml_memory_total_mb%s %f", label, sample.MemoryTotal))
-		lines = append(lines, fmt.Sprintf("inferlean_nvml_power_draw_watts%s %f", label, sample.PowerDraw))
-		if sample.PowerLimit != nil {
-			lines = append(lines, fmt.Sprintf("inferlean_nvml_power_limit_watts%s %f", label, *sample.PowerLimit))
-		}
-		lines = append(lines, fmt.Sprintf("inferlean_nvml_temperature_celsius%s %f", label, sample.Temperature))
-		lines = append(lines, fmt.Sprintf("inferlean_nvml_sm_clock_mhz%s %f", label, sample.SMClock))
-		lines = append(lines, fmt.Sprintf("inferlean_nvml_memory_clock_mhz%s %f", label, sample.MemoryClock))
-		if strings.TrimSpace(sample.PState) != "" {
-			lines = append(lines, fmt.Sprintf(
-				"inferlean_nvml_performance_state_info{gpu=\"%s\",pstate=\"%s\"} 1",
-				promLabelValue(sample.GPU),
-				promLabelValue(sample.PState),
-			))
-		}
-		for _, reason := range throttleReasons(sample.Throttle) {
-			lines = append(lines, fmt.Sprintf(
-				"inferlean_nvml_throttle_reason_active{gpu=\"%s\",reason=\"%s\"} 1",
-				promLabelValue(sample.GPU),
-				promLabelValue(reason),
-			))
-		}
-	}
-	return strings.Join(lines, "\n"), raw, nil
-}
-
 func querySamples(ctx context.Context) ([]Sample, string, error) {
-	samples, raw, err := querySamplesWithFields(ctx, "index,utilization.gpu,memory.used,memory.total,power.draw,temperature.gpu,clocks.sm,clocks.mem,power.limit,pstate,clocks_throttle_reasons.active")
-	if err == nil {
-		return samples, raw, nil
+	samples, raw, err := querySamplesWithFields(ctx, "index,utilization.gpu,memory.used,memory.total,power.draw,temperature.gpu,clocks.sm,clocks.mem,power.limit,pstate,clocks_throttle_reasons.active,pcie.link.gen.current,pcie.link.width.current,pcie.link.gen.max,pcie.link.width.max")
+	if err != nil {
+		samples, raw, err = querySamplesWithFields(ctx, "index,utilization.gpu,memory.used,memory.total,power.draw,temperature.gpu,clocks.sm,clocks.mem")
 	}
-	return querySamplesWithFields(ctx, "index,utilization.gpu,memory.used,memory.total,power.draw,temperature.gpu,clocks.sm,clocks.mem")
+	if err != nil {
+		return samples, raw, err
+	}
+	throughput, throughputRaw := queryPCIeThroughput(ctx)
+	if strings.TrimSpace(throughputRaw) != "" {
+		raw = strings.TrimRight(raw, "\n") + "\n" + throughputRaw
+	}
+	for idx := range samples {
+		if metric, ok := throughput[samples[idx].GPU]; ok {
+			samples[idx].PCIeRX = floatPtr(metric.RX)
+			samples[idx].PCIeTX = floatPtr(metric.TX)
+		}
+	}
+	return samples, raw, nil
 }
 
 func querySamplesWithFields(ctx context.Context, fields string) ([]Sample, string, error) {
@@ -162,6 +123,12 @@ func parseSample(line string) (Sample, bool) {
 	if len(parts) >= 11 {
 		sample.Throttle = cleanText(parts[10])
 	}
+	if len(parts) >= 15 {
+		if capacity, ok := pcieCapacity(parts[11], parts[12], parts[13], parts[14]); ok {
+			sample.PCIeRXCap = &capacity
+			sample.PCIeTXCap = &capacity
+		}
+	}
 	return sample, true
 }
 
@@ -184,7 +151,7 @@ func parse(value string) float64 {
 
 func parseOptional(value string) *float64 {
 	trimmed := strings.TrimSpace(value)
-	if trimmed == "" || strings.EqualFold(trimmed, "N/A") || strings.EqualFold(trimmed, "not supported") {
+	if trimmed == "" || trimmed == "-" || strings.EqualFold(trimmed, "N/A") || strings.EqualFold(trimmed, "not supported") {
 		return nil
 	}
 	parsed, err := strconv.ParseFloat(trimmed, 64)
@@ -202,10 +169,17 @@ func cleanText(value string) string {
 	return trimmed
 }
 
+func floatPtr(value float64) *float64 {
+	return &value
+}
+
 func throttleReasons(value string) []string {
 	trimmed := cleanText(value)
 	if trimmed == "" {
 		return nil
+	}
+	if reasons, ok := throttleMaskReasons(trimmed); ok {
+		return reasons
 	}
 	lower := strings.ToLower(trimmed)
 	if lower == "not active" || lower == "none" {
@@ -223,11 +197,42 @@ func throttleReasons(value string) []string {
 	return reasons
 }
 
-func promLabelValue(value string) string {
-	value = strings.ReplaceAll(value, "\\", "\\\\")
-	value = strings.ReplaceAll(value, "\n", "\\n")
-	value = strings.ReplaceAll(value, "\"", "\\\"")
-	return value
+func throttleMaskReasons(value string) ([]string, bool) {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(strings.ToLower(value), "0x") {
+		return nil, false
+	}
+	mask, err := strconv.ParseUint(value, 0, 64)
+	if err != nil {
+		return nil, false
+	}
+	if mask == 0 {
+		return []string{"none"}, true
+	}
+	reasons := []struct {
+		bit  uint64
+		name string
+	}{
+		{0x1, "gpu_idle"},
+		{0x2, "applications_clocks_setting"},
+		{0x4, "sw_power_cap"},
+		{0x8, "hw_slowdown"},
+		{0x10, "sync_boost"},
+		{0x20, "sw_thermal_slowdown"},
+		{0x40, "hw_thermal_slowdown"},
+		{0x80, "hw_power_brake"},
+		{0x100, "display_clock_setting"},
+	}
+	out := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		if mask&reason.bit != 0 {
+			out = append(out, reason.name)
+		}
+	}
+	if len(out) == 0 {
+		return []string{strings.ToLower(value)}, true
+	}
+	return out, true
 }
 
 func CheckAvailability() error {

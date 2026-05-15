@@ -2,7 +2,7 @@ package contracts
 
 import "time"
 
-const SchemaVersion = "v2.9"
+const SchemaVersion = "v2.10"
 
 type RunArtifact struct {
 	SchemaVersion        string               `json:"schema_version"`

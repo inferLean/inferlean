@@ -106,6 +106,12 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 	writeKeyValue(&b, "Summary", diagnosisSummary(report), useColor)
 	writeKeyValue(&b, "Workload", workloadSummary(base.WorkloadSummary), useColor)
 
+	writeSection(&b, "Saturation", useColor)
+	writeKeyValue(&b, "Generic", saturationLine(report.Saturation.Generic), useColor)
+	for _, dimension := range report.Saturation.Dimensions {
+		writeKeyValue(&b, fallback(dimension.Label, dimension.ID), saturationLine(dimension), useColor)
+	}
+
 	if recommendation := primaryRecommendation(report); recommendation != nil {
 		writeSection(&b, "Primary Recommendation", useColor)
 		writeKeyValue(&b, "Primary Recommendation", fallback(recommendation.Title, "-"), useColor)
@@ -276,6 +282,21 @@ func workloadSummary(workload contracts.WorkloadSummary) string {
 		return strings.Join(parts, ", ") + " | " + summary
 	}
 	return strings.Join(parts, ", ")
+}
+
+func saturationLine(metric contracts.SaturationMetric) string {
+	score := "-"
+	if metric.Score.Latest != nil {
+		score = fmt.Sprintf("%.1f%%", *metric.Score.Latest)
+	} else if metric.Score.Avg != nil {
+		score = fmt.Sprintf("%.1f%% avg", *metric.Score.Avg)
+	}
+	headroom := "-"
+	if metric.HeadroomPercent != nil {
+		headroom = fmt.Sprintf("%.1f%%", *metric.HeadroomPercent)
+	}
+	status := fallback(metric.Status, "unknown")
+	return fmt.Sprintf("%s saturation, %s headroom (%s)", score, headroom, status)
 }
 
 func actionChange(action contracts.Action) (string, string) {

@@ -215,6 +215,7 @@ func validFinalReport() FinalReport {
 				ID: "base",
 			},
 		},
+		Saturation: validSaturationReport(reportedAt),
 		DiagnosticCoverage: DiagnosticCoverage{
 			EligibleForRequiredDetectors: true,
 			Summary: DiagnosticCoverageSummary{
@@ -242,6 +243,32 @@ func validFinalReport() FinalReport {
 					Title: "Raise `--max-num-batched-tokens`",
 				}},
 			},
+		}},
+	}
+}
+
+func validSaturationReport(ts time.Time) SaturationReport {
+	headroom := 25.0
+	return SaturationReport{
+		Version: "saturation-v1",
+		Generic: SaturationMetric{
+			ID:                           "generic",
+			Label:                        "Generic saturation",
+			Status:                       "ok",
+			Score:                        metricWindow(ts, 75),
+			HeadroomPercent:              &headroom,
+			WorstObservedHeadroomPercent: &headroom,
+			EvidenceRefs:                 []string{"metrics.gpu.sm_active"},
+		},
+		Dimensions: []SaturationMetric{{
+			ID:                           "compute",
+			Label:                        "Compute / SM saturation",
+			BottleneckType:               "compute",
+			Status:                       "ok",
+			Score:                        metricWindow(ts, 75),
+			HeadroomPercent:              &headroom,
+			WorstObservedHeadroomPercent: &headroom,
+			EvidenceRefs:                 []string{"metrics.gpu.sm_active"},
 		}},
 	}
 }

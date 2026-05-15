@@ -25,9 +25,53 @@ func (r FinalReport) Validate() error {
 
 	errs = append(errs, validateIssues(r.Issues)...)
 	errs = append(errs, validateOpportunities(r.Opportunities)...)
+	errs = append(errs, validateSaturation(r.Saturation)...)
 	errs = append(errs, validateReportCoverage(r.DiagnosticCoverage)...)
 
 	return errors.Join(errs...)
+}
+
+func validateSaturation(s SaturationReport) []error {
+	var errs []error
+	if strings.TrimSpace(s.Version) == "" {
+		errs = append(errs, errors.New("saturation.version is required"))
+	}
+	errs = append(errs, validateSaturationMetric("saturation.generic", s.Generic, true)...)
+	seen := make(map[string]struct{}, len(s.Dimensions))
+	for idx, dimension := range s.Dimensions {
+		field := fmt.Sprintf("saturation.dimensions[%d]", idx)
+		errs = append(errs, validateSaturationMetric(field, dimension, false)...)
+		if strings.TrimSpace(dimension.ID) == "" {
+			continue
+		}
+		if _, ok := seen[dimension.ID]; ok {
+			errs = append(errs, fmt.Errorf("%s.id must be unique", field))
+		}
+		seen[dimension.ID] = struct{}{}
+	}
+	return errs
+}
+
+func validateSaturationMetric(field string, metric SaturationMetric, generic bool) []error {
+	var errs []error
+	if strings.TrimSpace(metric.ID) == "" {
+		errs = append(errs, fmt.Errorf("%s.id is required", field))
+	}
+	switch metric.Status {
+	case "ok", "partial", "not_evaluable":
+	default:
+		errs = append(errs, fmt.Errorf("%s.status must be ok, partial, or not_evaluable", field))
+	}
+	if metric.Status != "not_evaluable" && !metric.Score.HasData() {
+		errs = append(errs, fmt.Errorf("%s.score is required when evaluable", field))
+	}
+	if metric.Status == "not_evaluable" && strings.TrimSpace(metric.Reason) == "" {
+		errs = append(errs, fmt.Errorf("%s.reason is required when not evaluable", field))
+	}
+	if !generic && strings.TrimSpace(metric.BottleneckType) == "" {
+		errs = append(errs, fmt.Errorf("%s.bottleneck_type is required", field))
+	}
+	return errs
 }
 
 func validateIssues(issues []Issue) []error {
