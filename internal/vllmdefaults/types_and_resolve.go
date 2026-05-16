@@ -28,6 +28,8 @@ type Output struct {
 	RuntimeDumpPath      string
 	RuntimeScriptPath    string
 	RuntimePID           int32
+	RuntimeEffectiveMode string
+	RuntimeModelPath     string
 	ResolvedVersion      string
 	RuntimeWarnings      string
 	RuntimeErrors        string

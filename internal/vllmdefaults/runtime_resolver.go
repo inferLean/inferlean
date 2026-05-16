@@ -7,16 +7,20 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/shared"
 )
 
 const defaultsScriptEnv = "INFERLEAN_VLLM_DEFAULTS_SCRIPT"
 
+const runtimeDefaultsScriptTimeout = 90 * time.Second
+
 type RuntimeInput struct {
 	Input
-	Target   shared.Candidate
-	DumpPath string
+	Target            shared.Candidate
+	DumpPath          string
+	ModelPathOverride string
 }
 
 type runtimeDumpFile struct {
@@ -24,9 +28,15 @@ type runtimeDumpFile struct {
 		VLLMVersion  string `json:"vllm_version"`
 		TorchVersion string `json:"torch_version"`
 	} `json:"metadata"`
+	PIDProcess               runtimePIDProcess `json:"pid_process"`
 	EffectiveServeParameters map[string]any    `json:"effective_serve_parameters"`
 	Errors                   map[string]string `json:"errors"`
 	Warnings                 map[string]string `json:"warnings"`
+}
+
+type runtimePIDProcess struct {
+	ModelPathOverride        string `json:"model_path_override"`
+	ModelPathOverrideApplied bool   `json:"model_path_override_applied"`
 }
 
 type runtimeExecution struct {
@@ -82,7 +92,10 @@ func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
 		return Output{}, err
 	}
 
-	execMeta, err := runDumpScript(ctx, in.Target, scriptPath, dumpPath)
+	execCtx, cancel := context.WithTimeout(ctx, runtimeDefaultsScriptTimeout)
+	defer cancel()
+	modelPathOverride := strings.TrimSpace(in.ModelPathOverride)
+	execMeta, err := runDumpScript(execCtx, in.Target, scriptPath, dumpPath, modelPathOverride)
 	if err != nil {
 		return Output{}, err
 	}
@@ -91,7 +104,15 @@ func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
 		return Output{}, err
 	}
 
-	out, err := resolveFromDump(in.Input, dump)
+	statusWarnings := copyStatusMap(dump.Warnings)
+	statusErrors := copyStatusMap(dump.Errors)
+	out, err := resolveFromDumpWithGeneratedFallback(
+		in.Input,
+		dump,
+		statusWarnings,
+		statusErrors,
+		Resolve,
+	)
 	if err != nil {
 		return Output{}, err
 	}
@@ -100,8 +121,9 @@ func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
 	out.RuntimePID = execMeta.PID
 	out.RuntimeDumpPath = dumpPath
 	out.RuntimeScriptPath = scriptPath
-	out.RuntimeWarnings = flattenStatusMap(dump.Warnings)
-	out.RuntimeErrors = flattenStatusMap(dump.Errors)
+	out.RuntimeModelPath = modelPathOverride
+	out.RuntimeWarnings = flattenStatusMap(statusWarnings)
+	out.RuntimeErrors = flattenStatusMap(statusErrors)
 	if strings.TrimSpace(dump.Metadata.VLLMVersion) != "" {
 		out.ResolvedVersion = strings.TrimSpace(dump.Metadata.VLLMVersion)
 	}
@@ -109,6 +131,62 @@ func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
 		out.ResolvedTorchVersion = strings.TrimSpace(dump.Metadata.TorchVersion)
 	}
 	return out, nil
+}
+
+func resolveFromDumpWithGeneratedFallback(
+	input Input,
+	dump runtimeDumpFile,
+	warnings map[string]string,
+	errors map[string]string,
+	staticResolve func(Input) (Output, error),
+) (Output, error) {
+	out, err := resolveFromDump(input, dump)
+	if err != nil {
+		errors["runtime_dump.resolve"] = err.Error()
+	}
+	if err == nil && !shouldUseGeneratedDefaultsFallback(out.RuntimeEffectiveMode) {
+		return out, nil
+	}
+
+	fallbackInput := input
+	if runtimeVersion := strings.TrimSpace(dump.Metadata.VLLMVersion); runtimeVersion != "" {
+		fallbackInput.VLLMVersion = runtimeVersion
+	}
+	fallbackOut, fallbackErr := staticResolve(fallbackInput)
+	if fallbackErr != nil {
+		errors["defaults.generated_fallback"] = fallbackErr.Error()
+		if err != nil {
+			return Output{}, err
+		}
+		return out, nil
+	}
+	warnings["defaults.generated_fallback"] = generatedFallbackReason(out.RuntimeEffectiveMode, err)
+	fallbackOut.RuntimeEffectiveMode = out.RuntimeEffectiveMode
+	return fallbackOut, nil
+}
+
+func shouldUseGeneratedDefaultsFallback(mode string) bool {
+	trimmed := strings.TrimSpace(mode)
+	return trimmed == "fallback" || trimmed == "unavailable"
+}
+
+func generatedFallbackReason(mode string, resolveErr error) string {
+	trimmedMode := strings.TrimSpace(mode)
+	if trimmedMode == "" {
+		trimmedMode = "unknown"
+	}
+	if resolveErr != nil {
+		return "used generated vLLM defaults because runtime defaults dump could not be resolved: " + resolveErr.Error()
+	}
+	return "used generated vLLM defaults because runtime effective config mode was " + trimmedMode
+}
+
+func copyStatusMap(values map[string]string) map[string]string {
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
 }
 
 func prepareDumpPath(raw string) (string, error) {
@@ -181,18 +259,49 @@ func resolveFromDump(input Input, dump runtimeDumpFile) (Output, error) {
 	explicit := normalizeArgs(input.ExplicitArgs)
 	model := inferModel(explicit, input.RawCommandLine)
 	requestedVersion := inferRequestedVersion(input, explicit)
+	effective := restoreModelLabelsForOverride(dump.EffectiveServeParameters, model, dump.PIDProcess)
+	effectiveMode := runtimeEffectiveMode(effective)
 
 	resolved := copyStringMap(explicit)
 	sources := explicitArgSources(explicit)
-	applied := applyEffectiveDefaults(resolved, sources, dump.EffectiveServeParameters, model)
+	applied := 0
+	if effectiveMode == "" || effectiveMode == "full_vllm_config" {
+		applied = applyEffectiveDefaults(resolved, sources, effective, model)
+	}
 
 	return Output{
-		Args:             resolved,
-		ArgSources:       sources,
-		SelectedModel:    model,
-		RequestedVersion: requestedVersion,
-		AppliedDefaults:  applied,
+		Args:                 resolved,
+		ArgSources:           sources,
+		SelectedModel:        model,
+		RequestedVersion:     requestedVersion,
+		AppliedDefaults:      applied,
+		RuntimeEffectiveMode: effectiveMode,
 	}, nil
+}
+
+func restoreModelLabelsForOverride(
+	effective map[string]any,
+	model string,
+	pidProcess runtimePIDProcess,
+) map[string]any {
+	override := strings.TrimSpace(pidProcess.ModelPathOverride)
+	if !pidProcess.ModelPathOverrideApplied || override == "" || strings.TrimSpace(model) == "" {
+		return effective
+	}
+	out := make(map[string]any, len(effective))
+	for key, value := range effective {
+		out[key] = value
+	}
+	for _, key := range []string{"model", "served_model_name"} {
+		if strings.TrimSpace(stringifyValue(out[key])) == override {
+			out[key] = model
+		}
+	}
+	return out
+}
+
+func runtimeEffectiveMode(effective map[string]any) string {
+	return strings.TrimSpace(stringifyValue(effective["_effective_mode"]))
 }
 
 func applyEffectiveDefaults(target, sources map[string]string, effective map[string]any, model string) int {

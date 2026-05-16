@@ -16,30 +16,30 @@ const (
 	remoteDumpPath   = "/tmp/inferlean-vllm-defaults.json"
 )
 
-func runDumpScript(ctx context.Context, target shared.Candidate, scriptPath, dumpPath string) (runtimeExecution, error) {
+func runDumpScript(ctx context.Context, target shared.Candidate, scriptPath, dumpPath, modelPathOverride string) (runtimeExecution, error) {
 	source := strings.ToLower(strings.TrimSpace(target.Source))
 	switch source {
 	case "docker":
-		return runDumpInDocker(ctx, target, scriptPath, dumpPath)
+		return runDumpInDocker(ctx, target, scriptPath, dumpPath, modelPathOverride)
 	case "pod", "kubernetes":
-		return runDumpInPod(ctx, target, scriptPath, dumpPath)
+		return runDumpInPod(ctx, target, scriptPath, dumpPath, modelPathOverride)
 	default:
-		return runDumpOnHost(ctx, target, scriptPath, dumpPath)
+		return runDumpOnHost(ctx, target, scriptPath, dumpPath, modelPathOverride)
 	}
 }
 
-func runDumpOnHost(ctx context.Context, target shared.Candidate, scriptPath, dumpPath string) (runtimeExecution, error) {
+func runDumpOnHost(ctx context.Context, target shared.Candidate, scriptPath, dumpPath, modelPathOverride string) (runtimeExecution, error) {
 	pid, err := runtimePID(target, "process")
 	if err != nil {
 		return runtimeExecution{}, err
 	}
-	if err := runPythonLocal(ctx, target, scriptPath, pid, dumpPath); err != nil {
+	if err := runPythonLocal(ctx, target, scriptPath, pid, dumpPath, modelPathOverride); err != nil {
 		return runtimeExecution{}, err
 	}
 	return runtimeExecution{Source: "process", PID: pid}, nil
 }
 
-func runDumpInDocker(ctx context.Context, target shared.Candidate, scriptPath, dumpPath string) (runtimeExecution, error) {
+func runDumpInDocker(ctx context.Context, target shared.Candidate, scriptPath, dumpPath, modelPathOverride string) (runtimeExecution, error) {
 	containerID := strings.TrimSpace(target.ContainerID)
 	if containerID == "" {
 		return runtimeExecution{}, fmt.Errorf("cannot run defaults script for docker target without container id")
@@ -53,7 +53,7 @@ func runDumpInDocker(ctx context.Context, target shared.Candidate, scriptPath, d
 		return runtimeExecution{}, fmt.Errorf("copy defaults script into container: %w", err)
 	}
 
-	if err := runPythonInDocker(ctx, target, containerID, pid); err != nil {
+	if err := runPythonInDocker(ctx, target, containerID, pid, modelPathOverride); err != nil {
 		return runtimeExecution{}, err
 	}
 	if _, err := runCommand(ctx, "docker", "cp", containerID+":"+remoteDumpPath, dumpPath); err != nil {
@@ -63,22 +63,20 @@ func runDumpInDocker(ctx context.Context, target shared.Candidate, scriptPath, d
 	return runtimeExecution{Source: "docker", PID: pid}, nil
 }
 
-func runPythonInDocker(ctx context.Context, target shared.Candidate, containerID string, pid int32) error {
+func runPythonInDocker(ctx context.Context, target shared.Candidate, containerID string, pid int32, modelPathOverride string) error {
 	return runPythonCandidates(ctx, "in container", pythonCandidates(target, pid), func(py string) (string, []string) {
-		return "docker", []string{
+		args := []string{
 			"exec",
 			containerID,
 			py,
 			remoteScriptPath,
-			"--pid",
-			strconv.Itoa(int(pid)),
-			"--out",
-			remoteDumpPath,
 		}
+		args = append(args, dumpScriptArgs(pid, remoteDumpPath, modelPathOverride)...)
+		return "docker", args
 	})
 }
 
-func runDumpInPod(ctx context.Context, target shared.Candidate, scriptPath, dumpPath string) (runtimeExecution, error) {
+func runDumpInPod(ctx context.Context, target shared.Candidate, scriptPath, dumpPath, modelPathOverride string) (runtimeExecution, error) {
 	podName := strings.TrimSpace(target.PodName)
 	if podName == "" {
 		return runtimeExecution{}, fmt.Errorf("cannot run defaults script for pod target without pod name")
@@ -94,7 +92,7 @@ func runDumpInPod(ctx context.Context, target shared.Candidate, scriptPath, dump
 		return runtimeExecution{}, fmt.Errorf("copy defaults script into pod: %w", err)
 	}
 
-	if err := runPythonInPod(ctx, target, namespace, podName, container, pid); err != nil {
+	if err := runPythonInPod(ctx, target, namespace, podName, container, pid, modelPathOverride); err != nil {
 		return runtimeExecution{}, err
 	}
 	if _, err := runCommand(ctx, "kubectl", kubectlCopyFromArgs(namespace, podName, container, remoteDumpPath, dumpPath)...); err != nil {
@@ -114,19 +112,11 @@ func podContainerName(executable string) string {
 	return strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
 }
 
-func runPythonInPod(ctx context.Context, target shared.Candidate, namespace, podName, container string, pid int32) error {
+func runPythonInPod(ctx context.Context, target shared.Candidate, namespace, podName, container string, pid int32, modelPathOverride string) error {
 	return runPythonCandidates(ctx, "in pod", pythonCandidates(target, pid), func(py string) (string, []string) {
-		return "kubectl", kubectlExecArgs(
-			namespace,
-			podName,
-			container,
-			py,
-			remoteScriptPath,
-			"--pid",
-			strconv.Itoa(int(pid)),
-			"--out",
-			remoteDumpPath,
-		)
+		command := []string{py, remoteScriptPath}
+		command = append(command, dumpScriptArgs(pid, remoteDumpPath, modelPathOverride)...)
+		return "kubectl", kubectlExecArgs(namespace, podName, container, command...)
 	})
 }
 
@@ -179,16 +169,25 @@ func runtimePID(target shared.Candidate, source string) (int32, error) {
 	return 0, fmt.Errorf("cannot run defaults script for %s target without internal pid", source)
 }
 
-func runPythonLocal(ctx context.Context, target shared.Candidate, scriptPath string, pid int32, dumpPath string) error {
+func runPythonLocal(ctx context.Context, target shared.Candidate, scriptPath string, pid int32, dumpPath string, modelPathOverride string) error {
 	return runPythonCandidates(ctx, "on host", pythonCandidates(target, pid), func(py string) (string, []string) {
-		return py, []string{
-			scriptPath,
-			"--pid",
-			strconv.Itoa(int(pid)),
-			"--out",
-			dumpPath,
-		}
+		args := []string{scriptPath}
+		args = append(args, dumpScriptArgs(pid, dumpPath, modelPathOverride)...)
+		return py, args
 	})
+}
+
+func dumpScriptArgs(pid int32, dumpPath string, modelPathOverride string) []string {
+	args := []string{
+		"--pid",
+		strconv.Itoa(int(pid)),
+		"--out",
+		dumpPath,
+	}
+	if override := strings.TrimSpace(modelPathOverride); override != "" {
+		args = append(args, "--model-path-override", override)
+	}
+	return args
 }
 
 func pythonCandidates(target shared.Candidate, pid int32) []string {

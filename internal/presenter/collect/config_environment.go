@@ -54,7 +54,8 @@ func collectConfigEnvironment(
 	if versionHint == "" {
 		versionHint = inferVLLMVersionHint(ctx, target)
 	}
-	applyVLLMDefaults(ctx, &cfg, target, processIODir, rawCommandLine, versionHint, liveVersion, gpu)
+	modelPathOverride := observedVLLMModelPath(promRes)
+	applyVLLMDefaults(ctx, &cfg, target, processIODir, rawCommandLine, versionHint, liveVersion, gpu, modelPathOverride)
 	return cfg
 }
 
@@ -120,6 +121,7 @@ func applyVLLMDefaults(
 	versionHint string,
 	liveVersion string,
 	snapshot gpuSnapshot,
+	modelPathOverride string,
 ) {
 	dumpPath := ""
 	if strings.TrimSpace(processIODir) != "" {
@@ -133,8 +135,9 @@ func applyVLLMDefaults(
 			GPUModel:       snapshot.Model,
 			GPUMemoryMiB:   snapshot.MaxMemoryMiB,
 		},
-		Target:   target,
-		DumpPath: dumpPath,
+		Target:            target,
+		DumpPath:          dumpPath,
+		ModelPathOverride: modelPathOverride,
 	})
 	if err != nil {
 		cfg.EnvironmentHints = withHint(cfg.EnvironmentHints, "vllm_defaults_error", err.Error())
@@ -163,6 +166,12 @@ func applyVLLMDefaults(
 	if strings.TrimSpace(resolved.RuntimeErrors) != "" {
 		hints = withHint(hints, "vllm_defaults_runtime_errors", resolved.RuntimeErrors)
 	}
+	if strings.TrimSpace(resolved.RuntimeEffectiveMode) != "" {
+		hints = withHint(hints, "vllm_defaults_effective_mode", resolved.RuntimeEffectiveMode)
+	}
+	if strings.TrimSpace(resolved.RuntimeModelPath) != "" {
+		hints = withHint(hints, "vllm_defaults_model_path_override", resolved.RuntimeModelPath)
+	}
 	effectiveVersionHint := strings.TrimSpace(resolved.ResolvedVersion)
 	if strings.TrimSpace(liveVersion) != "" {
 		effectiveVersionHint = strings.TrimSpace(liveVersion)
@@ -176,6 +185,45 @@ func applyVLLMDefaults(
 		hints = withHint(hints, "vllm_model", resolved.SelectedModel)
 	}
 	cfg.EnvironmentHints = hints
+}
+
+func observedVLLMModelPath(promRes promcollector.Result) string {
+	snapshots := map[string]bool{}
+	paths := map[string]bool{}
+	for _, sample := range promRes.Samples["vllm"] {
+		for _, metric := range sample.Metrics {
+			modelName := strings.TrimSpace(metric.Labels["model_name"])
+			if !isLocalModelPath(modelName) {
+				continue
+			}
+			if strings.Contains(modelName, "/snapshots/") {
+				snapshots[modelName] = true
+				continue
+			}
+			paths[modelName] = true
+		}
+	}
+	if len(snapshots) == 1 {
+		return onlyMapKey(snapshots)
+	}
+	if len(snapshots) > 1 {
+		return ""
+	}
+	if len(paths) == 1 {
+		return onlyMapKey(paths)
+	}
+	return ""
+}
+
+func isLocalModelPath(value string) bool {
+	return strings.HasPrefix(strings.TrimSpace(value), "/")
+}
+
+func onlyMapKey(values map[string]bool) string {
+	for value := range values {
+		return value
+	}
+	return ""
 }
 
 func withHint(hints map[string]string, key, value string) map[string]string {

@@ -34,6 +34,7 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 				"dtype":                  "bfloat16",
 				"attention_backend":      "default",
 				"flashinfer_present":     false,
+				"_effective_mode":        "full_vllm_config",
 				"_sources": map[string]any{
 					"max_model_len":      "x",
 					"flashinfer_present": "runtime_import.flashinfer",
@@ -86,6 +87,9 @@ func TestResolveFromDumpAppliesEffectiveDefaults(t *testing.T) {
 	if out.AppliedDefaults != 12 {
 		t.Fatalf("AppliedDefaults = %d, want 12", out.AppliedDefaults)
 	}
+	if out.RuntimeEffectiveMode != "full_vllm_config" {
+		t.Fatalf("RuntimeEffectiveMode = %q, want full_vllm_config", out.RuntimeEffectiveMode)
+	}
 }
 
 func TestResolveFromDumpRequiresEffectiveServeParameters(t *testing.T) {
@@ -122,6 +126,196 @@ func TestResolveFromDumpSkipsUnknownAttentionBackend(t *testing.T) {
 	}
 	if out.AppliedDefaults != 0 {
 		t.Fatalf("AppliedDefaults = %d, want 0", out.AppliedDefaults)
+	}
+}
+
+func TestResolveFromDumpDoesNotApplyFallbackEffectiveParameters(t *testing.T) {
+	t.Parallel()
+
+	out, err := resolveFromDump(
+		Input{
+			RawCommandLine: "vllm serve model-a",
+			ExplicitArgs:   map[string]string{},
+		},
+		runtimeDumpFile{
+			EffectiveServeParameters: map[string]any{
+				"_effective_mode":          "fallback",
+				"model":                    "model-a",
+				"max_num_batched_tokens":   8192,
+				"enable_chunked_prefill":   true,
+				"gpu_memory_utilization":   0.9,
+				"tensor_parallel_size":     1,
+				"served_model_name":        "model-a",
+				"flashinfer_present":       false,
+				"attention_backend":        "FLASH_ATTN",
+				"prefix_caching_hash_algo": "sha256",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("resolveFromDump() error = %v", err)
+	}
+	if out.AppliedDefaults != 0 {
+		t.Fatalf("AppliedDefaults = %d, want 0", out.AppliedDefaults)
+	}
+	if len(out.Args) != 0 {
+		t.Fatalf("Args = %#v, want no applied defaults", out.Args)
+	}
+	if out.RuntimeEffectiveMode != "fallback" {
+		t.Fatalf("RuntimeEffectiveMode = %q, want fallback", out.RuntimeEffectiveMode)
+	}
+	if out.SelectedModel != "model-a" {
+		t.Fatalf("SelectedModel = %q, want model-a", out.SelectedModel)
+	}
+}
+
+func TestResolveFromDumpRestoresModelLabelsWhenModelPathOverrideWasUsed(t *testing.T) {
+	t.Parallel()
+
+	out, err := resolveFromDump(
+		Input{
+			RawCommandLine: "vllm serve google/gemma",
+			ExplicitArgs:   map[string]string{},
+		},
+		runtimeDumpFile{
+			PIDProcess: runtimePIDProcess{
+				ModelPathOverride:        "/cache/models--google--gemma/snapshots/abc",
+				ModelPathOverrideApplied: true,
+			},
+			EffectiveServeParameters: map[string]any{
+				"_effective_mode":   "full_vllm_config",
+				"model":             "/cache/models--google--gemma/snapshots/abc",
+				"served_model_name": "/cache/models--google--gemma/snapshots/abc",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("resolveFromDump() error = %v", err)
+	}
+	if out.Args["model"] != "google/gemma" {
+		t.Fatalf("model = %q, want original repo id", out.Args["model"])
+	}
+	if out.Args["served-model-name"] != "google/gemma" {
+		t.Fatalf("served-model-name = %q, want original repo id", out.Args["served-model-name"])
+	}
+}
+
+func TestResolveFromDumpWithGeneratedFallbackUsesStaticDefaultsAndKeepsRuntimeFailures(t *testing.T) {
+	t.Parallel()
+
+	warnings := map[string]string{
+		"effective.create_engine_config": "create_engine_config fallback: ConnectError('[Errno -3] Temporary failure in name resolution')",
+	}
+	errors := map[string]string{
+		"input_cli_args_parse": "RuntimeError('local-only cache miss')",
+	}
+	out, err := resolveFromDumpWithGeneratedFallback(
+		Input{
+			RawCommandLine: "vllm serve model-a",
+			ExplicitArgs:   map[string]string{},
+			VLLMVersion:    "0.18.0",
+		},
+		runtimeDumpFile{
+			Metadata: struct {
+				VLLMVersion  string `json:"vllm_version"`
+				TorchVersion string `json:"torch_version"`
+			}{VLLMVersion: "0.19.0"},
+			EffectiveServeParameters: map[string]any{
+				"_effective_mode": "unavailable",
+				"model":           "model-a",
+			},
+		},
+		warnings,
+		errors,
+		func(input Input) (Output, error) {
+			if input.VLLMVersion != "0.19.0" {
+				t.Fatalf("fallback VLLMVersion = %q, want runtime metadata version", input.VLLMVersion)
+			}
+			return Output{
+				Args: map[string]string{
+					"max-num-seqs":           "256",
+					"gpu-memory-utilization": "0.9",
+				},
+				ArgSources: map[string]string{
+					"max-num-seqs":           "profile_default",
+					"gpu-memory-utilization": "profile_default",
+				},
+				SelectedModel:   "model-a",
+				AppliedDefaults: 2,
+			}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("resolveFromDumpWithGeneratedFallback() error = %v", err)
+	}
+	if out.Args["max-num-seqs"] != "256" {
+		t.Fatalf("max-num-seqs = %q, want generated fallback default", out.Args["max-num-seqs"])
+	}
+	if out.AppliedDefaults != 2 {
+		t.Fatalf("AppliedDefaults = %d, want 2", out.AppliedDefaults)
+	}
+	if out.RuntimeEffectiveMode != "unavailable" {
+		t.Fatalf("RuntimeEffectiveMode = %q, want unavailable", out.RuntimeEffectiveMode)
+	}
+	if warnings["effective.create_engine_config"] == "" {
+		t.Fatal("runtime warning was not preserved")
+	}
+	if warnings["defaults.generated_fallback"] == "" {
+		t.Fatal("generated fallback warning was not recorded")
+	}
+	if errors["input_cli_args_parse"] == "" {
+		t.Fatal("runtime error was not preserved")
+	}
+}
+
+func TestResolveFromDumpWithGeneratedFallbackReportsFallbackFailure(t *testing.T) {
+	t.Parallel()
+
+	warnings := map[string]string{}
+	errors := map[string]string{
+		"input_cli_args_parse": "RuntimeError('local-only cache miss')",
+	}
+	out, err := resolveFromDumpWithGeneratedFallback(
+		Input{
+			RawCommandLine: "vllm serve model-a",
+			ExplicitArgs:   map[string]string{},
+		},
+		runtimeDumpFile{
+			EffectiveServeParameters: map[string]any{
+				"_effective_mode": "unavailable",
+			},
+		},
+		warnings,
+		errors,
+		func(input Input) (Output, error) {
+			return Output{}, os.ErrNotExist
+		},
+	)
+	if err != nil {
+		t.Fatalf("resolveFromDumpWithGeneratedFallback() error = %v", err)
+	}
+	if out.RuntimeEffectiveMode != "unavailable" {
+		t.Fatalf("RuntimeEffectiveMode = %q, want unavailable", out.RuntimeEffectiveMode)
+	}
+	if errors["input_cli_args_parse"] == "" {
+		t.Fatal("runtime error was not preserved")
+	}
+	if errors["defaults.generated_fallback"] == "" {
+		t.Fatal("generated fallback failure was not reported")
+	}
+}
+
+func TestFlattenStatusMapFormatsRuntimeWarningsDeterministically(t *testing.T) {
+	t.Parallel()
+
+	got := flattenStatusMap(map[string]string{
+		"effective.derive_model_defaults": "Failed to recover effective config in fallback mode: ConnectError('[Errno -3] Temporary failure in name resolution')",
+		"empty":                           " ",
+		"effective.create_engine_config":  "create_engine_config fallback: ConnectError('[Errno -3] Temporary failure in name resolution')",
+	})
+	want := "effective.create_engine_config=create_engine_config fallback: ConnectError('[Errno -3] Temporary failure in name resolution'); effective.derive_model_defaults=Failed to recover effective config in fallback mode: ConnectError('[Errno -3] Temporary failure in name resolution')"
+	if got != want {
+		t.Fatalf("flattenStatusMap() = %q, want %q", got, want)
 	}
 }
 
@@ -180,6 +374,28 @@ func TestRuntimePIDRequiresInternalPIDForDocker(t *testing.T) {
 	}, "docker")
 	if err == nil {
 		t.Fatal("runtimePID() expected error")
+	}
+}
+
+func TestDumpScriptArgsIncludesModelPathOverride(t *testing.T) {
+	t.Parallel()
+
+	got := dumpScriptArgs(17, "/tmp/dump.json", " /models/snapshot ")
+	want := []string{
+		"--pid",
+		"17",
+		"--out",
+		"/tmp/dump.json",
+		"--model-path-override",
+		"/models/snapshot",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("len(dumpScriptArgs()) = %d, want %d: %#v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("dumpScriptArgs()[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
 

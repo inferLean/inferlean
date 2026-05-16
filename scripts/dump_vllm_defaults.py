@@ -10,8 +10,7 @@ What it extracts:
 1. CLI parser defaults (OpenAI/serve parser + AsyncEngineArgs parser)
 2. Declared dataclass/config defaults from `vllm.config.*`
 3. Declared defaults for `EngineArgs` / `AsyncEngineArgs`
-4. Declared + normalized defaults for `SamplingParams` / `PoolingParams`
-5. Effective runtime config via `AsyncEngineArgs.create_engine_config`
+4. Effective runtime config via `AsyncEngineArgs.create_engine_config`
    (may require model/config resolution and environment support)
 """
 
@@ -24,7 +23,9 @@ import importlib
 import inspect
 import json
 import os
+import signal
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,8 @@ RECURSIVE = "__RECURSIVE__"
 def _optional_import(module_name: str) -> Any | None:
     try:
         return importlib.import_module(module_name)
+    except SystemExit:
+        return None
     except Exception:
         return None
 
@@ -171,7 +174,10 @@ def _extract_dataclass_defaults(cls: type[Any]) -> dict[str, Any]:
 
 
 def _extract_parser_defaults(parser: argparse.ArgumentParser) -> dict[str, Any]:
-    parsed = parser.parse_args([])
+    try:
+        parsed = parser.parse_args([])
+    except SystemExit as exc:
+        raise RuntimeError(f"parse_args exited: {exc}") from exc
     return _to_jsonable(vars(parsed))
 
 
@@ -188,6 +194,8 @@ def _extract_cli_defaults(errors: dict[str, str]) -> dict[str, Any]:
             parser = parser_cls(prog="vllm serve")
             parser = cli_args_mod.make_arg_parser(parser)
             out["serve_make_arg_parser"] = _extract_parser_defaults(parser)
+        except SystemExit as exc:
+            errors["cli.serve_make_arg_parser"] = repr(exc)
         except Exception as exc:
             errors["cli.serve_make_arg_parser"] = repr(exc)
 
@@ -197,6 +205,8 @@ def _extract_cli_defaults(errors: dict[str, str]) -> dict[str, Any]:
             parser = parser_cls(prog="vllm-async-engine")
             parser = arg_utils_mod.AsyncEngineArgs.add_cli_args(parser)
             out["async_engine_add_cli_args"] = _extract_parser_defaults(parser)
+        except SystemExit as exc:
+            errors["cli.async_engine_add_cli_args"] = repr(exc)
         except Exception as exc:
             errors["cli.async_engine_add_cli_args"] = repr(exc)
 
@@ -305,6 +315,15 @@ def _read_pid_environ(pid: int) -> dict[str, str]:
     return out
 
 
+def _read_pid_cwd(pid: int) -> str:
+    return os.readlink(f"/proc/{pid}/cwd")
+
+
+def _apply_pid_cwd(cwd: str) -> str:
+    os.chdir(cwd)
+    return os.getcwd()
+
+
 def _strip_optional_serve(argv: list[str]) -> list[str]:
     if argv and argv[0] == "serve":
         return argv[1:]
@@ -382,6 +401,69 @@ def _infer_vllm_cli_args_from_cmdline(
     return [], f"unsupported vLLM launch shape: {executable or '<empty>'}"
 
 
+def _override_vllm_model_arg(
+    raw_cli_args: list[str],
+    model_override: str,
+) -> tuple[list[str], bool]:
+    override = model_override.strip()
+    if not override:
+        return raw_cli_args, False
+
+    out = list(raw_cli_args)
+    for idx, token in enumerate(out):
+        if token in {"--model", "--model-tag"}:
+            if idx + 1 < len(out):
+                out[idx + 1] = override
+            else:
+                out.append(override)
+            return out, True
+        for prefix in ("--model=", "--model-tag="):
+            if token.startswith(prefix):
+                out[idx] = prefix + override
+                return out, True
+
+    positional_idx = _find_positional_model_arg_index(out)
+    if positional_idx is not None:
+        out[positional_idx] = override
+        return out, True
+
+    return [override, *out], True
+
+
+def _find_positional_model_arg_index(raw_cli_args: list[str]) -> int | None:
+    boolean_flags = {
+        "--async-scheduling",
+        "--disable-log-requests",
+        "--enable-auto-tool-choice",
+        "--enable-prefix-caching",
+        "--enforce-eager",
+        "--trust-remote-code",
+    }
+    idx = 0
+    while idx < len(raw_cli_args):
+        token = raw_cli_args[idx].strip()
+        if not token:
+            idx += 1
+            continue
+        if token == "--":
+            next_idx = idx + 1
+            return next_idx if next_idx < len(raw_cli_args) else None
+        if token.startswith("-"):
+            if (
+                token.startswith("--")
+                and "=" not in token
+                and token not in boolean_flags
+                and idx + 1 < len(raw_cli_args)
+                and not raw_cli_args[idx + 1].startswith("-")
+            ):
+                idx += 2
+                continue
+            idx += 1
+            continue
+        return idx
+    return None
+
+
 def _is_sensitive_env_key(key: str) -> bool:
     upper = key.upper()
     sensitive_markers = (
@@ -410,21 +492,30 @@ def _allowed_pid_env(key: str) -> bool:
         "CONDA_DEFAULT_ENV",
         "CONDA_PREFIX",
         "CUDA_VISIBLE_DEVICES",
+        "HF_ENDPOINT",
         "HF_HOME",
+        "HF_HUB_CACHE",
+        "HF_HUB_OFFLINE",
         "HOME",
+        "HUGGING_FACE_HUB_CACHE",
+        "HUGGING_FACE_HUB_TOKEN",
         "HUGGINGFACE_HUB_CACHE",
         "LD_LIBRARY_PATH",
         "PATH",
         "PYTHONHOME",
         "PYTHONPATH",
         "TORCH_HOME",
+        "TRANSFORMERS_CACHE",
+        "TRANSFORMERS_OFFLINE",
         "VIRTUAL_ENV",
         "VLLM_ATTENTION_BACKEND",
         "VLLM_TARGET_DEVICE",
+        "XDG_CACHE_HOME",
     }
     prefixes = (
         "CUDA_",
         "HF_",
+        "HUGGING_FACE_",
         "HUGGINGFACE_",
         "NCCL_",
         "NVIDIA_",
@@ -467,7 +558,9 @@ def _force_platform_if_needed(
         if getattr(current, "device_type", ""):
             return
 
-        target = pid_environ.get("VLLM_TARGET_DEVICE", "cuda").lower()
+        target = pid_environ.get("VLLM_TARGET_DEVICE", "").strip().lower()
+        if not target:
+            return
         if target == "cuda":
             from vllm.platforms.cuda import CudaPlatform
 
@@ -490,6 +583,7 @@ def _force_platform_if_needed(
 def _parse_vllm_cli_input(
     raw_cli_args: list[str],
     errors: dict[str, str],
+    parse_timeout_seconds: float | None = None,
 ) -> tuple[dict[str, Any] | None, Any | None]:
     cli_args_mod = _optional_import("vllm.entrypoints.openai.cli_args")
     argparse_utils = _optional_import("vllm.utils.argparse_utils")
@@ -515,8 +609,12 @@ def _parse_vllm_cli_input(
         parser = cli_args_mod.make_arg_parser(parser)
         parsed_ns = parser.parse_args(raw_cli_args)
         parsed_cli = _to_jsonable(vars(parsed_ns))
-        engine_args_obj = arg_utils_mod.AsyncEngineArgs.from_cli_args(parsed_ns)
+        with _time_limit(parse_timeout_seconds, "input CLI parsing"):
+            engine_args_obj = arg_utils_mod.AsyncEngineArgs.from_cli_args(parsed_ns)
         return parsed_cli, engine_args_obj
+    except SystemExit as exc:
+        errors["input_cli_args_parse"] = repr(exc)
+        return None, None
     except Exception as exc:
         errors["input_cli_args_parse"] = repr(exc)
         return None, None
@@ -527,6 +625,28 @@ def _infer_usage_context_from_cmdline(cmdline: list[str]) -> str:
     # Keep OPENAI_API_SERVER as the canonical context.
     _ = cmdline
     return "OPENAI_API_SERVER"
+
+
+@contextmanager
+def _time_limit(seconds: float | None, label: str):
+    if seconds is None or seconds <= 0 or not hasattr(signal, "setitimer"):
+        yield
+        return
+
+    def handle_timeout(signum: int, frame: Any) -> None:
+        _ = signum, frame
+        raise TimeoutError(f"{label} timed out after {seconds:g}s")
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, handle_timeout)
+    previous_timer = signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_timer[0] > 0:
+            signal.setitimer(signal.ITIMER_REAL, previous_timer[0], previous_timer[1])
 
 
 def _resolve_runtime_attention_backend(
@@ -593,6 +713,7 @@ def _extract_effective_engine_config(
     usage_context_name: str,
     errors: dict[str, str],
     warnings: dict[str, str],
+    effective_timeout_seconds: float | None = None,
 ) -> Any:
     if engine_args_obj is None:
         errors["effective.engine_args"] = (
@@ -608,10 +729,11 @@ def _extract_effective_engine_config(
         return None
 
     try:
-        vllm_config = engine_args_obj.create_engine_config(
-            usage_context=usage_ctx,
-            headless=True,
-        )
+        with _time_limit(effective_timeout_seconds, "create_engine_config"):
+            vllm_config = engine_args_obj.create_engine_config(
+                usage_context=usage_ctx,
+                headless=True,
+            )
         return _serialize_effective_engine_config(vllm_config, errors)
     except Exception as exc:
         message = repr(exc)
@@ -660,10 +782,14 @@ def _extract_effective_engine_config(
                     if field.init
                 }
                 fresh_engine_args = cls(**kwargs)
-                cfg = fresh_engine_args.create_engine_config(
-                    usage_context=usage_ctx,
-                    headless=True,
-                )
+                with _time_limit(
+                    effective_timeout_seconds,
+                    "fallback create_engine_config",
+                ):
+                    cfg = fresh_engine_args.create_engine_config(
+                        usage_context=usage_ctx,
+                        headless=True,
+                    )
                 warnings["effective.create_engine_config"] = (
                     warn_message
                     + " Recovered by rebuilding EngineArgs under forced CPU."
@@ -690,10 +816,11 @@ def _extract_effective_engine_config(
                 cpu_platform = CpuPlatform()
                 platforms.current_platform = cpu_platform
                 engine_arg_utils.current_platform = cpu_platform
-                vllm_config = engine_args_obj.create_engine_config(
-                    usage_context=usage_ctx,
-                    headless=True,
-                )
+                with _time_limit(effective_timeout_seconds, "cpu create_engine_config"):
+                    vllm_config = engine_args_obj.create_engine_config(
+                        usage_context=usage_ctx,
+                        headless=True,
+                    )
                 warnings["effective.create_engine_config"] = (
                     "Fell back to CPU platform because CUDA GPUs were not "
                     "visible in this exec context. CPU-derived config is "
@@ -1287,6 +1414,7 @@ def _build_metadata(args: argparse.Namespace) -> dict[str, Any]:
         "options": {
             "pid": args.pid,
             "redact_pid_env": args.redact_pid_env,
+            "model_path_override": getattr(args, "model_path_override", ""),
         },
     }
 
@@ -1310,7 +1438,8 @@ def parse_args() -> argparse.Namespace:
         type=int,
         required=True,
         help="Linux process PID to introspect. Reads /proc/<pid>/cmdline and "
-        "/proc/<pid>/environ, infers vLLM CLI args, and uses them as input.",
+        "/proc/<pid>/environ, applies /proc/<pid>/cwd, infers vLLM CLI args, "
+        "and uses them as input.",
     )
     parser.add_argument(
         "--redact-pid-env",
@@ -1324,11 +1453,35 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Exit with non-zero status if any section fails.",
     )
+    parser.add_argument(
+        "--model-path-override",
+        type=str,
+        default="",
+        help=(
+            "Use this already-resolved local model path for vLLM config "
+            "parsing instead of the model id from /proc/<pid>/cmdline."
+        ),
+    )
+    parser.add_argument(
+        "--effective-timeout-seconds",
+        type=float,
+        default=45,
+        help=(
+            "Timeout for model-aware effective config extraction. "
+            "Use <=0 to disable."
+        ),
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    out_path: Path | None = None
+    if args.out != "-":
+        out_path = Path(args.out)
+        if not out_path.is_absolute():
+            out_path = Path.cwd() / out_path
+
     errors: dict[str, str] = {}
     warnings: dict[str, str] = {}
     parsed_cli_from_input: dict[str, Any] | None = None
@@ -1340,10 +1493,38 @@ def main() -> int:
     try:
         pid_cmdline = _read_pid_cmdline(args.pid)
         pid_environ = _read_pid_environ(args.pid)
+    except Exception as exc:
+        errors["pid.read"] = repr(exc)
+    else:
+        pid_cwd: str | None = None
+        pid_cwd_applied: str | None = None
+        pid_cwd_error: str | None = None
+
+        try:
+            pid_cwd = _read_pid_cwd(args.pid)
+        except Exception as exc:
+            pid_cwd_error = repr(exc)
+
         inferred_args, infer_warning = _infer_vllm_cli_args_from_cmdline(pid_cmdline)
         inferred_usage_context = _infer_usage_context_from_cmdline(pid_cmdline)
+        original_inferred_args = list(inferred_args)
+        model_path_override = getattr(args, "model_path_override", "").strip()
+        model_path_override_applied = False
+        if inferred_args and model_path_override:
+            inferred_args, model_path_override_applied = _override_vllm_model_arg(
+                inferred_args,
+                model_path_override,
+            )
 
         applied_env_keys = _apply_pid_environment(pid_environ)
+        if pid_cwd is not None:
+            try:
+                pid_cwd_applied = _apply_pid_cwd(pid_cwd)
+            except Exception as exc:
+                pid_cwd_error = repr(exc)
+        if pid_cwd_error is not None:
+            warnings["pid.cwd"] = pid_cwd_error
+
         _force_platform_if_needed(pid_environ, errors)
 
         pid_process = {
@@ -1351,25 +1532,32 @@ def main() -> int:
             "cmdline": pid_cmdline,
             "inferred_vllm_cli_args": inferred_args,
             "inferred_usage_context": inferred_usage_context,
+            "model_path_override": model_path_override,
+            "model_path_override_applied": model_path_override_applied,
+            "cwd": pid_cwd,
+            "cwd_applied": pid_cwd_applied,
             "environ": _redact_env(pid_environ)
             if args.redact_pid_env
             else pid_environ,
             "pid_env_applied": "allowlisted",
             "pid_env_applied_keys": applied_env_keys,
         }
+        if model_path_override_applied:
+            pid_process["original_inferred_vllm_cli_args"] = original_inferred_args
+        if pid_cwd_error is not None:
+            pid_process["cwd_error"] = pid_cwd_error
         if not inferred_args:
             errors["pid.inferred_cli_args"] = (
                 infer_warning
                 or "Could not infer vLLM CLI args from /proc/<pid>/cmdline."
             )
-    except Exception as exc:
-        errors["pid.read"] = repr(exc)
 
     if pid_process and pid_process["inferred_vllm_cli_args"]:
         inferred_args = pid_process["inferred_vllm_cli_args"]
         parsed_cli_from_input, engine_args_from_input = _parse_vllm_cli_input(
             inferred_args,
             errors,
+            parse_timeout_seconds=getattr(args, "effective_timeout_seconds", 45),
         )
 
     result: dict[str, Any] = {
@@ -1393,6 +1581,7 @@ def main() -> int:
         usage_context_name=inferred_usage_context,
         errors=errors,
         warnings=warnings,
+        effective_timeout_seconds=getattr(args, "effective_timeout_seconds", 45),
     )
     result["effective_serve_parameters"] = _aggregate_effective_serve_parameters(
         parsed_cli=parsed_cli_from_input,
@@ -1411,7 +1600,7 @@ def main() -> int:
     if args.out == "-":
         sys.stdout.write(payload)
     else:
-        out_path = Path(args.out)
+        assert out_path is not None
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(payload, encoding="utf-8")
 
