@@ -715,10 +715,12 @@ class DumpVllmDefaultsTests(unittest.TestCase):
         )
         broken_errors: dict[str, str] = {}
         with mock.patch.object(dump_vllm_defaults, "_optional_import", fake_broken_import):
-            self.assertEqual(
-                dump_vllm_defaults._parse_vllm_cli_input(["m"], broken_errors),
-                (None, None),
+            parsed, engine_args = dump_vllm_defaults._parse_vllm_cli_input(
+                ["m"],
+                broken_errors,
             )
+        self.assertEqual(parsed, {"model": "m", "port": 8000})
+        self.assertIsNone(engine_args)
         self.assertIn("RuntimeError('from args failed')", broken_errors["input_cli_args_parse"])
 
         class SlowAsyncEngineArgs:
@@ -742,14 +744,13 @@ class DumpVllmDefaultsTests(unittest.TestCase):
         )
         slow_errors: dict[str, str] = {}
         with mock.patch.object(dump_vllm_defaults, "_optional_import", fake_slow_import):
-            self.assertEqual(
-                dump_vllm_defaults._parse_vllm_cli_input(
-                    ["m"],
-                    slow_errors,
-                    parse_timeout_seconds=0.01,
-                ),
-                (None, None),
+            parsed, engine_args = dump_vllm_defaults._parse_vllm_cli_input(
+                ["m"],
+                slow_errors,
+                parse_timeout_seconds=0.01,
             )
+        self.assertEqual(parsed, {"model": "m", "port": 8000})
+        self.assertIsNone(engine_args)
         self.assertIn("input CLI parsing timed out", slow_errors["input_cli_args_parse"])
 
     def test_parse_vllm_cli_input_records_argparse_system_exit_as_parse_error(self) -> None:
@@ -1642,12 +1643,23 @@ class DumpVllmDefaultsTests(unittest.TestCase):
                 },
             },
         )
-        self.assertNotIn("parsed_cli_from_input", result)
+        self.assertEqual(
+            result["parsed_cli_from_input"],
+            {"max_num_seqs": 256, "model_tag": "google/gemma-4-26B-A4B-it"},
+        )
         self.assertNotIn("engine_args_from_input", result)
         self.assertIsNone(result["effective_engine_config"])
         self.assertEqual(
             result["effective_serve_parameters"]["_effective_mode"],
             "unavailable",
+        )
+        self.assertEqual(
+            result["effective_serve_parameters"]["max_num_seqs"],
+            256,
+        )
+        self.assertEqual(
+            result["effective_serve_parameters"]["_sources"]["max_num_seqs"],
+            "parsed_cli_from_input.max_num_seqs",
         )
         self.assertIn("local_files_only=False", result["errors"]["input_cli_args_parse"])
         self.assertEqual(

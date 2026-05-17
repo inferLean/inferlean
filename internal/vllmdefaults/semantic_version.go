@@ -9,7 +9,7 @@ import (
 var versionPattern = regexp.MustCompile(`(?i)^v?(\d+)\.(\d+)(?:\.(\d+))?(?:(rc|post)(\d+))?$`)
 
 func parseSemanticVersion(raw string) (semanticVersion, bool) {
-	matches := versionPattern.FindStringSubmatch(strings.TrimSpace(raw))
+	matches := versionPattern.FindStringSubmatch(canonicalVersionText(raw))
 	if matches == nil {
 		return semanticVersion{}, false
 	}
@@ -29,6 +29,21 @@ func parseSemanticVersion(raw string) (semanticVersion, bool) {
 		version.PreReleaseN, _ = strconv.Atoi(matches[5])
 	}
 	return version, true
+}
+
+func canonicalVersionText(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return ""
+	}
+	if plus := strings.Index(value, "+"); plus >= 0 {
+		value = value[:plus]
+	}
+	lower := strings.ToLower(value)
+	if dev := strings.Index(lower, ".dev"); dev >= 0 {
+		value = value[:dev]
+	}
+	return strings.TrimSpace(value)
 }
 
 func compareSemanticVersion(left, right semanticVersion) int {

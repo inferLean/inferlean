@@ -608,23 +608,29 @@ def _parse_vllm_cli_input(
             argparse_utils, "FlexibleArgumentParser", argparse.ArgumentParser
         )
 
+    parsed_cli: dict[str, Any] | None = None
     try:
         parser = parser_cls(prog="vllm serve")
         parser = cli_args_mod.make_arg_parser(parser)
         parsed_ns = parser.parse_args(raw_cli_args)
         parsed_cli = _to_jsonable(vars(parsed_ns))
-        with _time_limit(parse_timeout_seconds, "input CLI parsing"):
-            engine_args_obj = arg_utils_mod.AsyncEngineArgs.from_cli_args(parsed_ns)
-        return parsed_cli, engine_args_obj
-    except _OperationTimeout as exc:
-        errors["input_cli_args_parse"] = repr(exc)
-        return None, None
     except SystemExit as exc:
         errors["input_cli_args_parse"] = repr(exc)
         return None, None
     except Exception as exc:
         errors["input_cli_args_parse"] = repr(exc)
         return None, None
+
+    try:
+        with _time_limit(parse_timeout_seconds, "input CLI parsing"):
+            engine_args_obj = arg_utils_mod.AsyncEngineArgs.from_cli_args(parsed_ns)
+        return parsed_cli, engine_args_obj
+    except _OperationTimeout as exc:
+        errors["input_cli_args_parse"] = repr(exc)
+        return parsed_cli, None
+    except Exception as exc:
+        errors["input_cli_args_parse"] = repr(exc)
+        return parsed_cli, None
 
 
 def _infer_usage_context_from_cmdline(cmdline: list[str]) -> str:
