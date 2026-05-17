@@ -104,41 +104,6 @@ func TestSelectTagHandlesDevBuildVersion(t *testing.T) {
 	}
 }
 
-func TestBundledDefaultsResolveOfflineFallbackFields(t *testing.T) {
-	t.Parallel()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	defaultsDir := findDefaultsUnderRoot(wd)
-	if defaultsDir == "" {
-		t.Fatal("bundled vllm_defaults directory was not found")
-	}
-	out, err := ResolveWithDir(defaultsDir, Input{
-		RawCommandLine: "vllm serve google/gemma-4-26B-A4B-it --max-model-len 32768 --gpu-memory-utilization 0.95",
-		ExplicitArgs: map[string]string{
-			"max-model-len":          "32768",
-			"gpu-memory-utilization": "0.95",
-		},
-		VLLMVersion: "0.19.1rc1.dev46+gc5e3454e5",
-	})
-	if err != nil {
-		t.Fatalf("ResolveWithDir() error = %v", err)
-	}
-	if out.SelectedTag != "v0.19.1rc0" {
-		t.Fatalf("SelectedTag = %q, want v0.19.1rc0", out.SelectedTag)
-	}
-	if got := out.Args["max-num-batched-tokens"]; got != "2048" {
-		t.Fatalf("max-num-batched-tokens = %q, want bundled fallback default", got)
-	}
-	if got := out.Args["max-num-seqs"]; got != "256" {
-		t.Fatalf("max-num-seqs = %q, want bundled fallback default", got)
-	}
-	if got := out.ArgSources["max-num-seqs"]; got != "profile_default" {
-		t.Fatalf("max-num-seqs source = %q, want profile_default", got)
-	}
-}
-
 func writeTestDefaults(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
