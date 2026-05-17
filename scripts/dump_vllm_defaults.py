@@ -34,6 +34,10 @@ NO_DEFAULT = "__NO_DEFAULT__"
 RECURSIVE = "__RECURSIVE__"
 
 
+class _OperationTimeout(BaseException):
+    """Timeout that should bypass broad third-party `except Exception` retries."""
+
+
 def _optional_import(module_name: str) -> Any | None:
     try:
         return importlib.import_module(module_name)
@@ -612,6 +616,9 @@ def _parse_vllm_cli_input(
         with _time_limit(parse_timeout_seconds, "input CLI parsing"):
             engine_args_obj = arg_utils_mod.AsyncEngineArgs.from_cli_args(parsed_ns)
         return parsed_cli, engine_args_obj
+    except _OperationTimeout as exc:
+        errors["input_cli_args_parse"] = repr(exc)
+        return None, None
     except SystemExit as exc:
         errors["input_cli_args_parse"] = repr(exc)
         return None, None
@@ -635,7 +642,7 @@ def _time_limit(seconds: float | None, label: str):
 
     def handle_timeout(signum: int, frame: Any) -> None:
         _ = signum, frame
-        raise TimeoutError(f"{label} timed out after {seconds:g}s")
+        raise _OperationTimeout(f"{label} timed out after {seconds:g}s")
 
     previous_handler = signal.getsignal(signal.SIGALRM)
     signal.signal(signal.SIGALRM, handle_timeout)
@@ -735,7 +742,7 @@ def _extract_effective_engine_config(
                 headless=True,
             )
         return _serialize_effective_engine_config(vllm_config, errors)
-    except Exception as exc:
+    except (Exception, _OperationTimeout) as exc:
         message = repr(exc)
 
         def _degraded_config_fallback(
@@ -798,7 +805,7 @@ def _extract_effective_engine_config(
                     reason="forced CPU fallback after primary effective config failed",
                     cfg=cfg,
                 )
-            except Exception as derive_exc:
+            except (Exception, _OperationTimeout) as derive_exc:
                 warnings["effective.derive_model_defaults"] = (
                     "Failed to recover effective config in fallback mode: "
                     f"{repr(derive_exc)}"
@@ -831,7 +838,7 @@ def _extract_effective_engine_config(
                     reason="forced CPU fallback because CUDA was unavailable",
                     cfg=vllm_config,
                 )
-            except Exception as retry_exc:
+            except (Exception, _OperationTimeout) as retry_exc:
                 warn_message = (
                     "Could not materialize VllmConfig in this exec context "
                     f"(primary={message}; retry_cpu_fallback={repr(retry_exc)}). "

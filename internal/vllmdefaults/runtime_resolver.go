@@ -14,7 +14,10 @@ import (
 
 const defaultsScriptEnv = "INFERLEAN_VLLM_DEFAULTS_SCRIPT"
 
-const runtimeDefaultsScriptTimeout = 90 * time.Second
+const (
+	runtimeDefaultsEffectiveTimeoutSeconds = 20
+	runtimeDefaultsScriptTimeout           = 90 * time.Second
+)
 
 type RuntimeInput struct {
 	Input
@@ -97,7 +100,7 @@ func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
 	modelPathOverride := strings.TrimSpace(in.ModelPathOverride)
 	execMeta, err := runDumpScript(execCtx, in.Target, scriptPath, dumpPath, modelPathOverride)
 	if err != nil {
-		return Output{}, err
+		return resolveRuntimeExecutionFailure(in, scriptPath, dumpPath, modelPathOverride, err)
 	}
 	dump, err := loadRuntimeDump(dumpPath)
 	if err != nil {
@@ -131,6 +134,50 @@ func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
 		out.ResolvedTorchVersion = strings.TrimSpace(dump.Metadata.TorchVersion)
 	}
 	return out, nil
+}
+
+func resolveRuntimeExecutionFailure(
+	in RuntimeInput,
+	scriptPath string,
+	dumpPath string,
+	modelPathOverride string,
+	execErr error,
+) (Output, error) {
+	statusWarnings := map[string]string{
+		"defaults.generated_fallback": "used generated vLLM defaults because runtime defaults script failed",
+	}
+	statusErrors := map[string]string{
+		"runtime_dump.execute": execErr.Error(),
+	}
+	out, fallbackErr := Resolve(in.Input)
+	if fallbackErr != nil {
+		statusErrors["defaults.generated_fallback"] = fallbackErr.Error()
+		return Output{}, fmt.Errorf("execute defaults script: %w; generated fallback: %v", execErr, fallbackErr)
+	}
+	source := runtimeSourceForTarget(in.Target)
+	out.RuntimeSource = source
+	if pid, err := runtimePID(in.Target, source); err == nil {
+		out.RuntimePID = pid
+	}
+	out.RuntimeDumpPath = dumpPath
+	out.RuntimeScriptPath = scriptPath
+	out.RuntimeModelPath = modelPathOverride
+	out.RuntimeEffectiveMode = "unavailable"
+	out.RuntimeWarnings = flattenStatusMap(statusWarnings)
+	out.RuntimeErrors = flattenStatusMap(statusErrors)
+	return out, nil
+}
+
+func runtimeSourceForTarget(target shared.Candidate) string {
+	source := strings.ToLower(strings.TrimSpace(target.Source))
+	switch source {
+	case "docker":
+		return "docker"
+	case "pod", "kubernetes":
+		return "pod"
+	default:
+		return "process"
+	}
 }
 
 func resolveFromDumpWithGeneratedFallback(

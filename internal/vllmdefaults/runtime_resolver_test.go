@@ -1,9 +1,12 @@
 package vllmdefaults
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery/shared"
 )
@@ -319,6 +322,43 @@ func TestFlattenStatusMapFormatsRuntimeWarningsDeterministically(t *testing.T) {
 	}
 }
 
+func TestResolveFromRuntimeFallsBackToGeneratedDefaultsWhenScriptExecutionFails(t *testing.T) {
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "dump_vllm_defaults.py")
+	if err := os.WriteFile(scriptPath, []byte("#!/usr/bin/env python\n"), 0o644); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	t.Setenv(defaultsScriptEnv, scriptPath)
+	t.Setenv(defaultsDirEnv, writeTestDefaults(t))
+
+	out, err := ResolveFromRuntime(context.Background(), RuntimeInput{
+		Input: Input{
+			RawCommandLine: "vllm serve model-a",
+			VLLMVersion:    "0.19.0",
+		},
+		Target: shared.Candidate{
+			Source: "process",
+			PID:    999999,
+		},
+		DumpPath: filepath.Join(dir, "dump.json"),
+	})
+	if err != nil {
+		t.Fatalf("ResolveFromRuntime() error = %v", err)
+	}
+	if got := out.Args["max-num-seqs"]; got != "256" {
+		t.Fatalf("max-num-seqs = %q, want generated fallback default", got)
+	}
+	if got := out.RuntimeEffectiveMode; got != "unavailable" {
+		t.Fatalf("RuntimeEffectiveMode = %q, want unavailable", got)
+	}
+	if !strings.Contains(out.RuntimeErrors, "runtime_dump.execute=") {
+		t.Fatalf("RuntimeErrors = %q, want runtime_dump.execute", out.RuntimeErrors)
+	}
+	if !strings.Contains(out.RuntimeWarnings, "defaults.generated_fallback=") {
+		t.Fatalf("RuntimeWarnings = %q, want generated fallback warning", out.RuntimeWarnings)
+	}
+}
+
 func TestFindDumpScriptUnderRootFindsCLIScript(t *testing.T) {
 	t.Parallel()
 
@@ -388,6 +428,8 @@ func TestDumpScriptArgsIncludesModelPathOverride(t *testing.T) {
 		"/tmp/dump.json",
 		"--model-path-override",
 		"/models/snapshot",
+		"--effective-timeout-seconds",
+		"20",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("len(dumpScriptArgs()) = %d, want %d: %#v", len(got), len(want), got)
@@ -396,6 +438,15 @@ func TestDumpScriptArgsIncludesModelPathOverride(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("dumpScriptArgs()[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestRuntimeTimeoutBudgetAllowsPythonFallbackPaths(t *testing.T) {
+	t.Parallel()
+
+	minimum := time.Duration(runtimeDefaultsEffectiveTimeoutSeconds*3+15) * time.Second
+	if runtimeDefaultsScriptTimeout < minimum {
+		t.Fatalf("runtimeDefaultsScriptTimeout = %s, want at least %s", runtimeDefaultsScriptTimeout, minimum)
 	}
 }
 

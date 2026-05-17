@@ -187,6 +187,11 @@ func dumpScriptArgs(pid int32, dumpPath string, modelPathOverride string) []stri
 	if override := strings.TrimSpace(modelPathOverride); override != "" {
 		args = append(args, "--model-path-override", override)
 	}
+	args = append(
+		args,
+		"--effective-timeout-seconds",
+		strconv.Itoa(runtimeDefaultsEffectiveTimeoutSeconds),
+	)
 	return args
 }
 

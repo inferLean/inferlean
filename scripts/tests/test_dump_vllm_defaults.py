@@ -1001,6 +1001,16 @@ class DumpVllmDefaultsTests(unittest.TestCase):
                 self.assertIn("timed out", warnings["effective.create_engine_config"])
                 self.assertIn("timed out", warnings["effective.derive_model_defaults"])
 
+                with self.assertRaises(dump_vllm_defaults._OperationTimeout):
+                    try:
+                        with dump_vllm_defaults._time_limit(
+                            0.01,
+                            "uncatchable timeout",
+                        ):
+                            time.sleep(1)
+                    except Exception as exc:  # pragma: no cover - regression guard
+                        self.fail(f"timeout was catchable by Exception: {exc!r}")
+
         fake_missing_usage = optional_import_from({})
         with mock.patch.object(dump_vllm_defaults, "_optional_import", fake_missing_usage):
             errors = {}
