@@ -21,6 +21,7 @@ MODULE_PATH = Path(__file__).resolve().parents[1] / "dump_vllm_defaults.py"
 SPEC = importlib.util.spec_from_file_location("dump_vllm_defaults", MODULE_PATH)
 dump_vllm_defaults = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
+sys.modules[SPEC.name] = dump_vllm_defaults
 SPEC.loader.exec_module(dump_vllm_defaults)
 
 
@@ -487,6 +488,85 @@ class DumpVllmDefaultsTests(unittest.TestCase):
         self.assertFalse(applied)
         self.assertEqual(got_args, ["google/gemma"])
 
+    def test_worker_pid_cli_resolution_uses_related_serve_processes_and_fallback_command(self) -> None:
+        worker = dump_vllm_defaults._ProcSnapshot(
+            pid=200,
+            ppid=100,
+            cmdline=["VLLM::EngineCore"],
+            cwd="/srv/vllm",
+            cgroup="0::/pod-a",
+        )
+        parent = dump_vllm_defaults._ProcSnapshot(
+            pid=100,
+            ppid=1,
+            cmdline=[
+                "python",
+                "-m",
+                "vllm.entrypoints.openai.api_server",
+                "--model",
+                "Qwen/Qwen3",
+            ],
+            cwd="/srv/vllm",
+            cgroup="0::/pod-a",
+        )
+        snapshots = {100: parent, 200: worker}
+        with mock.patch.object(
+            dump_vllm_defaults,
+            "_read_proc_snapshots",
+            return_value=snapshots,
+        ):
+            resolved = dump_vllm_defaults._resolve_vllm_cli_process(
+                requested_pid=200,
+                requested_cmdline=["VLLM::EngineCore"],
+                requested_cwd="/srv/vllm",
+            )
+        self.assertEqual(resolved.pid, 100)
+        self.assertEqual(resolved.source, "ancestor_process")
+        self.assertEqual(resolved.inferred_args, ["--model", "Qwen/Qwen3"])
+
+        with (
+            mock.patch.object(
+                dump_vllm_defaults,
+                "_read_proc_snapshots",
+                return_value={200: worker},
+            ),
+            mock.patch.object(dump_vllm_defaults, "_read_pid_ppid", return_value=None),
+            mock.patch.object(dump_vllm_defaults, "_read_pid_cgroup", return_value=None),
+        ):
+            resolved = dump_vllm_defaults._resolve_vllm_cli_process(
+                requested_pid=200,
+                requested_cmdline=["VLLM::EngineCore"],
+                requested_cwd="/srv/vllm",
+                fallback_command_line='vllm serve "Qwen/Qwen3" --port 9000',
+            )
+        self.assertEqual(resolved.pid, 200)
+        self.assertEqual(resolved.source, "fallback_command_line")
+        self.assertEqual(resolved.fallback_cmdline, ["vllm", "serve", "Qwen/Qwen3", "--port", "9000"])
+        self.assertEqual(resolved.inferred_args, ["Qwen/Qwen3", "--port", "9000"])
+
+    def test_auto_model_path_override_resolves_huggingface_cache_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            home = Path(tmp_dir)
+            repo_dir = (
+                home
+                / ".cache"
+                / "huggingface"
+                / "hub"
+                / "models--google--gemma-4-26B-A4B-it"
+            )
+            snapshot = repo_dir / "snapshots" / "abc123"
+            snapshot.mkdir(parents=True)
+            (repo_dir / "refs").mkdir()
+            (repo_dir / "refs" / "main").write_text("abc123", encoding="utf-8")
+
+            got, source = dump_vllm_defaults._auto_model_path_override_from_cache(
+                ["google/gemma-4-26B-A4B-it", "--max-model-len", "32768"],
+                {"HOME": str(home), "HF_HUB_OFFLINE": "1"},
+            )
+
+        self.assertEqual(got, str(snapshot))
+        self.assertEqual(source, "hf_cache.refs.main")
+
     def test_pid_environment_helpers_filter_redact_apply_and_preserve_pythonpath_order(self) -> None:
         env = {
             "CUDA_VISIBLE_DEVICES": "0",
@@ -752,6 +832,43 @@ class DumpVllmDefaultsTests(unittest.TestCase):
         self.assertEqual(parsed, {"model": "m", "port": 8000})
         self.assertIsNone(engine_args)
         self.assertIn("input CLI parsing timed out", slow_errors["input_cli_args_parse"])
+
+    def test_parse_vllm_cli_input_maps_serve_model_tag_to_engine_model(self) -> None:
+        @dataclasses.dataclass
+        class AsyncEngineArgs:
+            model: str
+
+            @classmethod
+            def from_cli_args(cls, parsed_ns: argparse.Namespace) -> "AsyncEngineArgs":
+                return cls(model=parsed_ns.model)
+
+        def make_arg_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+            parser.add_argument("model_tag", nargs="?")
+            parser.add_argument("--model", default="Qwen/Qwen3-0.6B")
+            return parser
+
+        fake_import = optional_import_from(
+            {
+                "vllm.entrypoints.openai.cli_args": mod(
+                    "vllm.entrypoints.openai.cli_args",
+                    make_arg_parser=make_arg_parser,
+                ),
+                "vllm.engine.arg_utils": mod(
+                    "vllm.engine.arg_utils",
+                    AsyncEngineArgs=AsyncEngineArgs,
+                ),
+            }
+        )
+        errors: dict[str, str] = {}
+        with mock.patch.object(dump_vllm_defaults, "_optional_import", fake_import):
+            parsed, engine_args = dump_vllm_defaults._parse_vllm_cli_input(
+                ["google/gemma-4-26B-A4B-it"],
+                errors,
+            )
+        self.assertEqual(parsed["model_tag"], "google/gemma-4-26B-A4B-it")
+        self.assertEqual(parsed["model"], "google/gemma-4-26B-A4B-it")
+        self.assertEqual(engine_args.model, "google/gemma-4-26B-A4B-it")
+        self.assertEqual(errors, {})
 
     def test_parse_vllm_cli_input_records_argparse_system_exit_as_parse_error(self) -> None:
         def make_arg_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -1256,6 +1373,7 @@ class DumpVllmDefaultsTests(unittest.TestCase):
         self.assertEqual(
             metadata["options"],
             {
+                "fallback_command_line": "",
                 "pid": 123,
                 "redact_pid_env": False,
                 "model_path_override": "/models/snapshot",
@@ -1278,6 +1396,8 @@ class DumpVllmDefaultsTests(unittest.TestCase):
                 "12.5",
                 "--model-path-override",
                 "/models/snapshot",
+                "--fallback-command-line",
+                "vllm serve model-a",
             ],
         ):
             parsed = dump_vllm_defaults.parse_args()
@@ -1287,6 +1407,7 @@ class DumpVllmDefaultsTests(unittest.TestCase):
         self.assertFalse(parsed.redact_pid_env)
         self.assertEqual(parsed.effective_timeout_seconds, 12.5)
         self.assertEqual(parsed.model_path_override, "/models/snapshot")
+        self.assertEqual(parsed.fallback_command_line, "vllm serve model-a")
 
         def run_main_with(
             args: argparse.Namespace,
@@ -1449,6 +1570,7 @@ class DumpVllmDefaultsTests(unittest.TestCase):
                     ),
                 ),
                 mock.patch.object(dump_vllm_defaults, "_read_pid_cmdline", read_cmdline),
+                mock.patch.object(dump_vllm_defaults, "_read_proc_snapshots", return_value={}),
                 mock.patch.object(
                     dump_vllm_defaults,
                     "_read_pid_environ",
@@ -1520,6 +1642,91 @@ class DumpVllmDefaultsTests(unittest.TestCase):
         self.assertNotIn("pid_process", result)
         self.assertIn("RuntimeError('proc disappeared')", result["errors"]["pid.read"])
         self.assertEqual(result["errors"]["effective.engine_args"], "missing engine args")
+
+    def test_main_recovers_worker_pid_from_related_serve_process(self) -> None:
+        snapshots = {
+            100: dump_vllm_defaults._ProcSnapshot(
+                pid=100,
+                ppid=1,
+                cmdline=["vllm", "serve", "Qwen/Qwen3"],
+                cwd="/srv/vllm",
+                cgroup="0::/pod-a",
+            ),
+            200: dump_vllm_defaults._ProcSnapshot(
+                pid=200,
+                ppid=100,
+                cmdline=["VLLM::EngineCore"],
+                cwd="/srv/vllm",
+                cgroup="0::/pod-a",
+            ),
+        }
+
+        def read_cmdline(pid: int) -> list[str]:
+            return snapshots[pid].cmdline
+
+        def read_environ(pid: int) -> dict[str, str]:
+            if pid == 100:
+                return {"CUDA_VISIBLE_DEVICES": "0", "UNRELATED": "ignored"}
+            return {"VLLM_WORKER_MULTIPROC_METHOD": "spawn"}
+
+        parse_cli = mock.Mock(
+            return_value=(
+                {"model_tag": "Qwen/Qwen3"},
+                argparse.Namespace(model="Qwen/Qwen3"),
+            )
+        )
+
+        with (
+            mock.patch.object(
+                dump_vllm_defaults,
+                "parse_args",
+                return_value=argparse.Namespace(
+                    pid=200,
+                    redact_pid_env=True,
+                    out="-",
+                    indent=2,
+                    fail_on_error=False,
+                    effective_timeout_seconds=45,
+                    model_path_override="",
+                    fallback_command_line="",
+                ),
+            ),
+            mock.patch.object(dump_vllm_defaults, "_read_pid_cmdline", side_effect=read_cmdline),
+            mock.patch.object(dump_vllm_defaults, "_read_pid_environ", side_effect=read_environ),
+            mock.patch.object(dump_vllm_defaults, "_read_pid_cwd", side_effect=lambda pid: snapshots[pid].cwd),
+            mock.patch.object(dump_vllm_defaults, "_read_proc_snapshots", return_value=snapshots),
+            mock.patch.object(
+                dump_vllm_defaults,
+                "_auto_model_path_override_from_cache",
+                return_value=(None, None),
+            ),
+            mock.patch.object(
+                dump_vllm_defaults,
+                "_apply_pid_environment",
+                return_value=["CUDA_VISIBLE_DEVICES"],
+            ),
+            mock.patch.object(dump_vllm_defaults, "_apply_pid_cwd", side_effect=lambda cwd: cwd),
+            mock.patch.object(dump_vllm_defaults, "_force_platform_if_needed"),
+            mock.patch.object(dump_vllm_defaults, "_parse_vllm_cli_input", parse_cli),
+            mock.patch.object(dump_vllm_defaults, "_extract_cli_defaults", return_value={}),
+            mock.patch.object(dump_vllm_defaults, "_extract_config_defaults", return_value={}),
+            mock.patch.object(dump_vllm_defaults, "_extract_engine_args_defaults", return_value={}),
+            mock.patch.object(dump_vllm_defaults, "_extract_effective_engine_config", return_value={"effective": True}),
+            mock.patch.object(dump_vllm_defaults, "_aggregate_effective_serve_parameters", return_value={"serve": True}),
+            mock.patch.object(dump_vllm_defaults, "_build_metadata", return_value={}),
+            contextlib.redirect_stdout(io.StringIO()) as stdout,
+        ):
+            self.assertEqual(dump_vllm_defaults.main(), 0)
+
+        parse_cli.assert_called_once_with(["Qwen/Qwen3"], mock.ANY, parse_timeout_seconds=45)
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(result["pid_process"]["pid"], 100)
+        self.assertEqual(result["pid_process"]["requested_pid"], 200)
+        self.assertEqual(result["pid_process"]["cli_inference_source"], "ancestor_process")
+        self.assertEqual(result["pid_process"]["cmdline"], ["vllm", "serve", "Qwen/Qwen3"])
+        self.assertEqual(result["pid_process"]["requested_cmdline"], ["VLLM::EngineCore"])
+        self.assertEqual(result["pid_process"]["environ"], {"CUDA_VISIBLE_DEVICES": "0", "UNRELATED": "ignored"})
+        self.assertNotIn("errors", result)
 
     def test_main_reports_model_default_resolution_failure_but_keeps_other_defaults(self) -> None:
         @dataclasses.dataclass
@@ -1606,6 +1813,11 @@ class DumpVllmDefaultsTests(unittest.TestCase):
             mock.patch.object(dump_vllm_defaults, "_force_platform_if_needed"),
             mock.patch.object(
                 dump_vllm_defaults,
+                "_auto_model_path_override_from_cache",
+                return_value=(None, None),
+            ),
+            mock.patch.object(
+                dump_vllm_defaults,
                 "_optional_import",
                 optional_import_from(fake_modules),
             ),
@@ -1645,7 +1857,11 @@ class DumpVllmDefaultsTests(unittest.TestCase):
         )
         self.assertEqual(
             result["parsed_cli_from_input"],
-            {"max_num_seqs": 256, "model_tag": "google/gemma-4-26B-A4B-it"},
+            {
+                "max_num_seqs": 256,
+                "model": "google/gemma-4-26B-A4B-it",
+                "model_tag": "google/gemma-4-26B-A4B-it",
+            },
         )
         self.assertNotIn("engine_args_from_input", result)
         self.assertIsNone(result["effective_engine_config"])
@@ -1940,7 +2156,11 @@ class DumpVllmDefaultsTests(unittest.TestCase):
         expected_error = "ConnectError('[Errno -3] Temporary failure in name resolution')"
         self.assertEqual(
             result["parsed_cli_from_input"],
-            {"model_tag": "google/gemma-4-26B-A4B-it", "tensor_parallel_size": 1},
+            {
+                "model": "google/gemma-4-26B-A4B-it",
+                "model_tag": "google/gemma-4-26B-A4B-it",
+                "tensor_parallel_size": 1,
+            },
         )
         self.assertEqual(
             result["engine_args_from_input"],

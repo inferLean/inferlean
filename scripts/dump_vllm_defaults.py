@@ -24,6 +24,7 @@ import inspect
 import json
 import os
 import signal
+import shlex
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -32,6 +33,25 @@ from typing import Any
 
 NO_DEFAULT = "__NO_DEFAULT__"
 RECURSIVE = "__RECURSIVE__"
+
+
+@dataclasses.dataclass
+class _ProcSnapshot:
+    pid: int
+    ppid: int | None
+    cmdline: list[str]
+    cwd: str | None = None
+    cgroup: str | None = None
+
+
+@dataclasses.dataclass
+class _CLIResolution:
+    pid: int
+    cmdline: list[str]
+    inferred_args: list[str]
+    warning: str | None
+    source: str
+    fallback_cmdline: list[str] | None = None
 
 
 class _OperationTimeout(BaseException):
@@ -323,6 +343,61 @@ def _read_pid_cwd(pid: int) -> str:
     return os.readlink(f"/proc/{pid}/cwd")
 
 
+def _read_pid_ppid(pid: int) -> int | None:
+    try:
+        for line in Path(f"/proc/{pid}/status").read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).splitlines():
+            if not line.startswith("PPid:"):
+                continue
+            raw = line.split(":", 1)[1].strip()
+            return int(raw) if raw else None
+    except Exception:
+        return None
+    return None
+
+
+def _read_pid_cgroup(pid: int) -> str | None:
+    try:
+        return Path(f"/proc/{pid}/cgroup").read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).strip()
+    except Exception:
+        return None
+
+
+def _read_proc_snapshots() -> dict[int, _ProcSnapshot]:
+    snapshots: dict[int, _ProcSnapshot] = {}
+    try:
+        entries = list(Path("/proc").iterdir())
+    except Exception:
+        return snapshots
+
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        try:
+            cmdline = _read_pid_cmdline(pid)
+        except Exception:
+            continue
+        cwd: str | None = None
+        try:
+            cwd = _read_pid_cwd(pid)
+        except Exception:
+            pass
+        snapshots[pid] = _ProcSnapshot(
+            pid=pid,
+            ppid=_read_pid_ppid(pid),
+            cmdline=cmdline,
+            cwd=cwd,
+            cgroup=_read_pid_cgroup(pid),
+        )
+    return snapshots
+
+
 def _apply_pid_cwd(cwd: str) -> str:
     os.chdir(cwd)
     return os.getcwd()
@@ -403,6 +478,314 @@ def _infer_vllm_cli_args_from_cmdline(
 
     executable = os.path.basename(cmdline[0]) if cmdline else ""
     return [], f"unsupported vLLM launch shape: {executable or '<empty>'}"
+
+
+def _parse_fallback_command_line(raw: str) -> list[str]:
+    trimmed = raw.strip()
+    if not trimmed:
+        return []
+    try:
+        return shlex.split(trimmed)
+    except ValueError:
+        return trimmed.split()
+
+
+def _serve_cli_candidates(
+    snapshots: dict[int, _ProcSnapshot],
+) -> dict[int, tuple[_ProcSnapshot, list[str]]]:
+    out: dict[int, tuple[_ProcSnapshot, list[str]]] = {}
+    for snapshot in snapshots.values():
+        inferred, _ = _infer_vllm_cli_args_from_cmdline(snapshot.cmdline)
+        if inferred:
+            out[snapshot.pid] = (snapshot, inferred)
+    return out
+
+
+def _ancestor_pids(
+    pid: int,
+    snapshots: dict[int, _ProcSnapshot],
+) -> list[int]:
+    out: list[int] = []
+    seen = {pid}
+    current = snapshots.get(pid)
+    while current is not None and current.ppid:
+        ppid = current.ppid
+        if ppid in seen:
+            break
+        seen.add(ppid)
+        out.append(ppid)
+        current = snapshots.get(ppid)
+    return out
+
+
+def _single_related_candidate(
+    candidates: list[tuple[_ProcSnapshot, list[str]]],
+) -> tuple[_ProcSnapshot, list[str]] | None:
+    if len(candidates) != 1:
+        return None
+    return candidates[0]
+
+
+def _resolve_vllm_cli_process(
+    *,
+    requested_pid: int,
+    requested_cmdline: list[str],
+    requested_cwd: str | None,
+    fallback_command_line: str = "",
+) -> _CLIResolution:
+    inferred, warning = _infer_vllm_cli_args_from_cmdline(requested_cmdline)
+    if inferred:
+        return _CLIResolution(
+            pid=requested_pid,
+            cmdline=requested_cmdline,
+            inferred_args=inferred,
+            warning=None,
+            source="requested_pid",
+        )
+
+    snapshots = _read_proc_snapshots()
+    if requested_pid not in snapshots:
+        snapshots[requested_pid] = _ProcSnapshot(
+            pid=requested_pid,
+            ppid=_read_pid_ppid(requested_pid),
+            cmdline=requested_cmdline,
+            cwd=requested_cwd,
+            cgroup=_read_pid_cgroup(requested_pid),
+        )
+    elif requested_cwd and snapshots[requested_pid].cwd is None:
+        snapshots[requested_pid].cwd = requested_cwd
+
+    serve_candidates = _serve_cli_candidates(snapshots)
+    for ancestor_pid in _ancestor_pids(requested_pid, snapshots):
+        candidate = serve_candidates.get(ancestor_pid)
+        if candidate is None:
+            continue
+        snapshot, candidate_args = candidate
+        return _CLIResolution(
+            pid=snapshot.pid,
+            cmdline=snapshot.cmdline,
+            inferred_args=candidate_args,
+            warning=None,
+            source="ancestor_process",
+        )
+
+    target = snapshots.get(requested_pid)
+    target_cwd = requested_cwd or (target.cwd if target else None)
+    if target_cwd:
+        candidate = _single_related_candidate(
+            [
+                (snapshot, candidate_args)
+                for snapshot, candidate_args in serve_candidates.values()
+                if snapshot.cwd == target_cwd
+            ]
+        )
+        if candidate is not None:
+            snapshot, candidate_args = candidate
+            return _CLIResolution(
+                pid=snapshot.pid,
+                cmdline=snapshot.cmdline,
+                inferred_args=candidate_args,
+                warning=None,
+                source="same_cwd_process",
+            )
+
+    target_cgroup = target.cgroup if target else None
+    if target_cgroup:
+        candidate = _single_related_candidate(
+            [
+                (snapshot, candidate_args)
+                for snapshot, candidate_args in serve_candidates.values()
+                if snapshot.cgroup == target_cgroup
+            ]
+        )
+        if candidate is not None:
+            snapshot, candidate_args = candidate
+            return _CLIResolution(
+                pid=snapshot.pid,
+                cmdline=snapshot.cmdline,
+                inferred_args=candidate_args,
+                warning=None,
+                source="same_cgroup_process",
+            )
+
+    fallback_cmdline = _parse_fallback_command_line(fallback_command_line)
+    if fallback_cmdline:
+        fallback_args, fallback_warning = _infer_vllm_cli_args_from_cmdline(
+            fallback_cmdline,
+        )
+        if fallback_args:
+            return _CLIResolution(
+                pid=requested_pid,
+                cmdline=requested_cmdline,
+                inferred_args=fallback_args,
+                warning=None,
+                source="fallback_command_line",
+                fallback_cmdline=fallback_cmdline,
+            )
+        warning = (
+            f"{warning}; fallback_command_line: {fallback_warning}"
+            if warning and fallback_warning
+            else warning or fallback_warning
+        )
+
+    only_candidate = _single_related_candidate(list(serve_candidates.values()))
+    if only_candidate is not None:
+        snapshot, candidate_args = only_candidate
+        return _CLIResolution(
+            pid=snapshot.pid,
+            cmdline=snapshot.cmdline,
+            inferred_args=candidate_args,
+            warning=None,
+            source="only_vllm_process",
+        )
+
+    return _CLIResolution(
+        pid=requested_pid,
+        cmdline=requested_cmdline,
+        inferred_args=[],
+        warning=warning,
+        source="unresolved",
+    )
+
+
+def _cli_option_value(raw_cli_args: list[str], *names: str) -> str | None:
+    name_set = set(names)
+    prefixes = tuple(name + "=" for name in names)
+    for idx, token in enumerate(raw_cli_args):
+        if token in name_set:
+            if idx + 1 < len(raw_cli_args):
+                return raw_cli_args[idx + 1]
+            return None
+        for prefix in prefixes:
+            if token.startswith(prefix):
+                return token[len(prefix):]
+    return None
+
+
+def _model_arg_from_cli(raw_cli_args: list[str]) -> str | None:
+    explicit = _cli_option_value(raw_cli_args, "--model", "--model-tag")
+    if explicit is not None:
+        return explicit
+    positional_idx = _find_positional_model_arg_index(raw_cli_args)
+    if positional_idx is None:
+        return None
+    return raw_cli_args[positional_idx]
+
+
+def _looks_like_hf_repo_id(value: str) -> bool:
+    cleaned = value.strip()
+    if not cleaned or "/" not in cleaned:
+        return False
+    if cleaned.startswith(("/", "./", "../", "~")):
+        return False
+    if "://" in cleaned:
+        return False
+    return True
+
+
+def _hf_cache_roots(pid_environ: dict[str, str]) -> list[Path]:
+    roots: list[Path] = []
+
+    def add(raw: str | None) -> None:
+        if raw is None:
+            return
+        cleaned = raw.strip()
+        if not cleaned:
+            return
+        path = Path(cleaned).expanduser()
+        if path not in roots:
+            roots.append(path)
+
+    for key in (
+        "HF_HUB_CACHE",
+        "HUGGING_FACE_HUB_CACHE",
+        "HUGGINGFACE_HUB_CACHE",
+    ):
+        add(pid_environ.get(key) or os.environ.get(key))
+
+    hf_home = pid_environ.get("HF_HOME") or os.environ.get("HF_HOME")
+    if hf_home:
+        add(str(Path(hf_home).expanduser() / "hub"))
+
+    xdg_cache = pid_environ.get("XDG_CACHE_HOME") or os.environ.get("XDG_CACHE_HOME")
+    if xdg_cache:
+        add(str(Path(xdg_cache).expanduser() / "huggingface" / "hub"))
+
+    home = pid_environ.get("HOME") or os.environ.get("HOME")
+    if home:
+        add(str(Path(home).expanduser() / ".cache" / "huggingface" / "hub"))
+
+    for key in ("TRANSFORMERS_CACHE",):
+        add(pid_environ.get(key) or os.environ.get(key))
+
+    return roots
+
+
+def _cached_snapshot_from_repo_dir(
+    repo_dir: Path,
+    revision: str | None,
+) -> tuple[Path | None, str | None]:
+    snapshots_dir = repo_dir / "snapshots"
+    if not snapshots_dir.is_dir():
+        return None, None
+
+    revision = revision.strip() if revision else ""
+    if revision:
+        ref_path = repo_dir / "refs" / revision
+        try:
+            commit = ref_path.read_text(encoding="utf-8").strip()
+        except Exception:
+            commit = ""
+        if commit:
+            candidate = snapshots_dir / commit
+            if candidate.is_dir():
+                return candidate, f"hf_cache.refs.{revision}"
+        candidate = snapshots_dir / revision
+        if candidate.is_dir():
+            return candidate, "hf_cache.revision"
+
+    ref_path = repo_dir / "refs" / "main"
+    try:
+        commit = ref_path.read_text(encoding="utf-8").strip()
+    except Exception:
+        commit = ""
+    if commit:
+        candidate = snapshots_dir / commit
+        if candidate.is_dir():
+            return candidate, "hf_cache.refs.main"
+
+    snapshots = [path for path in snapshots_dir.iterdir() if path.is_dir()]
+    if len(snapshots) == 1:
+        return snapshots[0], "hf_cache.single_snapshot"
+
+    return None, None
+
+
+def _resolve_cached_hf_snapshot(
+    model_id: str,
+    revision: str | None,
+    pid_environ: dict[str, str],
+) -> tuple[str | None, str | None]:
+    repo_dir_name = "models--" + model_id.replace("/", "--")
+    for cache_root in _hf_cache_roots(pid_environ):
+        snapshot, source = _cached_snapshot_from_repo_dir(
+            cache_root / repo_dir_name,
+            revision,
+        )
+        if snapshot is not None:
+            return str(snapshot), source
+    return None, None
+
+
+def _auto_model_path_override_from_cache(
+    raw_cli_args: list[str],
+    pid_environ: dict[str, str],
+) -> tuple[str | None, str | None]:
+    model_id = _model_arg_from_cli(raw_cli_args)
+    if model_id is None or not _looks_like_hf_repo_id(model_id):
+        return None, None
+    revision = _cli_option_value(raw_cli_args, "--revision")
+    return _resolve_cached_hf_snapshot(model_id, revision, pid_environ)
 
 
 def _override_vllm_model_arg(
@@ -612,7 +995,13 @@ def _parse_vllm_cli_input(
     try:
         parser = parser_cls(prog="vllm serve")
         parser = cli_args_mod.make_arg_parser(parser)
+        default_model = _parser_default_model(parser)
         parsed_ns = parser.parse_args(raw_cli_args)
+        _normalize_parsed_model_alias(
+            parsed_ns,
+            raw_cli_args,
+            default_model=default_model,
+        )
         parsed_cli = _to_jsonable(vars(parsed_ns))
     except SystemExit as exc:
         errors["input_cli_args_parse"] = repr(exc)
@@ -631,6 +1020,46 @@ def _parse_vllm_cli_input(
     except Exception as exc:
         errors["input_cli_args_parse"] = repr(exc)
         return parsed_cli, None
+
+
+def _parser_default_model(parser: argparse.ArgumentParser) -> Any:
+    try:
+        with _suppress_argparse_stderr():
+            parsed = parser.parse_args([])
+    except SystemExit:
+        return None
+    except Exception:
+        return None
+    return getattr(parsed, "model", None)
+
+
+@contextmanager
+def _suppress_argparse_stderr():
+    try:
+        old_stderr = sys.stderr
+        with open(os.devnull, "w", encoding="utf-8") as devnull:
+            sys.stderr = devnull
+            yield
+    finally:
+        sys.stderr = old_stderr
+
+
+def _normalize_parsed_model_alias(
+    parsed_ns: argparse.Namespace,
+    raw_cli_args: list[str],
+    *,
+    default_model: Any,
+) -> None:
+    model_tag = getattr(parsed_ns, "model_tag", None)
+    if model_tag is None:
+        return
+    if str(model_tag).strip() == "":
+        return
+    if _cli_option_value(raw_cli_args, "--model") is not None:
+        return
+    current_model = getattr(parsed_ns, "model", None)
+    if current_model is None or current_model == default_model:
+        setattr(parsed_ns, "model", model_tag)
 
 
 def _infer_usage_context_from_cmdline(cmdline: list[str]) -> str:
@@ -1428,6 +1857,7 @@ def _build_metadata(args: argparse.Namespace) -> dict[str, Any]:
             "pid": args.pid,
             "redact_pid_env": args.redact_pid_env,
             "model_path_override": getattr(args, "model_path_override", ""),
+            "fallback_command_line": getattr(args, "fallback_command_line", ""),
         },
     }
 
@@ -1476,6 +1906,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--fallback-command-line",
+        type=str,
+        default="",
+        help=(
+            "Original vLLM serve command line to use if the target PID is a "
+            "worker process whose /proc/<pid>/cmdline no longer contains the "
+            "serve arguments."
+        ),
+    )
+    parser.add_argument(
         "--effective-timeout-seconds",
         type=float,
         default=45,
@@ -1518,10 +1958,47 @@ def main() -> int:
         except Exception as exc:
             pid_cwd_error = repr(exc)
 
-        inferred_args, infer_warning = _infer_vllm_cli_args_from_cmdline(pid_cmdline)
+        requested_pid = args.pid
+        requested_cmdline = list(pid_cmdline)
+        requested_cwd = pid_cwd
+        resolution = _resolve_vllm_cli_process(
+            requested_pid=requested_pid,
+            requested_cmdline=requested_cmdline,
+            requested_cwd=requested_cwd,
+            fallback_command_line=getattr(args, "fallback_command_line", ""),
+        )
+        inferred_args = resolution.inferred_args
+        infer_warning = resolution.warning
+
+        if resolution.pid != requested_pid:
+            try:
+                pid_cmdline = _read_pid_cmdline(resolution.pid)
+                pid_environ = _read_pid_environ(resolution.pid)
+            except Exception as exc:
+                errors["pid.resolved_read"] = repr(exc)
+                pid_cmdline = resolution.cmdline
+            else:
+                pid_cwd = None
+                pid_cwd_error = None
+                try:
+                    pid_cwd = _read_pid_cwd(resolution.pid)
+                except Exception as exc:
+                    pid_cwd_error = repr(exc)
+        else:
+            pid_cmdline = resolution.cmdline
+
         inferred_usage_context = _infer_usage_context_from_cmdline(pid_cmdline)
         original_inferred_args = list(inferred_args)
         model_path_override = getattr(args, "model_path_override", "").strip()
+        model_path_override_source = "argument" if model_path_override else ""
+        if inferred_args and not model_path_override:
+            auto_override, auto_source = _auto_model_path_override_from_cache(
+                inferred_args,
+                pid_environ,
+            )
+            if auto_override:
+                model_path_override = auto_override
+                model_path_override_source = auto_source or "hf_cache"
         model_path_override_applied = False
         if inferred_args and model_path_override:
             inferred_args, model_path_override_applied = _override_vllm_model_arg(
@@ -1541,11 +2018,13 @@ def main() -> int:
         _force_platform_if_needed(pid_environ, errors)
 
         pid_process = {
-            "pid": args.pid,
+            "pid": resolution.pid,
             "cmdline": pid_cmdline,
             "inferred_vllm_cli_args": inferred_args,
             "inferred_usage_context": inferred_usage_context,
+            "cli_inference_source": resolution.source,
             "model_path_override": model_path_override,
+            "model_path_override_source": model_path_override_source,
             "model_path_override_applied": model_path_override_applied,
             "cwd": pid_cwd,
             "cwd_applied": pid_cwd_applied,
@@ -1555,6 +2034,15 @@ def main() -> int:
             "pid_env_applied": "allowlisted",
             "pid_env_applied_keys": applied_env_keys,
         }
+        if requested_pid != resolution.pid:
+            pid_process["requested_pid"] = requested_pid
+            pid_process["requested_cmdline"] = requested_cmdline
+            pid_process["requested_cwd"] = requested_cwd
+        fallback_command_line = getattr(args, "fallback_command_line", "").strip()
+        if fallback_command_line:
+            pid_process["fallback_command_line"] = fallback_command_line
+        if resolution.fallback_cmdline is not None:
+            pid_process["fallback_cmdline"] = resolution.fallback_cmdline
         if model_path_override_applied:
             pid_process["original_inferred_vllm_cli_args"] = original_inferred_args
         if pid_cwd_error is not None:
