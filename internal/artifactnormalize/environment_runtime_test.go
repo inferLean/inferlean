@@ -234,3 +234,92 @@ func TestNormalizeRuntimeConfigCarriesFlashinferPresence(t *testing.T) {
 		t.Fatalf("flashinfer_presence source = %q, want %q", got, want)
 	}
 }
+
+func TestNormalizeRuntimeConfigMultimodalRuntimeHints(t *testing.T) {
+	cases := []struct {
+		name            string
+		args            map[string]string
+		wantFlags       []string
+		wantMissing     bool
+		wantUnsupported bool
+	}{
+		{
+			name: "explicitly disabled by zero media limits",
+			args: map[string]string{
+				"limit-mm-per-prompt": `{"image":0, "video":0}`,
+			},
+			wantUnsupported: true,
+		},
+		{
+			name: "active image media limit",
+			args: map[string]string{
+				"limit-mm-per-prompt": `{"image":2, "video":0}`,
+			},
+			wantFlags: []string{"image-inputs"},
+		},
+		{
+			name: "empty default media limits are unknown",
+			args: map[string]string{
+				"limit-mm-per-prompt": `{}`,
+			},
+			wantMissing: true,
+		},
+		{
+			name: "malformed media limits are unknown",
+			args: map[string]string{
+				"limit-mm-per-prompt": `{`,
+			},
+			wantMissing: true,
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			input := Input{
+				Configurations: types.Configurations{
+					ParsedArgs: tc.args,
+				},
+			}
+
+			runtime := normalizeRuntimeConfig(input)
+
+			if got := runtime.MultimodalFlags; !sameStringSet(got, tc.wantFlags) {
+				t.Fatalf("MultimodalFlags = %#v, want %#v", got, tc.wantFlags)
+			}
+			if tc.wantUnsupported {
+				if contains(runtime.Coverage.MissingFields, "multimodal_runtime_hints") {
+					t.Fatalf("missing_fields includes multimodal_runtime_hints: %#v", runtime.Coverage.MissingFields)
+				}
+				if !contains(runtime.Coverage.UnsupportedFields, "multimodal_runtime_hints") {
+					t.Fatalf("unsupported_fields = %#v, want multimodal_runtime_hints", runtime.Coverage.UnsupportedFields)
+				}
+				return
+			}
+			if tc.wantMissing {
+				if !contains(runtime.Coverage.MissingFields, "multimodal_runtime_hints") {
+					t.Fatalf("missing_fields = %#v, want multimodal_runtime_hints", runtime.Coverage.MissingFields)
+				}
+				return
+			}
+			if !contains(runtime.Coverage.PresentFields, "multimodal_runtime_hints") {
+				t.Fatalf("present_fields = %#v, want multimodal_runtime_hints", runtime.Coverage.PresentFields)
+			}
+		})
+	}
+}
+
+func sameStringSet(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, value := range got {
+		seen[value] = true
+	}
+	for _, value := range want {
+		if !seen[value] {
+			return false
+		}
+	}
+	return true
+}

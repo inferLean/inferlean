@@ -69,7 +69,7 @@ func normalizeRuntimeConfig(input Input) contracts.RuntimeConfig {
 		ImageProcessor:        imageProcessorValue(args, input.UserIntent),
 		ValueSources:          runtimeValueSources(argSources, prefixCachingSource),
 	}
-	runtime.Coverage = runtimeCoverage(runtime)
+	runtime.Coverage = runtimeCoverage(runtime, input)
 	return runtime
 }
 
@@ -84,7 +84,7 @@ func runtimeHostPort(args map[string]string, endpoint string) (string, int) {
 	return host, port
 }
 
-func runtimeCoverage(runtime contracts.RuntimeConfig) contracts.SourceCoverage {
+func runtimeCoverage(runtime contracts.RuntimeConfig, input Input) contracts.SourceCoverage {
 	present := map[string]bool{}
 	appendPresent(present, "max_model_len", runtime.MaxModelLen > 0)
 	appendPresent(present, "max_num_batched_tokens", runtime.MaxNumBatchedTokens > 0)
@@ -105,7 +105,11 @@ func runtimeCoverage(runtime contracts.RuntimeConfig) contracts.SourceCoverage {
 	appendPresent(present, "flashinfer_presence", runtime.FlashinferPresent != nil)
 	appendPresent(present, "flash_attention_presence", runtime.FlashAttentionPresent != nil)
 	appendPresent(present, "image_processor", runtime.ImageProcessor != "")
-	return newCoverage(present, runtimeRequiredFields())
+	coverage := newCoverage(present, runtimeRequiredFields())
+	if multimodalRuntimeHintsUnsupported(runtime, input) {
+		coverage = markUnsupported(coverage, "multimodal_runtime_hints")
+	}
+	return coverage
 }
 
 func runtimeRequiredFields() []string {
@@ -202,12 +206,4 @@ func imageProcessorValue(args map[string]string, intent types.UserIntent) string
 		return "none"
 	}
 	return "unknown"
-}
-
-func buildMultimodalFlags(input Input) []string {
-	flags := []string{}
-	if input.UserIntent.Multimodal {
-		flags = append(flags, "multimodal")
-	}
-	return flags
 }

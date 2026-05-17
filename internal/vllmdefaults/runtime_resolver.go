@@ -205,9 +205,11 @@ func resolveFromDumpWithGeneratedFallback(
 		if err != nil {
 			return Output{}, err
 		}
+		out.AppliedDefaults += applyTrustedRuntimeObservedDefaults(&out, dump.EffectiveServeParameters)
 		return out, nil
 	}
 	warnings["defaults.generated_fallback"] = generatedFallbackReason(out.RuntimeEffectiveMode, err)
+	fallbackOut.AppliedDefaults += applyTrustedRuntimeObservedDefaults(&fallbackOut, dump.EffectiveServeParameters)
 	fallbackOut.RuntimeEffectiveMode = out.RuntimeEffectiveMode
 	return fallbackOut, nil
 }

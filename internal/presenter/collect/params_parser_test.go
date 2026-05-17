@@ -43,3 +43,12 @@ func TestParseVLLMArgsInfersPositionalModel(t *testing.T) {
 		t.Fatalf("port = %q", got["port"])
 	}
 }
+
+func TestParseVLLMArgsKeepsQuotedJSONFlag(t *testing.T) {
+	t.Parallel()
+	raw := `vllm serve Qwen/Qwen3.5-0.8B --limit-mm-per-prompt "{\"image\":0, \"video\":0}"`
+	got := parseVLLMArgs(raw)
+	if got["limit-mm-per-prompt"] != `{"image":0, "video":0}` {
+		t.Fatalf("limit-mm-per-prompt = %q", got["limit-mm-per-prompt"])
+	}
+}

@@ -271,6 +271,67 @@ func TestResolveFromDumpWithGeneratedFallbackUsesStaticDefaultsAndKeepsRuntimeFa
 	}
 }
 
+func TestResolveFromDumpWithGeneratedFallbackKeepsTrustedRuntimeObservedDefaults(t *testing.T) {
+	t.Parallel()
+
+	warnings := map[string]string{}
+	errors := map[string]string{}
+	out, err := resolveFromDumpWithGeneratedFallback(
+		Input{
+			RawCommandLine: "vllm serve model-a",
+			ExplicitArgs:   map[string]string{},
+			VLLMVersion:    "0.20.0",
+		},
+		runtimeDumpFile{
+			EffectiveServeParameters: map[string]any{
+				"_effective_mode":          "fallback",
+				"model":                    "model-a",
+				"flashinfer_present":       true,
+				"attention_backend":        "FLASH_ATTN",
+				"enable_chunked_prefill":   true,
+				"prefix_caching_hash_algo": "sha256",
+				"_sources": map[string]any{
+					"flashinfer_present":     "runtime_import.flashinfer",
+					"attention_backend":      "effective_engine_config.attention_backend",
+					"enable_chunked_prefill": "engine_args_from_input.enable_chunked_prefill",
+				},
+			},
+		},
+		warnings,
+		errors,
+		func(input Input) (Output, error) {
+			return Output{
+				Args: map[string]string{
+					"max-num-seqs": "256",
+				},
+				ArgSources: map[string]string{
+					"max-num-seqs": "profile_default",
+				},
+				SelectedModel:   "model-a",
+				AppliedDefaults: 1,
+			}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("resolveFromDumpWithGeneratedFallback() error = %v", err)
+	}
+	if got := out.Args["flashinfer-present"]; got != "true" {
+		t.Fatalf("flashinfer-present = %q, want trusted runtime import", got)
+	}
+	if got := out.ArgSources["flashinfer-present"]; got != "runtime_import.flashinfer" {
+		t.Fatalf("flashinfer-present source = %q, want runtime_import.flashinfer", got)
+	}
+	if _, ok := out.Args["attention-backend"]; ok {
+		t.Fatalf("attention-backend unexpectedly copied from fallback dump: %q", out.Args["attention-backend"])
+	}
+	if _, ok := out.Args["enable-chunked-prefill"]; ok {
+		t.Fatalf("enable-chunked-prefill unexpectedly copied from fallback dump: %q", out.Args["enable-chunked-prefill"])
+	}
+	if out.AppliedDefaults != 2 {
+		t.Fatalf("AppliedDefaults = %d, want generated default plus trusted runtime value", out.AppliedDefaults)
+	}
+}
+
 func TestResolveFromDumpWithGeneratedFallbackReportsFallbackFailure(t *testing.T) {
 	t.Parallel()
 
@@ -285,7 +346,11 @@ func TestResolveFromDumpWithGeneratedFallbackReportsFallbackFailure(t *testing.T
 		},
 		runtimeDumpFile{
 			EffectiveServeParameters: map[string]any{
-				"_effective_mode": "unavailable",
+				"_effective_mode":    "unavailable",
+				"flashinfer_present": false,
+				"_sources": map[string]any{
+					"flashinfer_present": "runtime_import.flashinfer",
+				},
 			},
 		},
 		warnings,
@@ -305,6 +370,9 @@ func TestResolveFromDumpWithGeneratedFallbackReportsFallbackFailure(t *testing.T
 	}
 	if errors["defaults.generated_fallback"] == "" {
 		t.Fatal("generated fallback failure was not reported")
+	}
+	if got := out.Args["flashinfer-present"]; got != "false" {
+		t.Fatalf("flashinfer-present = %q, want trusted runtime value", got)
 	}
 }
 
