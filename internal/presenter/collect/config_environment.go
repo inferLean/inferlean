@@ -34,6 +34,7 @@ type gpuSnapshot struct {
 
 func collectConfigEnvironment(
 	ctx context.Context,
+	showStep func(string),
 	target vllmdiscovery.Candidate,
 	vllmEndpoint string,
 	processIODir string,
@@ -55,6 +56,7 @@ func collectConfigEnvironment(
 		versionHint = inferVLLMVersionHint(ctx, target)
 	}
 	modelPathOverride := observedVLLMModelPath(promRes)
+	showBuildStep(showStep, "resolving vLLM defaults")
 	applyVLLMDefaults(ctx, &cfg, target, processIODir, rawCommandLine, versionHint, liveVersion, gpu, modelPathOverride)
 	return cfg
 }

@@ -24,11 +24,14 @@ type buildInput struct {
 	Sources          collectionSources
 	StaticNvidiaSMI  string
 	ProcessIODir     string
+	ShowStep         func(string)
 }
 
 func buildArtifact(ctx context.Context, in buildInput) (contracts.RunArtifact, error) {
-	env := collectConfigEnvironment(ctx, in.Target, in.Sources.vllmEndpoint, in.ProcessIODir, in.StaticNvidiaSMI, in.PromResult)
+	showBuildStep(in.ShowStep, "collecting runtime configuration")
+	env := collectConfigEnvironment(ctx, in.ShowStep, in.Target, in.Sources.vllmEndpoint, in.ProcessIODir, in.StaticNvidiaSMI, in.PromResult)
 	quality := buildQuality(in)
+	showBuildStep(in.ShowStep, "building artifact")
 	return artifactnormalize.Build(artifactnormalize.Input{
 		Job: artifactnormalize.JobInput{
 			RunID:            in.RunID,
@@ -55,6 +58,12 @@ func buildArtifact(ctx context.Context, in buildInput) (contracts.RunArtifact, e
 		UserIntent:        in.Intent,
 		CollectionQuality: quality,
 	})
+}
+
+func showBuildStep(show func(string), message string) {
+	if show != nil {
+		show(message)
+	}
 }
 
 func buildQuality(in buildInput) types.CollectionQuality {

@@ -135,6 +135,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 		Sources:          evidence.sources,
 		StaticNvidiaSMI:  evidence.staticSMI,
 		ProcessIODir:     paths.ProcessIO,
+		ShowStep:         p.collectView.ShowStep,
 	})
 	if err != nil {
 		return Result{}, err
@@ -217,11 +218,12 @@ func (p Presenter) collectEvidence(ctx context.Context, opts Options, paths runs
 	if ctx.Err() != nil {
 		return evidence{}, fmt.Errorf("collection interrupted")
 	}
-	p.collectView.ShowStep("collecting nvidia-smi process output")
+	p.collectView.ShowStep("collecting nvidia-smi snapshot")
 	staticSMI := readStaticNvidiaSMI(ctx)
 	if staticSMI != "" {
 		_, _ = p.pioStore.Save(paths.ProcessIO, "nvidia-smi-static.txt", []byte(staticSMI))
 	}
+	p.collectView.ShowStep("stopping local collectors")
 	stopAllSources()
 	return evidence{
 		promResult: promRes,

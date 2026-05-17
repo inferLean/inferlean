@@ -1,12 +1,16 @@
 package collect
 
 import (
+	"context"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/inferLean/inferlean-main/cli/internal/collectors/nvml"
 	promcollector "github.com/inferLean/inferlean-main/cli/internal/collectors/prometheus"
 	"github.com/inferLean/inferlean-main/cli/internal/exporters/nodeexporter"
+	"github.com/inferLean/inferlean-main/cli/internal/types"
+	"github.com/inferLean/inferlean-main/cli/internal/vllmdiscovery"
 )
 
 func TestSourceStatesExplainUnavailableHostMetrics(t *testing.T) {
@@ -61,6 +65,49 @@ func TestBuildQualityCarriesCollectionMetadataAndFallbacks(t *testing.T) {
 	}
 	if got, want := quality.SourceMetadata["gpu_telemetry"].Transport, "nvml_bridge"; got != want {
 		t.Fatalf("gpu transport = %q, want %q", got, want)
+	}
+}
+
+func TestBuildArtifactReportsPostCollectionSteps(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	var steps []string
+
+	_, err := buildArtifact(context.Background(), buildInput{
+		RunID:            "run-1",
+		InstallationID:   "install-1",
+		CollectorVersion: "test",
+		StartedAt:        now,
+		FinishedAt:       now.Add(time.Second),
+		Target: vllmdiscovery.Candidate{
+			RawCommandLine: "vllm serve test-model",
+		},
+		Intent: types.UserIntent{
+			DeclaredWorkloadMode:   "unknown",
+			DeclaredWorkloadTarget: "unknown",
+		},
+		PromResult: promcollector.Result{
+			SourceStatus: map[string]string{
+				"vllm":          "ok",
+				"node_exporter": "missing",
+				"nvml_bridge":   "missing",
+			},
+			ScrapeInterval: time.Second,
+		},
+		ShowStep: func(step string) {
+			steps = append(steps, step)
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildArtifact() error = %v", err)
+	}
+
+	want := []string{
+		"collecting runtime configuration",
+		"resolving vLLM defaults",
+		"building artifact",
+	}
+	if !reflect.DeepEqual(steps, want) {
+		t.Fatalf("steps = %#v, want %#v", steps, want)
 	}
 }
 
