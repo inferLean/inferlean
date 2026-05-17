@@ -25,6 +25,8 @@ type Options struct {
 
 type Result struct {
 	Report         map[string]any
+	Artifact       *contracts.RunArtifact
+	ArtifactPath   string
 	RunID          string
 	InstallationID string
 	Uploaded       bool
@@ -67,6 +69,8 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	}
 	p.uploadView.ShowUploadSuccess()
 	result := Result{
+		Artifact:       &artifact,
+		ArtifactPath:   artifactPath,
 		RunID:          ack.RunID,
 		InstallationID: ack.InstallationID,
 		Uploaded:       true,

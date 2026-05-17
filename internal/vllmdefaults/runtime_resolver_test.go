@@ -488,7 +488,12 @@ func TestRuntimePIDRequiresInternalPIDForDocker(t *testing.T) {
 func TestDumpScriptArgsIncludesModelPathOverride(t *testing.T) {
 	t.Parallel()
 
-	got := dumpScriptArgs(17, "/tmp/dump.json", " /models/snapshot ")
+	got := dumpScriptArgs(
+		17,
+		"/tmp/dump.json",
+		" /models/snapshot ",
+		" vllm serve google/gemma ",
+	)
 	want := []string{
 		"--pid",
 		"17",
@@ -496,6 +501,8 @@ func TestDumpScriptArgsIncludesModelPathOverride(t *testing.T) {
 		"/tmp/dump.json",
 		"--model-path-override",
 		"/models/snapshot",
+		"--fallback-command-line",
+		"vllm serve google/gemma",
 		"--effective-timeout-seconds",
 		"20",
 	}

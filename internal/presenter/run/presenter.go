@@ -82,6 +82,7 @@ func (p Presenter) Run(ctx context.Context, opts Options) (Result, error) {
 	}
 	reportOpts := opts.Report
 	reportOpts.Payload = uploadRes.Report
+	reportOpts.Artifact = uploadRes.Artifact
 	reportOpts.RunID = result.RunID
 	reportOpts.InstallationID = result.InstallationID
 	p.report.Run(reportOpts)

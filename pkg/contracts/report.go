@@ -5,16 +5,25 @@ import "time"
 const ReportSchemaVersion = "report-v5"
 
 type FinalReport struct {
-	SchemaVersion      string                  `json:"schema_version"`
-	Job                ReportJob               `json:"job"`
-	Entitlement        ReportEntitlement       `json:"entitlement"`
-	Environment        ReportEnvironment       `json:"environment"`
-	Diagnosis          DiagnosisSection        `json:"diagnosis"`
-	Saturation         SaturationReport        `json:"saturation"`
-	DiagnosticCoverage DiagnosticCoverage      `json:"diagnostic_coverage"`
-	Issues             []Issue                 `json:"issues,omitempty"`
-	Opportunities      []Opportunity           `json:"opportunities,omitempty"`
-	CollectionQuality  ReportCollectionQuality `json:"collection_quality"`
+	SchemaVersion          string                  `json:"schema_version"`
+	Job                    ReportJob               `json:"job"`
+	Entitlement            ReportEntitlement       `json:"entitlement"`
+	Environment            ReportEnvironment       `json:"environment"`
+	Diagnosis              DiagnosisSection        `json:"diagnosis"`
+	Saturation             SaturationReport        `json:"saturation"`
+	DiagnosticCoverage     DiagnosticCoverage      `json:"diagnostic_coverage"`
+	Issues                 []Issue                 `json:"issues,omitempty"`
+	Opportunities          []Opportunity           `json:"opportunities,omitempty"`
+	VLLMCommandReplacement *VLLMCommandReplacement `json:"vllm_command_replacement,omitempty"`
+	CollectionQuality      ReportCollectionQuality `json:"collection_quality"`
+}
+
+type VLLMCommandReplacement struct {
+	CurrentCommand     string   `json:"current_command"`
+	RecommendedCommand string   `json:"recommended_command,omitempty"`
+	AppliedActionIDs   []string `json:"applied_action_ids,omitempty"`
+	SkippedActionIDs   []string `json:"skipped_action_ids,omitempty"`
+	Warnings           []string `json:"warnings,omitempty"`
 }
 
 type ReportJob struct {

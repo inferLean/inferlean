@@ -131,6 +131,8 @@ func renderStructuredReport(report contracts.FinalReport, useColor bool) string 
 		writeKeyValue(&b, "Reason", fallback(base.NoSafeRecommendationReason, "-"), useColor)
 	}
 
+	renderCommandReplacement(&b, report.VLLMCommandReplacement, useColor)
+
 	writeSection(&b, "Opportunities", useColor)
 	if len(report.Opportunities) == 0 {
 		writeKeyValue(&b, "Top Opportunities", "-", useColor)
@@ -344,6 +346,23 @@ func renderFollowUpSteps(b *strings.Builder, steps []contracts.FollowUpStep, use
 			b.WriteString(colorize(useColor, reportDim, "     How: ") + how + "\n")
 		}
 	}
+}
+
+func renderCommandReplacement(b *strings.Builder, replacement *contracts.VLLMCommandReplacement, useColor bool) {
+	if replacement == nil {
+		return
+	}
+	if strings.TrimSpace(replacement.CurrentCommand) == "" &&
+		strings.TrimSpace(replacement.RecommendedCommand) == "" &&
+		len(replacement.Warnings) == 0 {
+		return
+	}
+	writeSection(b, "vLLM Command Replacement", useColor)
+	writeKeyValue(b, "Current Command", fallback(replacement.CurrentCommand, "-"), useColor)
+	writeKeyValue(b, "Recommended Command", fallback(replacement.RecommendedCommand, "-"), useColor)
+	writeKeyValue(b, "Applied Actions", joinOrDash(replacement.AppliedActionIDs), useColor)
+	writeKeyValue(b, "Skipped Actions", joinOrDash(replacement.SkippedActionIDs), useColor)
+	writeKeyValue(b, "Warnings", joinOrDash(replacement.Warnings), useColor)
 }
 
 func colorize(useColor bool, colorCode, text string) string {

@@ -38,6 +38,7 @@ type runtimeDumpFile struct {
 }
 
 type runtimePIDProcess struct {
+	PID                      int32  `json:"pid"`
 	ModelPathOverride        string `json:"model_path_override"`
 	ModelPathOverrideApplied bool   `json:"model_path_override_applied"`
 }
@@ -122,9 +123,15 @@ func ResolveFromRuntime(ctx context.Context, in RuntimeInput) (Output, error) {
 
 	out.RuntimeSource = execMeta.Source
 	out.RuntimePID = execMeta.PID
+	if dump.PIDProcess.PID > 0 {
+		out.RuntimePID = dump.PIDProcess.PID
+	}
 	out.RuntimeDumpPath = dumpPath
 	out.RuntimeScriptPath = scriptPath
 	out.RuntimeModelPath = modelPathOverride
+	if out.RuntimeModelPath == "" {
+		out.RuntimeModelPath = strings.TrimSpace(dump.PIDProcess.ModelPathOverride)
+	}
 	out.RuntimeWarnings = flattenStatusMap(statusWarnings)
 	out.RuntimeErrors = flattenStatusMap(statusErrors)
 	if strings.TrimSpace(dump.Metadata.VLLMVersion) != "" {

@@ -71,7 +71,7 @@ func runPythonInDocker(ctx context.Context, target shared.Candidate, containerID
 			py,
 			remoteScriptPath,
 		}
-		args = append(args, dumpScriptArgs(pid, remoteDumpPath, modelPathOverride)...)
+		args = append(args, dumpScriptArgs(pid, remoteDumpPath, modelPathOverride, target.RawCommandLine)...)
 		return "docker", args
 	})
 }
@@ -115,7 +115,7 @@ func podContainerName(executable string) string {
 func runPythonInPod(ctx context.Context, target shared.Candidate, namespace, podName, container string, pid int32, modelPathOverride string) error {
 	return runPythonCandidates(ctx, "in pod", pythonCandidates(target, pid), func(py string) (string, []string) {
 		command := []string{py, remoteScriptPath}
-		command = append(command, dumpScriptArgs(pid, remoteDumpPath, modelPathOverride)...)
+		command = append(command, dumpScriptArgs(pid, remoteDumpPath, modelPathOverride, target.RawCommandLine)...)
 		return "kubectl", kubectlExecArgs(namespace, podName, container, command...)
 	})
 }
@@ -172,12 +172,12 @@ func runtimePID(target shared.Candidate, source string) (int32, error) {
 func runPythonLocal(ctx context.Context, target shared.Candidate, scriptPath string, pid int32, dumpPath string, modelPathOverride string) error {
 	return runPythonCandidates(ctx, "on host", pythonCandidates(target, pid), func(py string) (string, []string) {
 		args := []string{scriptPath}
-		args = append(args, dumpScriptArgs(pid, dumpPath, modelPathOverride)...)
+		args = append(args, dumpScriptArgs(pid, dumpPath, modelPathOverride, target.RawCommandLine)...)
 		return py, args
 	})
 }
 
-func dumpScriptArgs(pid int32, dumpPath string, modelPathOverride string) []string {
+func dumpScriptArgs(pid int32, dumpPath string, modelPathOverride string, fallbackCommandLine string) []string {
 	args := []string{
 		"--pid",
 		strconv.Itoa(int(pid)),
@@ -186,6 +186,9 @@ func dumpScriptArgs(pid int32, dumpPath string, modelPathOverride string) []stri
 	}
 	if override := strings.TrimSpace(modelPathOverride); override != "" {
 		args = append(args, "--model-path-override", override)
+	}
+	if fallback := strings.TrimSpace(fallbackCommandLine); fallback != "" {
+		args = append(args, "--fallback-command-line", fallback)
 	}
 	args = append(
 		args,

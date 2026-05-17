@@ -75,6 +75,31 @@ func TestFinalReportValidateAcceptsFollowUpStepsWithoutDelta(t *testing.T) {
 	}
 }
 
+func TestFinalReportValidateAcceptsVLLMCommandReplacement(t *testing.T) {
+	report := validFinalReport()
+	report.VLLMCommandReplacement = &VLLMCommandReplacement{
+		CurrentCommand:     "vllm serve Qwen/Qwen3 --max-num-seqs 64",
+		RecommendedCommand: "vllm serve Qwen/Qwen3 --max-num-seqs 128",
+		AppliedActionIDs:   []string{"action:set-max-num-seqs"},
+	}
+
+	if err := report.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestFinalReportValidateAcceptsWarningOnlyVLLMCommandReplacement(t *testing.T) {
+	report := validFinalReport()
+	report.VLLMCommandReplacement = &VLLMCommandReplacement{
+		CurrentCommand: "vllm serve Qwen/Qwen3",
+		Warnings:       []string{"No safe one-line replacement command could be generated."},
+	}
+
+	if err := report.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestFinalReportValidateRequiresRankOneIssue(t *testing.T) {
 	report := validFinalReport()
 	report.Issues[0].Rank = 2
@@ -165,6 +190,29 @@ func TestFinalReportJSONOmitsRemovedTargetOverlay(t *testing.T) {
 	}
 	if _, ok := base["recommendation"]; ok {
 		t.Fatalf("final report JSON includes removed base_diagnosis.recommendation field: %s", rendered)
+	}
+}
+
+func TestFinalReportJSONIncludesVLLMCommandReplacementWhenPopulated(t *testing.T) {
+	report := validFinalReport()
+	report.VLLMCommandReplacement = &VLLMCommandReplacement{
+		CurrentCommand:     "vllm serve Qwen/Qwen3 --max-num-seqs 64",
+		RecommendedCommand: "vllm serve Qwen/Qwen3 --max-num-seqs 128",
+		AppliedActionIDs:   []string{"action:set-max-num-seqs"},
+		SkippedActionIDs:   []string{"action:right-size-gpu-capacity"},
+		Warnings:           []string{"Skipped non-command recommendation actions."},
+	}
+
+	payload, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	rendered := string(payload)
+	if !strings.Contains(rendered, `"vllm_command_replacement"`) {
+		t.Fatalf("final report JSON omits vllm_command_replacement field: %s", rendered)
+	}
+	if !strings.Contains(rendered, `"recommended_command":"vllm serve Qwen/Qwen3 --max-num-seqs 128"`) {
+		t.Fatalf("final report JSON omits recommended command: %s", rendered)
 	}
 }
 

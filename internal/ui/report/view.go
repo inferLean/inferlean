@@ -14,6 +14,7 @@ type View struct{}
 
 type RenderOptions struct {
 	BackendURL     string
+	Artifact       *contracts.RunArtifact
 	RunID          string
 	InstallationID string
 	NonInteractive bool
@@ -99,7 +100,7 @@ func runReportTUI(report contracts.FinalReport, identity reportIdentity, opts Re
 	if err := report.Validate(); err != nil {
 		validationWarning = "Schema validation warning: " + err.Error()
 	}
-	vm := buildReportViewModel(report, identity, opts.BackendURL, time.Now().UTC(), validationWarning)
+	vm := buildReportViewModelWithArtifact(report, identity, opts.BackendURL, opts.Artifact, time.Now().UTC(), validationWarning)
 	program := tea.NewProgram(newReportModel(vm), tea.WithAltScreen())
 	_, err := program.Run()
 	return err

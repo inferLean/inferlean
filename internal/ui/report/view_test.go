@@ -29,6 +29,13 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 			},
 		},
 		"saturation": saturationPayload(),
+		"vllm_command_replacement": map[string]any{
+			"current_command":     "vllm serve Qwen/Qwen3 --max-num-seqs 64",
+			"recommended_command": "vllm serve Qwen/Qwen3 --max-num-seqs 128",
+			"applied_action_ids":  []string{"action:set-max-num-seqs"},
+			"skipped_action_ids":  []string{"action:right-size-gpu-capacity"},
+			"warnings":            []string{"Skipped non-command recommendation actions."},
+		},
 		"opportunities": []map[string]any{{
 			"id":          "opportunity:quantized_model_opportunity",
 			"rank":        1,
@@ -93,6 +100,9 @@ func TestFormatReportForDisplayStructured(t *testing.T) {
 	}
 	if !strings.Contains(content, "Follow-up Steps") || !strings.Contains(content, "Rerun at the same offered load") {
 		t.Fatalf("formatted report missing follow-up steps: %s", content)
+	}
+	if !strings.Contains(content, "vLLM Command Replacement") || !strings.Contains(content, "vllm serve Qwen/Qwen3 --max-num-seqs 128") {
+		t.Fatalf("formatted report missing command replacement: %s", content)
 	}
 	if !strings.Contains(content, "Opportunities") || !strings.Contains(content, "Qwen/Qwen3-32B-FP8") {
 		t.Fatalf("formatted report missing quantization opportunity: %s", content)

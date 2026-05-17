@@ -2,6 +2,7 @@ package report
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,17 +13,21 @@ import (
 func TestBuildReportViewModelIncludesDashboardParityCards(t *testing.T) {
 	t.Parallel()
 	report := fullReportFixture()
-	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+	artifact := fullArtifactFixture()
+	vm := buildReportViewModelWithArtifact(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, &artifact, time.Unix(1700000200, 0).UTC(), "")
 
 	var ids []string
 	for _, card := range vm.cards {
 		ids = append(ids, card.id)
 	}
 	want := []string{
-		"verdict",
-		"primary-recommendation",
-		"opportunities",
-		"issues",
+		"top-issue-1",
+		"top-issue-2",
+		"saturation",
+		"top-opportunity-1",
+		"top-opportunity-2",
+		"ranked-opportunities",
+		"ranked-issues",
 		"evidence",
 		"collection-quality",
 	}
@@ -32,11 +37,11 @@ func TestBuildReportViewModelIncludesDashboardParityCards(t *testing.T) {
 	if vm.browserURL == "" {
 		t.Fatal("expected browser URL when identity is complete")
 	}
-	if got := vm.cards[3].sections[0].table; got == nil || len(got.rows) == 0 {
-		t.Fatal("issues card should include table rows")
+	if got := vm.cards[6].sections[0].table; got == nil || len(got.rows) != len(report.Issues) {
+		t.Fatal("ranked issues card should include all table rows")
 	}
-	if got := vm.cards[4].tabs; len(got) != 4 {
-		t.Fatalf("evidence tabs = %d, want 4", len(got))
+	if got := vm.cards[7].tabs; len(got) != 3 {
+		t.Fatalf("evidence tabs = %d, want 3", len(got))
 	}
 }
 
@@ -47,7 +52,7 @@ func TestBuildReportViewModelOmitsOptionalCardsWhenDataMissing(t *testing.T) {
 
 	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 	for _, card := range vm.cards {
-		if card.id == "opportunities" {
+		if card.id == "ranked-opportunities" || strings.HasPrefix(card.id, "top-opportunity-") {
 			t.Fatalf("unexpected optional card present: %s", card.id)
 		}
 	}
@@ -71,44 +76,37 @@ func TestBuildReportViewModelCarriesValidationWarning(t *testing.T) {
 	}
 }
 
-func TestBuildReportViewModelKeepsVerdictCardConcise(t *testing.T) {
+func TestBuildReportViewModelKeepsTopIssueRecommendationFocused(t *testing.T) {
 	t.Parallel()
 	report := fullReportFixture()
 	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 
-	lines := vm.cards[0].sections[0].lines
-	want := []string{
-		"Headline: Top issue: KV pressure",
-		"Top Issue: KV pressure",
-		"Summary: The service is load-bearing enough to trust throughput guidance.",
-	}
-	if !slices.Equal(lines, want) {
-		t.Fatalf("verdict lines = %v, want %v", lines, want)
-	}
-}
-
-func TestBuildReportViewModelKeepsPrimaryRecommendationFocused(t *testing.T) {
-	t.Parallel()
-	report := fullReportFixture()
-	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
-
-	if len(vm.cards[1].sections) != 3 {
-		t.Fatalf("primary recommendation sections = %d, want 3", len(vm.cards[1].sections))
-	}
-	lines := vm.cards[1].sections[0].lines
+	lines := vm.cards[0].sections[1].lines
 	want := []string{
 		"Title: Reduce KV footprint",
+		"Decision: reduce_kv_footprint",
 		"Rationale: This unlocks safer scheduler headroom before any throughput tuning.",
+		"Confidence: high",
 		"Projected Effect: Likely improvement: +8% to +15% throughput.",
 	}
 	if !slices.Equal(lines, want) {
-		t.Fatalf("primary recommendation summary lines = %v, want %v", lines, want)
+		t.Fatalf("top issue recommendation lines = %v, want %v", lines, want)
 	}
-	projectedLines := vm.cards[1].sections[1].lines
+}
+
+func TestBuildReportViewModelKeepsRecommendationDetailsComplete(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+
+	if len(vm.cards[0].sections) != 5 {
+		t.Fatalf("top recommendation sections = %d, want 5", len(vm.cards[0].sections))
+	}
+	projectedLines := vm.cards[0].sections[3].lines
 	if !slices.Contains(projectedLines, "Request Throughput: request_throughput 4.80 req/s -> 5.28 req/s (+10.0%)") {
 		t.Fatalf("projected effect lines = %v, want request throughput projection", projectedLines)
 	}
-	actionLines := vm.cards[1].sections[2].lines
+	actionLines := vm.cards[0].sections[2].lines
 	if slices.Contains(actionLines, "   How: Keep prompt mix and concurrency stable.") {
 		t.Fatalf("action lines should not include how text: %v", actionLines)
 	}
@@ -117,12 +115,36 @@ func TestBuildReportViewModelKeepsPrimaryRecommendationFocused(t *testing.T) {
 	}
 }
 
+func TestBuildReportViewModelIncludesVLLMCommandReplacement(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	report.VLLMCommandReplacement = &contracts.VLLMCommandReplacement{
+		CurrentCommand:     "vllm serve Qwen/Qwen3 --max-num-seqs=64",
+		RecommendedCommand: "vllm serve Qwen/Qwen3 --max-num-seqs=128",
+		AppliedActionIDs:   []string{"action:set-max-num-seqs"},
+		SkippedActionIDs:   []string{"action:right-size-gpu-capacity"},
+		Warnings:           []string{"Skipped non-command recommendation actions."},
+	}
+
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+	card := vm.cards[2]
+	if got, want := card.id, "vllm-command-replacement"; got != want {
+		t.Fatalf("card id = %q, want %q", got, want)
+	}
+	if !sectionContains(card.sections, "vllm serve Qwen/Qwen3 --max-num-seqs=128") {
+		t.Fatalf("command card missing recommended command: %#v", card.sections)
+	}
+	if !sectionContains(card.sections, "action:right-size-gpu-capacity") {
+		t.Fatalf("command card missing skipped action ids: %#v", card.sections)
+	}
+}
+
 func TestBuildReportViewModelUsesRecommendationProjectedEffect(t *testing.T) {
 	t.Parallel()
 	report := fullReportFixture()
 	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 
-	lines := vm.cards[1].sections[1].lines
+	lines := vm.cards[0].sections[3].lines
 	want := []string{
 		"Latency: latency_e2e_seconds 1.40 s -> 1.40 s (+0.0%)",
 		"Request Throughput: request_throughput 4.80 req/s -> 5.28 req/s (+10.0%)",
@@ -133,13 +155,31 @@ func TestBuildReportViewModelUsesRecommendationProjectedEffect(t *testing.T) {
 	}
 }
 
+func TestBuildReportViewModelKeepsAllRankedRecommendationDetails(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+
+	rankedOpportunities := vm.cards[5]
+	if !sectionContains(rankedOpportunities.sections, "Validate prefix caching") {
+		t.Fatalf("ranked opportunities missing secondary recommendation detail: %#v", rankedOpportunities.sections)
+	}
+	rankedIssues := vm.cards[6]
+	if !sectionContains(rankedIssues.sections, "Increase batching posture") {
+		t.Fatalf("ranked issues missing secondary recommendation detail: %#v", rankedIssues.sections)
+	}
+	if !sectionContains(rankedIssues.sections, "runtime_config.max_model_len") {
+		t.Fatalf("ranked issues missing evidence references: %#v", rankedIssues.sections)
+	}
+}
+
 func TestBuildReportViewModelKeepsQuantizationAsOpportunity(t *testing.T) {
 	t.Parallel()
 	report := fullReportFixture()
 	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
 
-	card := vm.cards[2]
-	if got, want := card.id, "opportunities"; got != want {
+	card := vm.cards[3]
+	if got, want := card.id, "top-opportunity-1"; got != want {
 		t.Fatalf("card id = %q, want %q", got, want)
 	}
 	if len(card.sections) < 3 {
@@ -149,164 +189,85 @@ func TestBuildReportViewModelKeepsQuantizationAsOpportunity(t *testing.T) {
 		"Title: Evaluate quantization next",
 		"Rationale: Treat quantization as a ranked opportunity.",
 	}
-	if !slices.Equal(card.sections[1].lines, want) {
-		t.Fatalf("opportunity recommendation lines = %v, want %v", card.sections[1].lines, want)
+	got := []string{card.sections[1].lines[0], card.sections[1].lines[2]}
+	if !slices.Equal(got, want) {
+		t.Fatalf("opportunity recommendation lines = %v, want %v", got, want)
 	}
 }
 
-func fullReportFixture() contracts.FinalReport {
-	reportedAt := time.Unix(1700000100, 0).UTC()
-	collectedAt := time.Unix(1700000000, 0).UTC()
-	return contracts.FinalReport{
-		SchemaVersion: contracts.ReportSchemaVersion,
-		Job: contracts.ReportJob{
-			RunID:                 "run-123",
-			InstallationID:        "inst-123",
-			CollectorVersion:      "0.2.0",
-			ArtifactSchemaVersion: contracts.SchemaVersion,
-			CollectedAt:           collectedAt,
-			ReportedAt:            reportedAt,
-		},
-		Entitlement: contracts.ReportEntitlement{Tier: "paid"},
-		Environment: contracts.ReportEnvironment{
-			Host:               "gpu-host-1",
-			OS:                 "ubuntu",
-			Kernel:             "6.8",
-			CPUModel:           "AMD EPYC",
-			CPUCores:           64,
-			MemoryBytes:        256 * 1024 * 1024 * 1024,
-			GPUModel:           "H100",
-			GPUCount:           8,
-			DriverVersion:      "550",
-			RuntimeVersion:     "python-3.12",
-			VLLMVersion:        "0.8.4",
-			TorchVersion:       "2.4",
-			CUDARuntimeVersion: "12.4",
-			Model:              "Qwen/Qwen3-32B",
-			ServedModelName:    "Qwen3-32B",
-		},
-		Diagnosis: contracts.DiagnosisSection{
-			BaseDiagnosis: contracts.BaseDiagnosis{
-				WorkloadSummary: contracts.WorkloadSummary{
-					DeclaredWorkloadMode:  "throughput",
-					ObservedWorkloadShape: "steady multi-user chat",
-					ConfiguredPosture:     "conservative",
-					Summary:               "Observed batching remains conservative under sustained load.",
-				},
-				RealLoadSummary: contracts.RealLoadSummary{
-					ComputePressure: "medium",
-					KVPressure:      "high",
-					Summary:         "The service is load-bearing enough to trust throughput guidance.",
-				},
-				Confidence: "high",
-			},
-		},
-		DiagnosticCoverage: contracts.DiagnosticCoverage{
-			Summary: contracts.DiagnosticCoverageSummary{
-				CoverageStatus: "complete",
-			},
-		},
-		Issues: []contracts.Issue{{
-			ID:         "issue:kv_pressure_preemption_or_swap",
-			Rank:       1,
-			DetectorID: "kv_pressure_preemption_or_swap",
-			Family:     "kv_footprint_heavy",
-			Label:      "KV pressure",
-			Confidence: "high",
-			Recommendation: &contracts.Recommendation{
-				Decision:        "reduce_kv_footprint",
-				Title:           "Reduce KV footprint",
-				Rationale:       "This unlocks safer scheduler headroom before any throughput tuning.",
-				Confidence:      "high",
-				ProjectedEffect: projectedEffectFixture("Likely improvement: +8% to +15% throughput."),
-				Actions: []contracts.Action{{
-					ID:            "action:reduce-max-model-len",
-					Title:         "Reduce `--max-model-len`",
-					CurrentValue:  "8192",
-					ProposedValue: "4096",
-					Why:           "Free KV headroom before increasing scheduler aggressiveness.",
-					Risk:          "Shorter maximum context for some requests.",
-				}},
-				FollowUpSteps: []contracts.FollowUpStep{{
-					ID:    "action:rerun",
-					Title: "Rerun under the same load",
-					How:   "Keep prompt mix and concurrency stable.",
-				}},
-			},
-		}},
-		Opportunities: []contracts.Opportunity{{
-			ID:         "opportunity:quantization",
-			Rank:       1,
-			DetectorID: "quantized_model_opportunity",
-			Category:   "model_optimization",
-			Title:      "Evaluate quantization next",
-			Recommendation: &contracts.Recommendation{
-				Decision:        "evaluate_quantization",
-				Title:           "Evaluate quantization next",
-				Rationale:       "Treat quantization as a ranked opportunity.",
-				ProjectedEffect: projectedEffectFixture("Likely improvement: +5% to +10% latency."),
-			},
-		}},
-		CollectionQuality: contracts.ReportCollectionQuality{
-			Completeness:            0.93,
-			TelemetryMode:           "prometheus",
-			SelectedGPUPath:         "nvml_bridge",
-			Summary:                 "GPU, host, and vLLM metrics were all collected.",
-			ConfidenceImpactSummary: "Low confidence impact.",
-			MissingEvidence:         []string{"none"},
-			SourceStates: map[string]contracts.SourceState{
-				"vllm_metrics": {Status: "ok"},
-			},
-		},
+func TestBuildReportViewModelSaturationShowsMissingEvidence(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+
+	card := vm.cards[2]
+	if got, want := card.id, "saturation"; got != want {
+		t.Fatalf("card id = %q, want %q", got, want)
+	}
+	rows := card.sections[1].table.rows
+	if !slices.Contains(rows[1], "metrics.gpu.sm_active") {
+		t.Fatalf("saturation rows should show missing evidence: %v", rows)
 	}
 }
 
-func projectedEffectFixture(summary string) contracts.ProjectedEffect {
-	currentLatency := 1.4
-	projectedLatency := 1.4
-	latencyDelta := 0.0
-	latencyPercent := 0.0
-	currentRequests := 4.8
-	projectedRequests := 5.28
-	requestDelta := projectedRequests - currentRequests
-	requestPercent := 10.0
-	currentOutput := 256.0
-	projectedOutput := 281.6
-	outputDelta := projectedOutput - currentOutput
-	outputPercent := 10.0
-	return contracts.ProjectedEffect{
-		Summary: summary,
-		Latency: contracts.ProjectedMetricEffect{
-			Metric:       "latency_e2e_seconds",
-			Unit:         "s",
-			Current:      &currentLatency,
-			Projected:    &projectedLatency,
-			Delta:        &latencyDelta,
-			PercentDelta: &latencyPercent,
-			Direction:    "lower_is_better",
-			Confidence:   "medium",
-		},
-		Throughput: contracts.ProjectedThroughputEffect{
-			Requests: contracts.ProjectedMetricEffect{
-				Metric:       "request_throughput",
-				Unit:         "req/s",
-				Current:      &currentRequests,
-				Projected:    &projectedRequests,
-				Delta:        &requestDelta,
-				PercentDelta: &requestPercent,
-				Direction:    "higher_is_better",
-				Confidence:   "medium",
-			},
-			OutputTokens: contracts.ProjectedMetricEffect{
-				Metric:       "generation_tokens_per_second",
-				Unit:         "tok/s",
-				Current:      &currentOutput,
-				Projected:    &projectedOutput,
-				Delta:        &outputDelta,
-				PercentDelta: &outputPercent,
-				Direction:    "higher_is_better",
-				Confidence:   "medium",
-			},
-		},
+func TestBuildReportViewModelUsesArtifactEvidenceWithoutTelemetryTabs(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	artifact := fullArtifactFixture()
+	vm := buildReportViewModelWithArtifact(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, &artifact, time.Unix(1700000200, 0).UTC(), "")
+
+	evidence := vm.cards[7]
+	var tabTitles []string
+	for _, tab := range evidence.tabs {
+		tabTitles = append(tabTitles, tab.title)
 	}
+	if !slices.Equal(tabTitles, []string{"config", "environment", "process"}) {
+		t.Fatalf("evidence tabs = %v, want config/environment/process only", tabTitles)
+	}
+	configRows := evidence.tabs[0].sections[0].table.rows
+	if !rowWith(configRows, "max_model_len", "8192", "cited") {
+		t.Fatalf("runtime config rows should include cited max_model_len: %v", configRows)
+	}
+	processLines := strings.Join(evidence.tabs[2].sections[0].lines, "\n")
+	if !strings.Contains(processLines, "python -m vllm.entrypoints.openai.api_server") {
+		t.Fatalf("process tab missing command line: %s", processLines)
+	}
+}
+
+func TestBuildReportViewModelFallsBackWhenArtifactMissing(t *testing.T) {
+	t.Parallel()
+	report := fullReportFixture()
+	vm := buildReportViewModel(report, reportIdentity{runID: report.Job.RunID, installationID: report.Job.InstallationID}, defaults.AppBaseURL, time.Unix(1700000200, 0).UTC(), "")
+
+	evidence := vm.cards[7]
+	if got := evidence.tabs[0].sections[0].lines[0]; !strings.Contains(got, "Runtime config evidence is unavailable") {
+		t.Fatalf("missing report-only fallback message: %q", got)
+	}
+}
+
+func rowWith(rows [][]string, values ...string) bool {
+	for _, row := range rows {
+		ok := true
+		for i, value := range values {
+			if i >= len(row) || row[i] != value {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
+func sectionContains(sections []reportSectionViewModel, needle string) bool {
+	for _, section := range sections {
+		for _, line := range section.lines {
+			if strings.Contains(line, needle) {
+				return true
+			}
+		}
+	}
+	return false
 }

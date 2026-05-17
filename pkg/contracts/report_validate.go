@@ -27,8 +27,24 @@ func (r FinalReport) Validate() error {
 	errs = append(errs, validateOpportunities(r.Opportunities)...)
 	errs = append(errs, validateSaturation(r.Saturation)...)
 	errs = append(errs, validateReportCoverage(r.DiagnosticCoverage)...)
+	errs = append(errs, validateVLLMCommandReplacement(r.VLLMCommandReplacement)...)
 
 	return errors.Join(errs...)
+}
+
+func validateVLLMCommandReplacement(replacement *VLLMCommandReplacement) []error {
+	if replacement == nil {
+		return nil
+	}
+
+	var errs []error
+	if strings.TrimSpace(replacement.CurrentCommand) == "" {
+		errs = append(errs, errors.New("vllm_command_replacement.current_command is required"))
+	}
+	if strings.TrimSpace(replacement.RecommendedCommand) == "" && len(replacement.Warnings) == 0 {
+		errs = append(errs, errors.New("vllm_command_replacement.recommended_command or warnings is required"))
+	}
+	return errs
 }
 
 func validateSaturation(s SaturationReport) []error {

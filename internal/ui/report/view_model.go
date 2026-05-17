@@ -42,10 +42,14 @@ type reportTableViewModel struct {
 }
 
 func buildReportViewModel(report contracts.FinalReport, identity reportIdentity, backendURL string, now time.Time, validationWarning string) reportViewModel {
+	return buildReportViewModelWithArtifact(report, identity, backendURL, nil, now, validationWarning)
+}
+
+func buildReportViewModelWithArtifact(report contracts.FinalReport, identity reportIdentity, backendURL string, artifact *contracts.RunArtifact, now time.Time, validationWarning string) reportViewModel {
 	vm := reportViewModel{
 		headerChips:       buildHeaderChips(report),
-		footerChips:       buildFooterChips(report, now),
-		cards:             buildReportCards(report),
+		footerChips:       buildFooterChips(report, artifact, now),
+		cards:             buildReportCards(report, artifact),
 		validationWarning: strings.TrimSpace(validationWarning),
 	}
 	if url, ok := ReportURL(backendURL, identity.installationID, identity.runID); ok {
@@ -69,28 +73,45 @@ func buildHeaderChips(report contracts.FinalReport) []string {
 	return chips
 }
 
-func buildFooterChips(report contracts.FinalReport, now time.Time) []string {
+func buildFooterChips(report contracts.FinalReport, artifact *contracts.RunArtifact, now time.Time) []string {
+	artifactSchema := report.Job.ArtifactSchemaVersion
+	if artifact != nil && strings.TrimSpace(artifact.SchemaVersion) != "" {
+		artifactSchema = artifact.SchemaVersion
+	}
 	chips := []string{
-		"collector " + fallback(report.Job.CollectorVersion, "-"),
-		"artifact " + fallback(report.Job.ArtifactSchemaVersion, "-"),
+		"report schema " + fallback(report.SchemaVersion, "unknown"),
+		"artifact schema " + fallback(artifactSchema, "-"),
 		"rendered " + formatTime(now),
 	}
-	if installationID := strings.TrimSpace(report.Job.InstallationID); installationID != "" {
+	installationID := strings.TrimSpace(report.Job.InstallationID)
+	if artifact != nil && installationID == "" {
+		installationID = strings.TrimSpace(artifact.Job.InstallationID)
+	}
+	if installationID != "" {
 		chips = append(chips, "installation "+installationID)
 	}
 	return chips
 }
 
-func buildReportCards(report contracts.FinalReport) []reportCardViewModel {
-	cards := []reportCardViewModel{
-		buildVerdictCard(report),
-		buildRecommendationCard(report),
-	}
-	if card, ok := buildOpportunitiesCard(report); ok {
+func buildReportCards(report contracts.FinalReport, artifact *contracts.RunArtifact) []reportCardViewModel {
+	issues := displayIssues(report)
+	opportunities := displayOpportunities(report)
+
+	cards := buildTopIssueRecommendationCards(issues)
+	if card, ok := buildVLLMCommandReplacementCard(report.VLLMCommandReplacement); ok {
 		cards = append(cards, card)
 	}
-	cards = append(cards, buildIssuesCard(report))
-	cards = append(cards, buildEvidenceCard(report))
-	cards = append(cards, buildCollectionQualityCard(report))
+	if card, ok := buildSaturationCard(report); ok {
+		cards = append(cards, card)
+	}
+	cards = append(cards, buildTopOpportunityRecommendationCards(opportunities)...)
+	if card, ok := buildRankedOpportunitiesCard(opportunities, artifact); ok {
+		cards = append(cards, card)
+	}
+	if card, ok := buildRankedIssuesCard(issues, artifact); ok {
+		cards = append(cards, card)
+	}
+	cards = append(cards, buildEvidenceCard(report, artifact))
+	cards = append(cards, buildCollectionQualityCard(report, artifact))
 	return cards
 }

@@ -45,6 +45,7 @@ func newUploadCommand() *cobra.Command {
 			application.report.Run(reportpresenter.Options{
 				BackendURL:     application.backendURL,
 				Payload:        result.Report,
+				Artifact:       result.Artifact,
 				RunID:          result.RunID,
 				InstallationID: result.InstallationID,
 				NonInteractive: application.nonInteractive,
